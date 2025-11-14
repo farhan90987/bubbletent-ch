@@ -27,7 +27,7 @@ if ($_payment_option == "pay_cash") {
 	$payment_method = 'cod';
 }
 
-$show_contact = (get_option('lock_contact_info_to_paid_bookings')) ? false : true;
+$show_contact = (get_option('listeo_lock_contact_info_to_paid_bookings')) ? false : true;
 
 switch ($data->status) {
 	case 'waiting':
@@ -147,10 +147,10 @@ if ($data->status != 'paid' && isset($data->order_id) && !empty($data->order_id)
 						//get post type to show proper date
 						$listing_type = get_post_meta($data->listing_id, '_listing_type', true);
 
-						if ($listing_type == 'rental') { ?>
+						if (listeo_core_listing_type_supports($listing_type, 'date_range_booking')) { ?>
 							<li class="highlighted" id="date"><?php echo date_i18n(get_option('date_format'), strtotime($data->date_start)); ?> - <?php echo date_i18n(get_option('date_format'), strtotime($data->date_end)); ?></li>
 
-						<?php } else if ($listing_type == 'service') {
+						<?php } else if (listeo_core_listing_type_supports($listing_type, 'time_slots')) {
 						?>
 							<li class="highlighted" id="date">
 								<?php echo date_i18n(get_option('date_format'), strtotime($data->date_start)); ?> <?php esc_html_e('at', 'listeo_core'); ?>
@@ -210,24 +210,52 @@ if ($data->status != 'paid' && isset($data->order_id) && !empty($data->order_id)
 
 
 				if (
-					(isset($details->childrens) && $details->childrens > 0)
+					(isset($details->children) && $details->children > 0)
 					||
 					(isset($details->adults) && $details->adults > 0)
 					||
 					(isset($details->tickets) && $details->tickets > 0)
-				) { ?>
+				) {
+					$has_children = false;
+					if (isset($details->children) && $details->children > 0) {
+						$has_children = true;
+					} ?>
 					<div class="inner-booking-list">
 						<h5><?php esc_html_e('Booking Details:', 'listeo_core'); ?></h5>
 						<ul class="booking-list">
 							<li class="highlighted" id="details">
-								<?php if (isset($details->childrens) && $details->childrens > 0) : ?>
-									<?php printf(_n('%d Child', '%s Children', $details->childrens, 'listeo_core'), $details->childrens) ?>
+								<?php
+								$details_guests_output = array();
+								if (
+									isset($details->adults)  && $details->adults > 0 &&
+									$has_children == false
+								) :  ?>
+									<?php $details_guests_output[] = sprintf(_n('%d Guest', '%d Guests', $details->adults, 'listeo_core'), $details->adults) ?>
 								<?php endif; ?>
-								<?php if (isset($details->adults)  && $details->adults > 0) : ?>
-									<?php printf(_n('%d Guest', '%s Guests', $details->adults, 'listeo_core'), $details->adults) ?>
+								<?php if (
+									isset($details->adults)  && $details->adults > 0 &&
+									$has_children == true
+								) : ?>
+									<?php $details_guests_output[] = sprintf(_n('%d Adult', '%d Adults', $details->adults, 'listeo_core'), $details->adults) ?>
 								<?php endif; ?>
+								<?php if (isset($details->children) && $details->children > 0) : ?>
+									<?php $details_guests_output[] = sprintf(_n('%d Child', '%d Children', $details->children, 'listeo_core'), $details->children) ?>
+								<?php endif; ?>
+								<?php if (isset($details->infants) && $details->infants > 0) : ?>
+									<?php $details_guests_output[] = sprintf(_n('%d Infant', '%d Infants', $details->infants, 'listeo_core'), $details->infants) ?>
+								<?php endif; ?>
+								<?php if (isset($details->animals) && $details->animals > 0) : ?>
+									<?php $details_guests_output[] = sprintf(_n('%d Animal', '%d Animals', $details->animals, 'listeo_core'), $details->animals) ?>
+								<?php endif; ?>
+
 								<?php if (isset($details->tickets)  && $details->tickets > 0) : ?>
-									<?php printf(_n('%d Ticket', '%s Tickets', $details->tickets, 'listeo_core'), $details->tickets) ?>
+									<?php $details_guests_output[] = sprintf(_n('%d Ticket', '%d Tickets', $details->tickets, 'listeo_core'), $details->tickets) ?>
+								<?php endif; ?>
+
+								<?php if (count($details_guests_output) > 1) : ?>
+									<?php echo implode(', ', $details_guests_output); ?>
+								<?php else: ?>
+									<?php echo implode(' ', $details_guests_output); ?>
 								<?php endif; ?>
 							</li>
 						</ul>
@@ -262,26 +290,29 @@ if ($data->status != 'paid' && isset($data->order_id) && !empty($data->order_id)
 						</ul>
 					</div>
 				<?php endif; ?>
+				<?php
 
-				<div class="inner-booking-list">
+				if ($show_contact) : ?>
+					<div class="inner-booking-list">
 
-					<h5><?php esc_html_e('Client:', 'listeo_core'); ?></h5>
-					<ul class="booking-list" id="client">
-						<?php if (isset($details->first_name) || isset($details->last_name)) : ?>
-							<li id="name">
-								<a href="<?php echo get_author_posts_url($data->bookings_author); ?>"><?php if (isset($details->first_name)) echo esc_html(stripslashes($details->first_name)); ?> <?php if (isset($details->last_name)) echo esc_html(stripslashes($details->last_name)); ?></a>
-							</li>
-						<?php endif; ?>
-						<?php if ($show_contact && isset($details->email)) : ?><li id="email"><a href="mailto:<?php echo esc_attr($details->email) ?>"><?php echo esc_html($details->email); ?></a></li>
-						<?php endif; ?>
-						<?php if ($show_contact && isset($details->phone)) : ?><li id="phone"><a href="tel:<?php echo esc_attr($details->phone) ?>"><?php echo esc_html($details->phone); ?></a></li>
-						<?php endif; ?>
-					</ul>
+						<h5><?php esc_html_e('Client:', 'listeo_core'); ?></h5>
+						<ul class="booking-list" id="client">
+							<?php if (isset($details->first_name) || isset($details->last_name)) : ?>
+								<li id="name">
+									<a href="<?php echo get_author_posts_url($data->bookings_author); ?>"><?php if (isset($details->first_name)) echo esc_html(stripslashes($details->first_name)); ?> <?php if (isset($details->last_name)) echo esc_html(stripslashes($details->last_name)); ?></a>
+								</li>
+							<?php endif; ?>
+							<?php if ($show_contact && isset($details->email)) : ?><li id="email"><a href="mailto:<?php echo esc_attr($details->email) ?>"><?php echo esc_html($details->email); ?></a></li>
+							<?php endif; ?>
+							<?php if ($show_contact && isset($details->phone)) : ?><li id="phone"><a href="tel:<?php echo esc_attr($details->phone) ?>"><?php echo esc_html($details->phone); ?></a></li>
+							<?php endif; ?>
+						</ul>
 
-				</div>
+					</div>
+				<?php endif; ?>
 
 				<?php
-				
+
 				if ($show_contact && isset($details->billing_address_1) && !empty($details->billing_address_1)) : ?>
 					<div class="inner-booking-list">
 
@@ -374,58 +405,58 @@ if ($data->status != 'paid' && isset($data->order_id) && !empty($data->order_id)
 				<!-- Cusotm fields -->
 				<?php
 				$fields = get_option("listeo_{$listing_type}_booking_fields");
-				if($fields){
+				if ($fields) {
 
-				
-				foreach ($fields as $field) {
-					if ($field['type'] == 'header') {
-						continue;
-					}
-					$meta = get_booking_meta($data->ID, $field['id']);
-					if (!empty($meta)) { ?>
 
-						<div class="inner-booking-list">
-							<h5><?php echo $field['name'] ?></h5>
-							<ul class="booking-list">
-								<li class="<?php if ($field['type'] == 'checkbox') {
-												echo 'checkboxed';
-												$meta = '';
-											} ?> " id="<?php echo $field['type']; ?>">
-									<?php
-									if (is_array($meta)) {
-										$i = 0;
-										$last =  count($meta);
-										foreach ($meta as $key) {
-											$i++;
-											echo $field['options'][$key];
-											if ($i >= 0 && $i < $last) : echo ", ";
-											endif;
-										}
-									} else {
-										switch ($field['type']) {
-											case 'file':
-												echo '<a href="' . $meta . '" /> ' . esc_html__('Download', 'listeo_core') . ' ' . wp_basename($meta) . ' </a></li>';
-												break;
+					foreach ($fields as $field) {
+						if ($field['type'] == 'header') {
+							continue;
+						}
+						$meta = get_booking_meta($data->ID, $field['id']);
+						if (!empty($meta)) { ?>
 
-											case 'radio':
-												echo $field['options'][$meta];
-												break;
-											case 'select':
-												echo $field['options'][$meta];
-												break;
+							<div class="inner-booking-list">
+								<h5><?php echo $field['name'] ?></h5>
+								<ul class="booking-list">
+									<li class="<?php if ($field['type'] == 'checkbox') {
+													echo 'checkboxed';
+													$meta = '';
+												} ?> " id="<?php echo $field['type']; ?>">
+										<?php
+										if (is_array($meta)) {
+											$i = 0;
+											$last =  count($meta);
+											foreach ($meta as $key) {
+												$i++;
+												echo $field['options'][$key];
+												if ($i >= 0 && $i < $last) : echo ", ";
+												endif;
+											}
+										} else {
+											switch ($field['type']) {
+												case 'file':
+													echo '<a href="' . $meta . '" /> ' . esc_html__('Download', 'listeo_core') . ' ' . wp_basename($meta) . ' </a></li>';
+													break;
 
-											default:
-												echo $meta;
-												break;
-										}
-									} ?>
-								</li>
-							</ul>
-						</div>
+												case 'radio':
+													echo $field['options'][$meta];
+													break;
+												case 'select':
+													echo $field['options'][$meta];
+													break;
+
+												default:
+													echo $meta;
+													break;
+											}
+										} ?>
+									</li>
+								</ul>
+							</div>
 
 				<?php }
+					}
 				}
-			}
 				?>
 
 

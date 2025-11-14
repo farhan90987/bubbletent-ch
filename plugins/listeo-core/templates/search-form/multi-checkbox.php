@@ -1,4 +1,4 @@
-<div class="checkboxes one-in-row <?php if(isset($data->class)) { echo esc_attr($data->class); }?>" id="<?php echo esc_attr($data->name); ?>">
+<div class="checkboxes one-in-row <?php if(isset($data->class)) { echo esc_attr($data->class); } ?> <?php if(isset($data->css_class)) { echo esc_attr($data->css_class); }?>" id="<?php echo esc_attr($data->name); ?>">
 
 <?php if(isset($data->dynamic) && $data->dynamic=='yes'){ ?>
 	<div class="notification warning"><p><?php esc_html_e('Please choose category to display filters','listeo_core') ?></p> </div>
@@ -12,7 +12,6 @@
 	} else {
 		$selected = array();
 	} 
-	
 
 	if(isset($data->taxonomy) && !empty($data->taxonomy)) {
 		$data->options = listeo_core_get_options_array('taxonomy',$data->taxonomy);

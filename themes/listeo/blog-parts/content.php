@@ -7,11 +7,11 @@
             $thumb = get_post_thumbnail_id();
             $img_url = wp_get_attachment_url( $thumb,'full');
             
-            $image = aq_resize( $img_url, 500, 500,true,true,true); 
+            //$image = aq_resize( $img_url, 500, 500,true,true,true); 
             
             //resize & crop the image ?>
             <a  class="post-img" href="<?php the_permalink(); ?>">
-                <?php if($image){ ?><img src="<?php echo esc_url($image); ?>"><?php } else { the_post_thumbnail('listeo-avatar'); } ?>
+                <?php if($img_url){ ?><img src="<?php echo esc_url($img_url); ?>"><?php } else { the_post_thumbnail('listeo-avatar'); } ?>
             </a>
     <?php } 
     }?>

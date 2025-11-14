@@ -4,7 +4,7 @@ Theme URI: http://listeo.pro/
 Author: Purethemes.me
 Author URI: http://purethemes.net/
 Description: Directory WordPress Theme by Purethemes
-Version: 1.9.22
+Version: 2.0.6
 License: ThemeForest
 License URI: http://themeforest.net/licenses
 Text Domain: listeo
@@ -18,6 +18,8 @@ Underscores is distributed under the terms of the GNU GPL v2 or later.
 Normalizing styles have been helped along thanks to the fine work of
 Nicolas Gallagher and Jonathan Neal http://necolas.github.io/normalize.css/
 */
+
+/* Calendar Tooltip Styles */
 
 /*
 * Author: Vasterad 
@@ -29865,7 +29867,7 @@ body.mobile-nav-open { overflow: hidden; }
   visibility: visible;
 }
 
-.menu-logo a img { max-height: 56px; width: auto;}
+.menu-logo a img { max-height: 32px; }
 
 
 .mobile-navigation-list {

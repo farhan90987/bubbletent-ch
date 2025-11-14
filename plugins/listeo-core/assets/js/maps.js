@@ -59,6 +59,23 @@
           return;
         }
 
+        // Update the input field with the full formatted address
+        $('#location_search').val(place.formatted_address);
+        
+        // Store coordinates for later use
+        var lat = place.geometry.location.lat();
+        var lng = place.geometry.location.lng();
+        $('#location_search').data('lastlat', lat).data('lastlng', lng);
+        
+        // Clear any pending blur timeout to prevent duplicate requests
+        if (window.blurTimeout) {
+          clearTimeout(window.blurTimeout);
+        }
+        
+        // Trigger search with the complete address
+        var target = $('div#listeo-listings-container');
+        target.triggerHandler('update_results', [1, false]);
+
       });
       $('#location_search').on('focus', function(){
             setTimeout(function(){ 
@@ -200,7 +217,7 @@
       var scrollEnabled = false;
               
       if (typeof mapScrollAttr !== typeof undefined && mapScrollAttr !== false) {
-         scrollEnabled = parseInt(mapScrollAttr);
+         scrollEnabled = (mapScrollAttr === 'true' || mapScrollAttr === '1' || mapScrollAttr === 1);
       } 
 
 
@@ -226,7 +243,7 @@
 
 
       // Marker highlighting when hovering listing item
-      $('.listing-item-container').on('mouseover', function(){
+      $('.listing-item-container, .listing-card-container-nl').on('mouseover', function(){
 
         var listingAttr = $(this).data('marker-id');
 

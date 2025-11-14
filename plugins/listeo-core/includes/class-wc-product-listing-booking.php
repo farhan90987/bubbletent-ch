@@ -31,8 +31,17 @@ function listeo_core_create_listing_product_booking_type() {
 
 	class WC_Product_Listing_Booking extends WC_Product_Simple {
 
+		/**
+		 * Product type
+		 *
+		 * @var string
+		 */
+		protected $product_type = 'listing_booking';
+
 	    public function __construct( $product ) {
 	       $this->product_type = 'listing_booking';
+			$this->set_virtual(true);
+			$this->set_downloadable(true);
 	       parent::__construct( $product );
 	       // add additional functions here
 	    }

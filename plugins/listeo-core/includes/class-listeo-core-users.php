@@ -1,6 +1,6 @@
 <?php
 // Exit if accessed directly
-// https://github.com/jarkkolaine/personalize-login-tutorial-part-3
+
 if ( ! defined( 'ABSPATH' ) )
 	exit;
 /**
@@ -49,6 +49,7 @@ class Listeo_Core_Users {
 		add_filter( 'pre_get_posts',  array( $this,  'author_archive_listings' ));
  
 		add_action( 'listeo_login_form', array( $this, 'show_login_form'));
+		add_shortcode( 'listeo_login_form', array( $this, 'show_login_form'));
 
 		add_action( 'show_user_profile', array( $this, 'extra_profile_fields' ), 10 );
 		add_action( 'edit_user_profile', array( $this, 'extra_profile_fields' ), 10 );
@@ -65,6 +66,8 @@ class Listeo_Core_Users {
 		add_shortcode( 'listeo_lost_password', array( $this, 'lost_password' ) );
 		add_shortcode( 'listeo_reset_password', array( $this, 'reset_password' ) );
 		
+		add_shortcode('listeo_login', array($this, 'listeo_login') );
+		add_shortcode('listeo_registration', array($this, 'listeo_registration') );
 
 		add_shortcode( 'listeo_my_orders', array( $this, 'my_orders' ) );
 
@@ -111,32 +114,219 @@ class Listeo_Core_Users {
 		add_action( 'wp_ajax_nopriv_listeoajaxlogin', array( $this, 'ajax_login' ) );
 		// Ajax registration
 		add_action( 'wp_ajax_nopriv_listeoajaxregister', array( $this, 'ajax_register' ) );
+		
 
 		add_action( 'wp_ajax_nopriv_get_logged_header', array( $this, 'ajax_get_header_part' ) );
 		add_action( 'wp_ajax_get_logged_header', array( $this, 'ajax_get_header_part' ) );
+		add_action( 'wp_ajax_get_logged_claim', array( $this, 'ajax_get_claim_button_logged' ) );
 	
 		add_action( 'wp_ajax_nopriv_get_booking_button', array( $this, 'ajax_get_booking_button' ) );
 		add_action( 'wp_ajax_get_booking_button', array( $this, 'ajax_get_booking_button' ) );
+
+		add_action('wp_ajax_nopriv_get_booking_form', array($this, 'ajax_get_booking_form'));
+		add_action('wp_ajax_get_booking_form', array($this, 'ajax_get_booking_form'));
 	
 
 		add_filter( 'registration_errors',array( $this,  'listeo_wp_admin_registration_errors'), 10, 3 );
 		add_action( 'user_register', array( $this, 'listeo_wp_admin_user_register') );
 
 
+		add_action('wp_ajax_nopriv_listeoajaxsendotpemail', array($this, 'send_email_otp'));
+
 		add_action('wp_ajax_listeo_get_custom_registration_fields', array($this, 'get_custom_registration_fields'));
 		add_action('wp_ajax_nopriv_listeo_get_custom_registration_fields', array($this, 'get_custom_registration_fields'));
 
-
+		add_action('wp_ajax_create_express_stripe_account', array($this, 'create_express_stripe_account'));
+		add_action('wp_ajax_get_express_stripe_account_link', array($this, 'get_express_stripe_account_link'));
 		add_action( 'wp_body_open',array($this, 'listeo_login_form'));
- 
 
+		add_action('admin_init',  array($this,'check_listeo_stripe_enabled'), 10 );
 		//add_action( 'admin_init', array($this,'wpse66094_no_admin_access'), 100 );
 	}
 
+	function check_listeo_stripe_enabled() {
+    // Check if Listeo theme is active and Stripe is enabled
+    $listeo_stripe_enabled = get_option('listeo_stripe_connect_activation');
+    
+    if ($listeo_stripe_enabled == 'yes' || $listeo_stripe_enabled == '1' || $listeo_stripe_enabled === true) {
+        // Add the filter to modify columns
+        add_filter('manage_users_columns', array($this,'add_stripe_connection_column'));
+        // Add the action to display the column content
+        add_action('manage_users_custom_column', array($this,'display_stripe_connection_status'), 10, 3);
+        // Add sortable column support
+        add_filter('manage_users_sortable_columns', array($this,'make_stripe_column_sortable'));
+        // Handle sorting logic
+        add_action('pre_user_query', array($this,'stripe_column_orderby'));
+    }
+	}
+
+	function add_stripe_connection_column($columns)
+	{
+		$columns['stripe_connection'] = __('Stripe Connection', 'listeo');
+		return $columns;
+	}
+
+	/**
+	 * Display the Stripe connection status for each user
+	 */
+	function display_stripe_connection_status($value, $column_name, $user_id)
+	{
+		if ($column_name !== 'stripe_connection') {
+			return $value;
+		}
+
+		// Get user's Stripe connection status from user meta
+		$stripe_connected = get_user_meta($user_id, 'vendor_connected', true);
+		$stripe_customer_id = get_user_meta($user_id, 'stripe_user_id', true);
+		$stripe_connect_id = get_user_meta($user_id, 'listeo_stripe_connect_id', true);
+
+		// Check if user is connected to Stripe
+		if (!empty($stripe_connected) ) {
+			return '<span class="stripe-status connected" style="color: green;"><span class="dashicons dashicons-yes"></span> ' . __('Connected', 'listeo') . '</span>';
+		} elseif (!empty($stripe_customer_id) || !empty($stripe_connect_id)) {
+			return '<span class="stripe-status partial" style="color: orange;"><span class="dashicons dashicons-marker"></span> ' . __('Partial', 'listeo') . '</span>';
+		} else {
+			return '<span class="stripe-status not-connected" style="color: red;"><span class="dashicons dashicons-no"></span> ' . __('Not Connected', 'listeo') . '</span>';
+		}
+	}
+
+	/**
+	 * Make the Stripe connection column sortable
+	 */
+	function make_stripe_column_sortable($columns)
+	{
+		$columns['stripe_connection'] = 'stripe_connection';
+		return $columns;
+	}
+
+	/**
+	 * Add custom sorting logic for the Stripe connection column
+	 */
+	function stripe_column_orderby($query)
+	{
+		if (!is_admin()) {
+			return;
+		}
+
+		$orderby = $query->get('orderby');
+
+		if ('stripe_connection' == $orderby) {
+			$query->set('meta_key', 'vendor_connected');
+			$query->set('orderby', 'meta_value');
+		}
+	}
+
+
+	public function send_email_otp()
+	{
+		$email = $_POST['email'];
+		// check if email is valid
+		if (!is_email($email)) {
+			wp_send_json_error(array('message' => 'Invalid email address'));
+		}
+
+		$mail_args = array(
+			'email'         => $_POST['email'],
+		
+		);
+		do_action('listeo_otp_mail', $mail_args);
+		
+		wp_send_json_success(array('message' => 'OTP sent successfully'));
+	
+	}
+
+
+	function create_express_stripe_account(){
+		$current_user = wp_get_current_user();
+
+
+		$stripe_connect_activation = get_option('listeo_stripe_connect_activation');
+
+		if ($stripe_connect_activation) {
+			$stripe_mode = get_option('listeo_stripe_connect_mode');
+
+			$testmode       = (!empty($stripe_mode) && 'test' === $stripe_mode) ? true : false;
+
+			if ($testmode) {
+				$client_id = get_option('listeo_stripe_connect_test_client_id');
+			} else {
+				$client_id = get_option('listeo_stripe_connect_live_client_id');
+			}
+			$secret_key    = 'listeo_stripe_connect_' . ($testmode ? 'test_' : 'live_') . 'secret_key';
+			$secret        = !empty(get_option($secret_key)) ? get_option($secret_key) : false;
+		}
+		
+
+		
+		try {
+			$stripe = new \Stripe\StripeClient($secret);
+			$account = $stripe->accounts->create(['type' => 'express']);
+		} catch (\Throwable $e) {
+			// log error
+			error_log($e->getMessage());
+		
+			wp_send_json_error('Error creating account: '. $e->getMessage());
+		}
+		
+		update_user_meta($current_user->ID, 'listeo_stripe_express_account_id', $account->id);
+		wp_send_json_success();
+	}
+
+
+	function get_express_stripe_account_link() {
+		$current_user = wp_get_current_user();
+
+
+		$stripe_connect_activation = get_option('listeo_stripe_connect_activation');
+
+		if ($stripe_connect_activation) {
+			$stripe_mode = get_option('listeo_stripe_connect_mode');
+
+			$testmode       = (!empty($stripe_mode) && 'test' === $stripe_mode) ? true : false;
+
+			if ($testmode) {
+				$client_id = get_option('listeo_stripe_connect_test_client_id');
+			} else {
+				$client_id = get_option('listeo_stripe_connect_live_client_id');
+			}
+			$secret_key    = 'listeo_stripe_connect_' . ($testmode ? 'test_' : 'live_') . 'secret_key';
+			$secret        = !empty(get_option($secret_key)) ? get_option($secret_key) : false;
+		}
+
+		$stripe = new \Stripe\StripeClient($secret);
+		// check if account has stripelink
+		// if it does, check the expiration of that link
+		//if it's expired, create a new one
+		//if it's not expired, return the link
+		$account_id = get_user_meta($current_user->ID, 'listeo_stripe_express_account_id', true);
+		$account_url = get_user_meta($current_user->ID, 'listeo_stripe_express_account_url', true);
+		$account_url_expiration = get_user_meta($current_user->ID, 'listeo_stripe_express_account_url_expiration', true);
+		
+		if ($account_url && $account_url_expiration > time()) {
+			$url = $account_url;
+			wp_send_json_success($url);
+		} else {
+			$link = $stripe->accountLinks->create([
+					'account' => $account_id,
+					'refresh_url' => add_query_arg(array('stripe-express-reauth' => 'yes'), get_permalink(get_option('listeo_wallet_page'))),
+					'return_url' => add_query_arg(array('stripe-express-setup' => 'yes'), get_permalink(get_option('listeo_wallet_page'))),
+					'type' => 'account_onboarding',
+				]);
+			update_user_meta($current_user->ID, 'listeo_stripe_express_account_url', $link->url);
+			update_user_meta($current_user->ID, 'listeo_stripe_express_account_url_expiration', $link->expires_at);
+			$url = $link->url;
+			wp_send_json_success($url);
+		}
+
+		
+		
+	}
 
 
 function listeo_login_form() {
-    
+if(is_user_logged_in()) {
+	return;
+}
 if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-dashboard.php' ) ) : ?>
 	<!-- Sign In Popup -->
 	<div id="sign-in-dialog" class="zoom-anim-dialog mfp-hide">
@@ -198,11 +388,16 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 
 
 	   //fix owners dropdown
-	    
-		$ownerusers = get_users(array('role__in' => array('owner', 'seller')));
-		foreach ( $ownerusers as $user ) {
-			$user->add_cap('level_1');
-		}
+		
+		//give this user with $user_id capabilities of a level_1
+		$user = new WP_User( $user_id );
+		$user->add_cap( 'level_1' );
+		
+
+		// $ownerusers = get_users(array('role__in' => array('owner', 'seller')));
+		// foreach ( $ownerusers as $user ) {
+		// 	$user->add_cap('level_1');
+		// }
 	}
 
 	function listeo_register_form() {
@@ -244,14 +439,33 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 			$popup_login = get_option( 'listeo_popup_login','ajax' ); 
 			
 			if($popup_login == 'ajax') {
-				wp_register_script( 'listeo_core-ajax-login', esc_url( LISTEO_CORE_ASSETS_URL ) . 'js/ajax-login-script.js', array('jquery'), '1.0'  );
-	  			wp_enqueue_script('listeo_core-ajax-login');
-	  			wp_localize_script( 'listeo_core-ajax-login', 'listeo_login', array( 
-			        'ajaxurl' => admin_url( 'admin-ajax.php' ),
-			        'redirecturl' => home_url(),
-			        'loadingmessage' => __('Sending user info, please wait...','listeo_core')
-			    ));
-	  		}
+				if(get_option('listeo_otp_status') || get_option('listeo_email_otp_verification')){
+					wp_register_script( 'listeo_core-ajax-login', esc_url( LISTEO_CORE_ASSETS_URL ) . 'js/ajax-login-script-otp.js', array('jquery'), '1.0'  );
+		  			wp_enqueue_script('listeo_core-ajax-login');
+		  			wp_localize_script( 'listeo_core-ajax-login', 'listeo_login', array( 
+				        'ajaxurl' => admin_url( 'admin-ajax.php' ),
+				        'redirecturl' => home_url(),
+				        'loadingmessage' => __('Sending user info, please wait...','listeo_core')
+				    ));
+				} else {
+					wp_register_script('listeo_core-ajax-login', esc_url(LISTEO_CORE_ASSETS_URL) . 'js/ajax-login-script.js', array('jquery'), '1.0');
+					wp_enqueue_script('listeo_core-ajax-login');
+					wp_localize_script('listeo_core-ajax-login', 'listeo_login', array(
+						'ajaxurl' => admin_url('admin-ajax.php'),
+						'redirecturl' => home_url(),
+						'loadingmessage' => __('Sending user info, please wait...', 'listeo_core')
+					));
+				}
+				
+	  		} else {
+				wp_register_script('listeo_core-static-login', esc_url(LISTEO_CORE_ASSETS_URL) . 'js/static-login-script-otp.js', array('jquery'), '1.0');
+				wp_enqueue_script('listeo_core-static-login');
+				wp_localize_script('listeo_core-static-login', 'listeo_login', array(
+					'ajaxurl' => admin_url('admin-ajax.php'),
+					'redirecturl' => home_url(),
+					'loadingmessage' => __('Sending user info, please wait...', 'listeo_core')
+				));
+			}
 		}
 	}
 
@@ -259,13 +473,23 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 
 	    // First check the nonce, if it fails the function will break
 	    //check_ajax_referer( 'ajax-login-nonce', 'security' );
-
-
+		if(!get_option('listeo_login_nonce_skip')){
+			if (!check_ajax_referer('listeo-ajax-login-nonce', 'login_security', false)) :
+				echo json_encode(
+					array(
+						'loggedin' => false,
+						'message' => __('Session token has expired, please reload the page and try again', 'listeo_core')
+					)
+				);
+				die();
+			endif;
+		}
+		
 	    // Nonce is checked, get the POST data and sign user on
 	    $info = array();
 	    $info['user_login'] = sanitize_text_field(trim($_POST['username']));
 	    $info['user_password'] = sanitize_text_field(trim($_POST['password']));
-	    $info['remember'] = isset($_POST['remember-me']) ? true : false;
+	    $info['remember'] = isset($_POST['rememberme']) ? true : false;
 
 	    if(empty($info['user_login'])) {
 	    	 echo json_encode(
@@ -311,6 +535,42 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 	    die();
 	}
 
+	function ajax_get_booking_form(){
+		$current_user = wp_get_current_user();
+		
+		
+	
+		$output = array();
+		$output['email'] = $current_user->user_email;
+		$output['first_name'] =  $current_user->first_name;
+		$output['last_name'] =  $current_user->last_name;
+		$output['phone'] =  get_user_meta($current_user->ID, 'billing_phone ', true);
+		$output['billing_address_1'] =  get_user_meta($current_user->ID, 'billing_address_1', true);
+		$output['billing_postcode'] =  get_user_meta($current_user->ID, 'billing_postcode ', true);
+		$output['billing_city'] =  get_user_meta($current_user->ID, 'billing_city', true);
+		$output['billing_state'] =  get_user_meta($current_user->ID, 'billing_state', true);
+		
+		wp_send_json_success($output);
+		die();
+	}
+
+
+	function ajax_get_claim_button_logged()
+	{
+
+		ob_start();
+
+		$template_loader = new Listeo_Core_Template_Loader;
+		$template_loader->get_template_part('single-partials/single-listing', 'claim'); 
+
+		$output = ob_get_clean();
+		wp_send_json_success(
+			array(
+				'output' 	=> 	$output
+			)
+		);
+		die();
+	}
 	function ajax_get_header_part(){
 		
 			ob_start();
@@ -332,7 +592,7 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 			$owner_widget_id = $_POST['owner_widget_id'];
 			$freeplaces = $_POST['freeplaces'];
 			
-			$_listing_type = get_post_meta($post_id,"_listing_type",true); 
+			$_listing_type = listeo_get_booking_type($post_id);
 			ob_start(); ?>
 			<a href="#" data-freeplaces="<?php echo esc_attr($freeplaces); ?>" class="button book-now fullwidth margin-top-5">
 				<div class="loadingspinner"></div>
@@ -423,7 +683,6 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 
 	function ajax_register(){
 		
-		
 		if ( !get_option('users_can_register') ) :
 	            echo json_encode(
 				array(
@@ -433,7 +692,7 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 			);
     		die();
 	    endif;
-
+		if (!get_option('listeo_login_nonce_skip')) {
   		if( !check_ajax_referer( 'listeo-ajax-login-nonce', 'register_security', false) ) :
             echo json_encode(
             	array(
@@ -443,7 +702,7 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
             );
             die();
         endif;
-
+		}
         //get email
         $email = sanitize_email($_POST['email']);
 		if ( !$email ) {
@@ -466,12 +725,34 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
             die();
         }
 
+		// // check if emails is from gmail
+		// $domain = substr(strrchr($email, "@"), 1);
+		// $allowed_domains = get_option('listeo_allowed_domains');
+		// //this is text string with domeins separated by comma
+		// $allowed_domains = explode(',', $allowed_domains);
+	
+		// if ($allowed_domains && !in_array($domain, $allowed_domains)) {
+		// 	echo json_encode(
+		// 		array(
+		// 			'registered'=>false, 
+		// 			'message'=> __('Please use email address from gmail', 'listeo_core')
+		// 		)
+		// 	);
+		// 	die();
+		// }
+
+
+
         $user_login = false;
         // get/create username
 
 	    if ( get_option('listeo_registration_hide_username') ) {
-  			$email_arr = explode('@', $email);
-            $user_login = sanitize_user(trim($email), true);
+			if(get_option('listeo_registration_hide_username_use_email')) {
+				$user_login = sanitize_user(trim($email));
+			} else {
+  				$email_arr = explode('@', $email);
+            	$user_login = sanitize_user(trim($email_arr[0]), true);
+			}
         } else {
         	
  			$user_login = sanitize_user(trim($_POST['username']));
@@ -545,6 +826,7 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 		endif; 	       
 		if ( get_option('listeo_terms_and_conditions_req') ) :
 	    	$terms_and_conditions = $_POST['terms_and_conditions'];
+		
 			if($terms_and_conditions != "on") {
 				echo json_encode(
 					array(
@@ -582,7 +864,6 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 
             	foreach ($fields as $key => $field) {
 
-            		// array(16) { ["type"]=> string(8) "checkbox" ["name"]=> string(9) "_checkbox" ["placeholder"]=> string(8) "Checkbox" ["class"]=> string(0) "" ["css_class"]=> string(9) "col-md-12" ["default"]=> string(0) "" ["multi"]=> bool(false) ["priority"]=> int(1) ["icon"]=> string(5) "empty" ["place"]=> string(4) "main" ["taxonomy"]=> string(0) "" ["max"]=> string(0) "" ["min"]=> string(0) "" ["options_source"]=> string(0) "" ["options_cb"]=> string(0) "" ["options"]=> array(0) { } }
             		
             		$field_type = str_replace( '-', '_', $field['type'] );
 		
@@ -596,6 +877,8 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 						
 						$value = $this->get_posted_field( $key, $field );
 					}
+
+					
 					
 					// Set fields value
 
@@ -619,9 +902,79 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
             			
             			$custom_registration_fields[] = $field;
             		}
+				
 
             	}
             }
+
+
+		//otp
+			$otp_pass = true;
+
+			
+			
+			$phone = false;
+			if (get_option('listeo_otp_status') || get_option('listeo_email_otp_verification')) {
+
+				$sms_otp = get_option('listeo_otp_status');
+				$email_otp = get_option('listeo_email_otp_verification');
+				if ($sms_otp || $email_otp) {
+					$otp = true;
+					if ($sms_otp) {
+						$otp_type = 'sms';
+					} else {
+						$otp_type = 'email';
+					}
+				} else {
+					$otp = false;
+					$otp_type = false;
+				}
+				//verify otp
+				$phone = sanitize_text_field(trim($_POST['full_phone']));
+				$email = sanitize_text_field(trim($_POST['email']));
+				
+				if($otp_type == 'sms') {
+					$transient_key = 'otp_' . $phone;
+				} else {
+					$transient_key = 'otp_' . $email;
+				}
+			
+				$orignal_token = get_transient($transient_key);
+				if (isset($_POST['listeo_otp']['token'])) {
+					$token = $_POST['listeo_otp']['token'];
+
+					$letter_1 = $token['code_1'];
+					$letter_2 = $token['code_2'];
+					$letter_3 = $token['code_3'];
+					$letter_4 = $token['code_4'];
+					// glue all the letters togheter
+					$token = $letter_1 . $letter_2 . $letter_3 . $letter_4;
+					// get user phone
+					
+					// check if the token is correct
+
+					if ($orignal_token != $token) {
+					echo json_encode(
+						array(
+							'registered' => false,
+							'message' => esc_html__('Wrong OTP code, please try again', 'listeo_core')
+						)
+					);
+					die();
+					}
+				} else {
+					
+					echo json_encode(
+						array(
+							'registered' => false,
+							'message' => esc_html__('Missing OTP code, please try again', 'listeo_core')
+						)
+					);
+					die();
+				}
+				//remove the transient
+				
+			}
 		
 		$recaptcha_status = get_option('listeo_recaptcha');
 		$recaptcha_version = get_option('listeo_recaptcha_version');
@@ -644,7 +997,8 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 							'registered'=>false, 
 							'message'=> esc_html__( 'Wrong reCAPTCHA', 'listeo_core' )
 						)
-					);die();
+					);
+					die();
         		endif;
         	else:
         		echo json_encode(
@@ -686,12 +1040,46 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 						)
 					);die();
 	    		endif;
-	        } 
-    	
+	        }
+
+		if ($recaptcha_status && $recaptcha_version == "hcaptcha") {
+			if (!isset($_POST['h-captcha-response']) || empty($_POST['h-captcha-response'])) {
+				echo json_encode(
+					array(
+						'registered' => false,
+						'message' => esc_html__('hCaptcha was not validated', 'listeo_core')
+					)
+				);
+				die();
+			} else {
+				$hcaptcha_response = $_POST['h-captcha-response'];
+				if (!$this->verify_hcaptcha($hcaptcha_response)) {
+					//passed captcha, proceed to register
+				}
+			}
+		}
+
+		if ($recaptcha_status && $recaptcha_version == "turnstile") {
+			if (!isset($_POST['cf-turnstile-response']) || empty($_POST['cf-turnstile-response'])) {
+				echo json_encode(
+					array(
+						'registered' => false,
+						'message' => esc_html__('Turnstile was not validated', 'listeo_core')
+					)
+				);
+				die();
+			} else {
+				$turnstile_response = $_POST['cf-turnstile-response'];
+				if (!$this->verify_turnstile($turnstile_response)) {
+					//passed captcha, proceed to register
+				}
+			}
+		}
+		
     	if ( get_option('listeo_display_password_field') ) :
-	    	$result = $this->register_user( $email, $user_login, $first_name, $last_name, $role, $password,$custom_registration_fields  );
+	    	$result = $this->register_user( $email, $user_login, $first_name, $last_name, $role, $phone, $password,$custom_registration_fields  );
 	    else :
-    		$result = $this->register_user( $email, $user_login, $first_name, $last_name, $role, null,$custom_registration_fields );
+    		$result = $this->register_user( $email, $user_login, $first_name, $last_name, $role, $phone, null,$custom_registration_fields );
     	endif;
 
 
@@ -715,6 +1103,49 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 	    	
 	    }
 		die();
+	}
+
+
+	function verify_hcaptcha($hcaptcha_response)
+	{
+		$secret = get_option('listeo_hcaptcha_secretkey');
+
+		$verify_url = 'https://hcaptcha.com/siteverify';
+		$data = array(
+			'secret' => $secret,
+			'response' => $hcaptcha_response
+		);
+
+		$verify = wp_remote_post($verify_url, array('body' => $data));
+
+		if (is_wp_error($verify)) {
+			return false;
+		}
+
+		$verify = json_decode(wp_remote_retrieve_body($verify));
+
+		return $verify->success;
+	}
+
+	function verify_turnstile($turnstile_response)
+	{
+		$secret = get_option('listeo_turnstile_secretkey');
+
+		$verify_url = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+		$data = array(
+			'secret' => $secret,
+			'response' => $turnstile_response
+		);
+
+		$verify = wp_remote_post($verify_url, array('body' => $data));
+
+		if (is_wp_error($verify)) {
+			return false;
+		}
+
+		$verify = json_decode(wp_remote_retrieve_body($verify));
+
+		return $verify->success;
 	}
 
 	function listeo_core_gravatar_filter($avatar, $id_or_email, $size, $default, $alt, $args) {
@@ -784,7 +1215,7 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 		if(isset($user) && !empty($user) ){
 			$custom_avatar_id = get_user_meta($user->ID, 'listeo_core_avatar_id', true); 
 		
-			$custom_avatar = wp_get_attachment_image_src($custom_avatar_id,'listeo_core-avatar');
+			$custom_avatar = wp_get_attachment_image_src($custom_avatar_id,'listeo-avatar');
 			if ($custom_avatar)  {
 				$return = '<img src="'.$custom_avatar[0].'" class="'.esc_attr( join( ' ', $class ) ).'" width="'.$size.'" height="'.$size.'" alt="'.$alt.'" />';
 			} elseif ($avatar) {
@@ -957,6 +1388,19 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 					throw new Exception( $uploaded_file->get_error_message() );
 				} else {
 					$file_urls[] = $uploaded_file->url;
+					// Get the ID of the current user
+					$user_id = get_current_user_id();
+
+					// Get the ID of the attachment
+					$attachment_id = attachment_url_to_postid($uploaded_file->url);
+
+					// Update the 'post_author' of the attachment
+					wp_update_post(
+						array(
+							'ID'            => $attachment_id, // ID of the post to update
+							'post_author'   => $user_id, // ID of the new post author
+						)
+					);
 				}
 			}
 
@@ -1050,6 +1494,9 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 				if($_POST['role'] == 'owner'){
 					$current_user->set_role( 'owner' );	
 				}
+				if($_POST['role'] == 'seller'){
+					$current_user->set_role('seller' );	
+				}
 				if($_POST['role'] == 'guest'){
 					$current_user->set_role( 'guest' );	
 				}
@@ -1093,6 +1540,22 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 		        update_user_meta($current_user->ID, 'phone', esc_attr( $_POST['phone'] ) );
 		    }		     				    
 
+		    if ( isset( $_POST['sms_notifications']) &&  $_POST['sms_notifications'] == 'on' ){
+				delete_user_meta($current_user->ID, 'sms_notifications'); 
+		        update_user_meta($current_user->ID, 'sms_notifications', esc_attr( $_POST['sms_notifications'] ) );
+		    } else {
+				delete_user_meta($current_user->ID, 'sms_notifications'); 
+			}     				    
+		    if ( isset( $_POST['email_notifications'] )  && $_POST['email_notifications'] == 'on'){
+				
+				delete_user_meta($current_user->ID, 'email_notifications'); 
+		        update_user_meta($current_user->ID, 'email_notifications', esc_attr( $_POST['email_notifications'] ) );
+		    } else {
+				delete_user_meta($current_user->ID, 'email_notifications');
+			}		     				    
+
+
+
 	    	
 		    
 		    if ( isset( $_POST['display_name'] ) ) {
@@ -1123,7 +1586,7 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
                 update_user_meta( $current_user->ID, 'listeo_paypal_payout_email', esc_attr( $_POST['listeo_paypal_payout_email'] ) );
             }
 
-
+			
 		    $roles = $current_user->roles;
 			$role = array_shift( $roles ); 
 			switch ($role) {
@@ -1248,14 +1711,14 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 						$error = 'error_5';
 					} else {
 						$error = false;
-						do_action('edit_user_profile_update', $current_user->ID);
+						//do_action('edit_user_profile_update', $current_user->ID);
 				        wp_redirect( get_permalink().'?updated_pass=true' ); 
 				        exit;
 					}
 				}
 			
 				if ( !$error ) {
-					do_action('edit_user_profile_update', $current_user->ID);
+					//do_action('edit_user_profile_update', $current_user->ID);
 			        wp_redirect( get_permalink().'?updated_pass=true' ); 
 			        exit;
 				} else {
@@ -1274,13 +1737,13 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 
 	public function  extra_profile_fields( $user ) { ?>
 		 
-		<h3><?php esc_html_e('Listeo_Core Avatar' , 'listeo_core' ); ?></h3>
+		<h3><?php esc_html_e('Listeo Fields' , 'listeo_core' ); ?></h3>
 		 <?php wp_enqueue_media(); ?>
 		<table class="form-table">
 
 		 
 		<tr>
-		<th><label for="image">Agent Avatar</label></th>
+		<th><label for="image">User Avatar</label></th>
 		 
 		<td>
 			<?php 
@@ -1295,7 +1758,30 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 		<span class="description"><?php esc_html_e('This avatar will be displayed instead of default one','listeo_core'); ?></span>
 		</td>
 		</tr>
+		 		<tr>
+		<th><label for="image">Verified user</label></th>
 		 
+		<td>
+			<?php 
+			$value = get_the_author_meta('listeo_verified_user', $user->ID);?>
+			<input type="checkbox" name="listeo_verified_user"  value="on" <?php if( isset( $value)&& !empty($value ) ){ echo "checked"; }  ?>>
+						
+		
+		<span class="description"><?php esc_html_e('If you set the user as verified it will mark all his listing as verified','listeo_core'); ?></span>
+		</td>
+		</tr>
+		 		<tr>
+		<th><label for="image">Custom Commission rate</label></th>
+		 
+		<td>
+			<?php 
+			$value = get_the_author_meta('listeo_commission_rate', $user->ID);?>
+			<input type="number" name="listeo_commission_rate" value="<?php echo $value; ?>" step="0.1">
+						
+				<br>
+		<span class="description"><?php esc_html_e('Set custom commision % for bookings for this user only. If empty will use value from Listeo Core -> General -> Commission rate','listeo_core'); ?></span>
+		</td>
+		</tr>
 		</table>
 
 		<h3><?php esc_html_e('Extra profile information' , 'listeo_core' ); ?></h3>
@@ -1303,18 +1789,14 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 		<table class="form-table">
 
 		 
-<!-- 		<tr>
-		<th><label for="image">Title</label></th>
-		 
-		<td>
-		<input type="text" name="agent_title" id="agent-title" value="<?php echo esc_attr( get_the_author_meta( 'agent_title', $user->ID ) ); ?>" class="regular-text" />
-		<span class="description"><?php esc_html_e('This text will be displayed below your Name on Agents list','listeo_core'); ?></span>
-		</td>
-		</tr> -->
+
 
 		<?php 
-		$current_user = wp_get_current_user();
-		$roles = $current_user->roles;
+		
+				//get user role based on user id
+		$roles = $user->roles;
+
+		
 		$role = array_shift( $roles ); 
 		switch ($role) {
           	case 'seller':
@@ -1333,6 +1815,18 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 				'name' => 'Stripe Connect user ID',
 				'label' => 'Stripe Connect user ID',
 				'id' => 'stripe_user_id',
+				'type' => 'text',
+				'invert' => false,
+				'desc' => '',
+				'options_source' => NULL,
+				'options_cb' => NULL,
+				'options' => NULL
+			
+			);
+			$fields_user['full_phone'] = array(
+				'name' => 'Phone number',
+				'name' => 'Phone number',
+				'id' => 'full_phone',
 				'type' => 'text',
 				'invert' => false,
 				'desc' => '',
@@ -1514,6 +2008,14 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 		if(isset($_POST['listeo_core_avatar_id'])) {
 			update_user_meta( $user_id, 'listeo_core_avatar_id', $_POST['listeo_core_avatar_id'] );	
 		}
+		if(isset($_POST['listeo_verified_user']) && !empty($_POST['listeo_verified_user'])) {
+			update_user_meta( $user_id, 'listeo_verified_user', $_POST['listeo_verified_user'] );	
+		} else {
+			update_user_meta($user_id, 'listeo_verified_user', '');	
+		}
+		if (isset($_POST['listeo_commission_rate']) && !empty($_POST['listeo_commission_rate'])) {
+			update_user_meta($user_id, 'listeo_commission_rate', $_POST['listeo_commission_rate']);
+		}
 		$current_user = wp_get_current_user();
 			
 		
@@ -1616,13 +2118,27 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 
 	}
 
+	public function listeo_login( $atts = array() ) {
+		$template_loader = new Listeo_Core_Template_Loader;
+		ob_start();
+		$template_loader->get_template_part( 'account/login' ); 
+		return ob_get_clean();
+	}
+
+	public function listeo_registration( $atts = array() ) {
+		$template_loader = new Listeo_Core_Template_Loader;
+		ob_start();
+		$template_loader->get_template_part( 'account/registration' ); 
+		return ob_get_clean();
+	}
+
 	public function my_account( $atts = array() ) {
 		$template_loader = new Listeo_Core_Template_Loader;
 		ob_start();
 		if ( is_user_logged_in() ) : 
 		$template_loader->get_template_part( 'my-account' ); 
 		else :
-		$template_loader->get_template_part( 'account/login' ); 
+		$template_loader->get_template_part( 'account/login-form' ); 
 		endif;
 		return ob_get_clean();
 	}	
@@ -1687,7 +2203,7 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 						</div>';
 
 			} else {
-				return '<div class="notification success closeable">'
+				return '<div class="notification error closeable">'
 							.__( 'Invalid password reset link.', 'listeo_core' ).'
 						</div>';
 			}
@@ -1793,7 +2309,7 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 		
 		switch ($status) {
 			case 'pending':
-				$post_status = array('pending_payment','draft','pending');
+				$post_status = array('pending_payment','draft','pending','preview');
 				break;
 			
 			case 'active':
@@ -1819,7 +2335,7 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 			    'post_status'	  	=> $post_status,
 			)
 		);
-		//var_dump($q->posts);
+		
 		return $q;
 	}
 
@@ -1838,7 +2354,13 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 	            wp_redirect( admin_url() );
 	        }
 	    } else {
-	        wp_redirect( home_url( get_permalink(get_option( 'listeo_profile_page' )) ) );
+			
+			if($redirect_to) {
+				wp_safe_redirect( $redirect_to );
+			} else {
+				wp_redirect(home_url(get_permalink(get_option('listeo_profile_page'))));
+			}
+	        
 	    }
 	}
 
@@ -2051,6 +2573,9 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 	        case 'empty_password':
 	            return __( 'You need to enter a password to login.', 'listeo_core' );
 	 		break;
+	        case 'strong_password':
+	            return __( 'You password is too weak.', 'listeo_core' );
+	 		break;
 	        case 'invalid_username':
 	            return __(
 	                "We don't have any users with that email address. Maybe you used a different one when signing up?", 'listeo_core' );
@@ -2136,6 +2661,22 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 		        	$redirect_url = get_permalink(get_option( 'listeo_profile_page' ));
 		        }
 			}
+			
+			$referer = wp_get_referer();
+			// if $referer has '/my-profile/?redirect_to='
+			if (strpos($referer, '?redirect_to=') !== false) {
+				// remove from url query string '/my-profile/?redirect_to='
+				// get the link to my profile page
+				$my_profile_page_id = get_option('listeo_profile_page');
+				// get slug of page with id $my_profile_page_id
+				$my_profile_page_slug = get_post_field('post_name', $my_profile_page_id);
+				// 
+				$redirect_url = str_replace('/'.$my_profile_page_slug.'/?redirect_to=', '', $referer);
+
+				if ($redirect_url) {
+					$redirect_url = urldecode($redirect_url);
+				}
+			}
 	
 	    }
 	 
@@ -2151,7 +2692,7 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 	 *
 	 * @return int|WP_Error         The id of the user that was created, or error if failed.
 	 */
-	private function register_user( $email, $user_login, $first_name, $last_name, $role, $password, $custom_registration_fields ) {
+	public function register_user( $email, $user_login, $first_name, $last_name, $role, $phone, $password, $custom_registration_fields ) {
 	    $errors = new WP_Error();
 	 
 	    // Email address is used as both username and email. It is also the only
@@ -2170,10 +2711,24 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 	        $errors->add( 'username_exists', $this->get_error_message( 'username_exists') );
 	        return $errors;
 	    }
-	 
+		$password_generated = false;
 	    // Generate the password so that the subscriber will have to check email...
 	    if(!$password) {  
-		    $password = wp_generate_password( 12, false );
+		    $password = wp_generate_password( 12, true );
+			$password_generated = true;
+
+		}
+		if (get_option('listeo_strong_password') && !$password_generated) {
+			$uppercase = preg_match('@[A-Z]@', $password);
+			$lowercase = preg_match('@[a-z]@', $password);
+			$number    = preg_match('@[0-9]@', $password);
+			$specialChars = preg_match('@[^\w]@', $password);
+
+			if (!$uppercase || !$lowercase || !$number || !$specialChars || strlen($password) < 8) {
+
+				$errors->add('strong_password', $this->get_error_message('strong_password'));
+				return $errors;
+			}
 		}
 
 		if (!in_array($role, array('owner', 'guest', 'seller'))) {
@@ -2192,7 +2747,10 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 	 
 	    $user_id = wp_insert_user( $user_data );
 	    
-
+		if($phone) {
+			update_user_meta( $user_id, 'phone', $phone );
+			update_user_meta( $user_id, 'full_phone', $phone );
+		}
 		foreach ( $custom_registration_fields as $key => $field ) : 
 			
 				if( $field['type'] == 'select_multiple' || $field['type'] == 'multicheck_split') {
@@ -2233,16 +2791,6 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 			
 
 
-	    // if(isset($custom_registration_fields) && !empty($custom_registration_fields)){
-	    // 	foreach ($custom_registration_fields as $key => $field) {
-
-
-
-
-	    // 		listeo_write_log($field);
-	    // 		update_user_meta( $user_id, $field['name'], $field['value'] );
-	    // 	}
-	    // }
 	    if ( ! is_wp_error( $user_id ) ) {
 			wp_new_user_notification( $user_id, $password,'both' );
 			if(get_option('listeo_autologin')){
@@ -2277,13 +2825,29 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 	            $last_name = (isset($_POST['last_name'])) ? sanitize_text_field( $_POST['last_name'] ) : '' ;
 	            // get/create username
 
-			    if ( get_option('listeo_registration_hide_username') ) {
-		  			$email_arr = explode('@', $email);
-		            $user_login = sanitize_user(trim($email_arr[0]), true);
-		        } else {
-		 			$user_login = sanitize_user(trim($_POST['username']));
-		        }
-		        
+	
+
+				if (get_option('listeo_registration_hide_username')) {
+					if (get_option('listeo_registration_hide_username_use_email')) {
+						$user_login = sanitize_user(trim($email));
+					} else {
+						$email_arr = explode('@', $email);
+						$user_login = sanitize_user(trim($email_arr[0]), true);
+					}
+				} else {
+
+					$user_login = sanitize_user(trim($_POST['username']));
+				}
+		        // check if email is from gmail, otherwise show error
+				
+					// $email_arr = explode('@', $email);
+					// if($email_arr[1] != 'gmail.com') {
+					// 	$redirect_url = add_query_arg( 'register-errors', 'gmail-only', $redirect_url );
+					// 	wp_redirect( $redirect_url );
+					// 	exit;
+					// }
+				
+
 
 	            $role =  (isset($_POST['user_role'])) ? sanitize_text_field( $_POST['user_role'] ) : get_option('default_role');
 		        //$role = sanitize_text_field($_POST['role']);
@@ -2303,7 +2867,7 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 		            	//get fields for registration
 
 		            	foreach ($fields as $key => $field) {
-
+							
 		            	
 		            		$field_type = str_replace( '-', '_', $field['type'] );
 				
@@ -2317,10 +2881,7 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 								
 								$value = $this->get_posted_field( $key, $field );
 							}
-							
-							// Set fields value
-
-							
+					
 
 
 		            		if(isset($field['required']) && !empty($field['required'])) {
@@ -2340,6 +2901,7 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 		            			
 		            			$custom_registration_fields[] = $field;
 		            		}
+						
 
 		            	}
 		            }
@@ -2410,6 +2972,29 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 		        		$redirect_url = add_query_arg( 'register-errors', 'captcha-fail', $redirect_url );
 	        		endif;
 
+					if($recaptcha_version=="hcaptcha" ){
+						if (!isset($_POST['h-captcha-response']) || empty($_POST['h-captcha-response'])) {
+							$redirect_url = add_query_arg('register-errors', 'captcha-fail', $redirect_url);
+						} else {
+							$hcaptcha_response = $_POST['h-captcha-response'];
+							if (!$this->verify_hcaptcha($hcaptcha_response)) {
+								$recaptcha_pass = true;
+							}
+						}
+					}
+
+					if($recaptcha_version=="turnstile" ){
+						if (!isset($_POST['cf-turnstile-response']) || empty($_POST['cf-turnstile-response'])) {
+							$redirect_url = add_query_arg('register-errors', 'captcha-fail', $redirect_url);
+						} else {
+							$turnstile_response = $_POST['cf-turnstile-response'];
+							if ($this->verify_turnstile($turnstile_response)) {
+								$recaptcha_pass = true;
+							}
+						}
+					}
+
+
 	        		if($recaptcha_pass == false){
 	        			wp_redirect( $redirect_url );
 	        		}
@@ -2437,10 +3022,69 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 	            		$redirect_url = add_query_arg( 'register-errors', 'terms-fail', $redirect_url );
 	            	endif;
 	            }
+				$otp_pass = true;
+				$phone = false;
+				if(get_option('listeo_otp_status') || get_option('listeo_email_otp_verification')) {
+					//verify otp
+					
+					$email = sanitize_text_field(trim($_POST['email']));
+					$sms_otp = get_option('listeo_otp_status');
+					$email_otp = get_option('listeo_email_otp_verification');
+					if ($sms_otp || $email_otp) {
+						$otp = true;
+						if ($sms_otp) {
+							$otp_type = 'sms';
+						} else {
+							$otp_type = 'email';
+						}
+					} else {
+						$otp = false;
+						$otp_type = false;
+					}
+					//verify otp
+					$phone = sanitize_text_field(trim($_POST['full_phone']));
+					
 
-	            if($recaptcha_pass && $privacy_policy_pass && $terms_and_conditions_pass){
+					if ($otp_type == 'sms') {
+						$transient_key = 'otp_' . $phone;
+					} else {
+						$transient_key = 'otp_' . $email;
+					}
+					
+					$orignal_token = get_transient($transient_key);
+					if (isset($_POST['listeo_otp']['token'])) {
+						$token = $_POST['listeo_otp']['token'];
 
-		            $result = $this->register_user( $email, $user_login, $first_name, $last_name, $role, $password, $custom_registration_fields );
+						$letter_1 = $token['code_1'];
+						$letter_2 = $token['code_2'];
+						$letter_3 = $token['code_3'];
+						$letter_4 = $token['code_4'];
+						// glue all the letters togheter
+						$token = $letter_1 . $letter_2 . $letter_3 . $letter_4;
+						// get user phone
+						
+						// check if the token is correct
+					
+						if($orignal_token != $token){
+							$otp_pass = false;
+							$redirect_url = add_query_arg( 'register-errors', 'otp-fail', $redirect_url );
+							wp_redirect( $redirect_url );
+							exit;
+						}
+					} else {
+						$otp_pass = false;
+						$redirect_url = add_query_arg( 'register-errors', 'otp-fail', $redirect_url );
+						wp_redirect( $redirect_url );
+						exit;
+
+					}
+					//remove the transient
+					delete_transient($transient_key);
+				}
+
+	            if($recaptcha_pass && $privacy_policy_pass && $terms_and_conditions_pass && $otp_pass){
+					
+		            $result = $this->register_user( $email, $user_login, $first_name, $last_name, $role, $phone, $password, $custom_registration_fields );
 						 
 		            if ( is_wp_error( $result ) ) {
 		                // Parse errors into a string and append as parameter to redirect
@@ -2477,6 +3121,21 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 			                }
 		                $redirect_url = add_query_arg( 'registered', $email, $redirect_url );
 		            }
+					$referer = wp_get_referer();
+					// if $referer has '/my-profile/?redirect_to='
+					if (strpos($referer, '?redirect_to=') !== false) {
+						// remove from url query string '/my-profile/?redirect_to='
+						// get the link to my profile page
+						$my_profile_page_id = get_option('listeo_profile_page');
+						// get slug of page with id $my_profile_page_id
+						$my_profile_page_slug = get_post_field('post_name', $my_profile_page_id);
+						// 
+						$redirect_url = str_replace('/' . $my_profile_page_slug . '/?redirect_to=', '', $referer);
+
+						if ($redirect_url) {
+							$redirect_url = urldecode($redirect_url);
+						}
+					}
 
 				}
 	 		}
@@ -2485,6 +3144,9 @@ if( get_option('listeo_popup_login') == 'ajax' && !is_page_template( 'template-d
 	    }
 	}
 
+
+	// generate one time password for user that I will send via sms
+	
 	/**
 	 * Resets the user's password if the password reset form was submitted.
 	 */
@@ -2578,6 +3240,7 @@ if ( !function_exists('wp_new_user_notification') ) {
         $message .= sprintf(__('Username: %s','listeo_core'), $user_login) . "\r\n\r\n";
         $message .= sprintf(__('E-mail: %s','listeo_core'), $user_email) . "\r\n";
         $message .= sprintf(__('Role: %s','listeo_core'), $user_role) . "\r\n";
+        
  
         @wp_mail(get_option('admin_email'), sprintf(__('[%s] New User Registration','listeo_core'), get_option('blogname')), $message);
  		

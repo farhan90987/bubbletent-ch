@@ -27,7 +27,12 @@ get_header();
 			<div class="row">
 				<div class="col-md-12">
 					
-				<?php echo do_shortcode('[listeo_search_form action='.get_post_type_archive_link( 'listing' ).' source="home" custom_class="main-search-form"]') ?>
+				<?php
+					$source = get_post_meta(get_the_ID(), 'listeo_page_search_search_form_full', true);
+					if (empty($source)) {
+						$source = 'home';
+					}
+				echo do_shortcode('[listeo_search_form action='.get_post_type_archive_link( 'listing' ).' source="'.$source.'" custom_class="main-search-form"]') ?>
 				</div>
 			</div>
 		</div>

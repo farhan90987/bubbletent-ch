@@ -34,9 +34,15 @@ class Listeo_Core_Post_Types {
 	 * Constructor
 	 */
 	public function __construct() {
+		// PRIORITY 1: Protect WordPress core, WooCommerce, and Dokan URLs before adding Listeo rewrite rules
+		add_filter( 'rewrite_rules_array', array( $this, 'protect_core_urls' ), 1 );
+		add_action( 'init', array( $this, 'enable_custom_permalink_settings' ), 0 );
+		
 		add_action( 'init', array( $this, 'register_post_types' ), 5 );
 		add_action( 'manage_listing_posts_custom_column', array( $this, 'custom_columns' ), 2 );
 		add_filter( 'manage_edit-listing_columns', array( $this, 'columns' ) );
+		add_filter('manage_edit-listing_sortable_columns', array($this, 'sortable_columns'));
+		add_action('pre_get_posts', array($this, 'sort_columns_query'));
 
 		add_action( 'pending_to_publish', array( $this, 'set_expiry' ) );
 		add_action( 'pending_payment_to_publish', array( $this, 'set_expiry' ) );
@@ -46,7 +52,7 @@ class Listeo_Core_Post_Types {
 		add_action( 'expired_to_publish', array( $this, 'set_expiry' ) );
 
 		add_filter( 'wp_insert_post_data', array( $this, 'default_comments_on' ) );
-		add_action( 'save_post', array( $this,'save_availibilty_calendar'), 10, 3 );
+		add_action( 'save_post', array( $this,'save_availibilty_calendar'), 20, 3 );
 		add_action( 'save_post', array( $this,'save_as_product'), 10, 3 );
 		add_action( 'save_post', array( $this,'save_event_timestamp'), 10, 3 );
 		
@@ -61,6 +67,7 @@ class Listeo_Core_Post_Types {
 
 
 		add_action( 'listeo_core_check_for_expired_listings', array( $this, 'check_for_expired' ) );
+		add_action( 'listeo_core_check_for_expiring_listings', array( $this, 'check_for_expiring' ) );
 
 		add_action( 'admin_init', array( $this, 'approve_listing' ) );
 		add_action( 'admin_notices', array( $this, 'action_notices' ) );
@@ -76,18 +83,34 @@ class Listeo_Core_Post_Types {
 
 		add_action( 'wp_insert_post', array( $this, 'set_default_avg_rating_new_post')) ;
 		add_action( 'before_delete_post', array($this, 'remove_product_on_listing_remove' ));
+		//add_action( 'before_delete_post', array($this, 'remove_gallery_on_listing_remove' ));
 		
 
-		if(get_option('listeo_region_in_links' )) {
+		// Only enable legacy region permalinks if custom permalinks are disabled
+		// This prevents the legacy system from interfering when custom permalinks are not enabled
+		if(get_option('listeo_region_in_links' ) && !get_option('listeo_enable_custom_permalinks', false)) {
 
 			add_action( 'wp_loaded', array( $this, 'add_listings_permastructure' ) );
 			add_filter( 'post_type_link', array( $this,'listing_permalinks' ), 10, 2 );
 			add_filter( 'term_link', array( $this,'add_term_parents_to_permalinks'), 10, 2 );
+
+		}
+
+		// Combined taxonomy URLs functionality
+		if(get_option('listeo_combined_taxonomy_urls')) {
+			add_action('init', array($this, 'add_combined_taxonomy_rewrite_rules'));
+			add_filter('query_vars', array($this, 'add_combined_taxonomy_query_vars'));
+			add_action('pre_get_posts', array($this, 'modify_combined_taxonomy_query'));
+			//add_filter('template_include', array($this, 'combined_taxonomy_template_include'), 20);
 			
+			// Title filters
+			add_filter('document_title_parts', array($this, 'combined_taxonomy_document_title'));
+			add_filter('get_the_archive_title', array($this, 'combined_taxonomy_archive_title'));
+			add_filter('wp_title', array($this, 'combined_taxonomy_wp_title'), 10, 3);
 		}
 		add_filter('add_menu_classes', array( $this,'show_pending_number'));
-		
-	
+
+		add_action('wp_head', array($this, 'add_local_business_schema'), 20);
 
 	}
 	function listeo_status_into_inline_edit() { // ultra-simple example
@@ -203,7 +226,7 @@ class Listeo_Core_Post_Types {
 			$permalink_settings['listings_archive'] = '';
 			
 				// This isn't the first activation and the theme supports it. Set the default to legacy value.
-				$permalink_settings['listings_archive'] = _x( 'listings', 'Post type archive slug - resave permalinks after changing this', 'listeo_core' );
+			$permalink_settings['listings_archive'] = _x( 'listings', 'Post type archive slug - resave permalinks after changing this', 'listeo_core' );
 			
 			update_option( 'listeo_core_permalinks', wp_json_encode( $permalink_settings ) );
 		}
@@ -250,9 +273,12 @@ class Listeo_Core_Post_Types {
 	}
 
 	function save_availibilty_calendar( $post_ID, $post, $update ) {
-	  	
-	
-			
+
+
+		// Verify if this is an auto save routine
+		if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+			return;
+		}
 			$bookings = new Listeo_Core_Bookings_Calendar;
 			
 			// set array only with dates when listing is not avalible
@@ -275,37 +301,104 @@ class Listeo_Core_Post_Types {
 	}
 	
 	function save_event_timestamp( $post_ID, $post, $update ) {
-			$post_type = get_post_meta($post_ID, '_listing_type', true);
+		// Only process listing posts
+		if ( $post->post_type !== 'listing' ) {
+			return;
+		}
+
+		// Check if this is an event listing (check both booking type and listing type)
+		$booking_type = listeo_get_booking_type($post_ID);
+		$listing_type = get_post_meta($post_ID, '_listing_type', true);
+		
+		if ( $booking_type !== 'event' && $listing_type !== 'event' ) {
+			return;
+		}
+
+		// Process event start date
+		$event_date = get_post_meta($post_ID, '_event_date', true);
+		if ( !empty($event_date) ) {
+			$this->create_event_timestamp($post_ID, $event_date, '_event_date_timestamp');
+		}
+
+		// Process event end date
+		$event_date_end = get_post_meta($post_ID, '_event_date_end', true);
+		if ( !empty($event_date_end) ) {
+			$this->create_event_timestamp($post_ID, $event_date_end, '_event_date_end_timestamp');
+		}
+	}
+
+	/**
+	 * Helper function to create event timestamps with proper error handling
+	 */
+	private function create_event_timestamp( $post_ID, $date_string, $timestamp_meta_key ) {
+		// Validate input
+		if ( empty($date_string) ) {
+			error_log("Listeo Event Timestamp: Empty date string for post {$post_ID}, field {$timestamp_meta_key}");
+			return false;
+		}
+
+		// Extract date part (remove time if present)
+		$date_parts = explode(' ', $date_string, 2);
+		$date_only = $date_parts[0];
+
+		// Get the WordPress date format
+		$date_format = listeo_date_time_wp_format_php();
+		
+		// Attempt to parse the date
+		$date_obj = DateTime::createFromFormat($date_format, $date_only);
+
+		// Validate date parsing
+		if ( $date_obj === false ) {
+			// Log parsing error with details
+			$errors = DateTime::getLastErrors();
+			error_log("Listeo Event Timestamp: Failed to parse date '{$date_string}' for post {$post_ID} using format '{$date_format}'. Errors: " . print_r($errors, true));
 			
-
-			if($post_type == 'event'){
-				$event_date = get_post_meta($post_ID, '_event_date', true);
-                 
-                if($event_date){
-                    $meta_value_date = explode(' ', $event_date,2); 
-                    $meta_value_stamp_obj = DateTime::createFromFormat(listeo_date_time_wp_format_php(), $meta_value_date[0]);
-                    if($meta_value_stamp_obj){
-                    	$meta_value_stamp = $meta_value_stamp_obj->getTimestamp();
-                    	update_post_meta($post_ID, '_event_date_timestamp', $meta_value_stamp );    
-                    }
-                    
-                    
-                }
-
-                $event_date_end = get_post_meta($post_ID, '_event_date_end', true);
-                
-                if($event_date_end){
-                    $meta_value_date_end = explode(' ', $event_date_end, 2); 
-                    $meta_value_stamp_end_obj = DateTime::createFromFormat(listeo_date_time_wp_format_php(), $meta_value_date_end[0]);
-
-                    if($meta_value_stamp_end_obj){
-                    	$meta_value_stamp_end = $meta_value_stamp_end_obj->getTimestamp();
-                    	update_post_meta( $post_ID, '_event_date_end_timestamp', $meta_value_stamp_end );    
-                    }
-                    
-                }   
+			// Try alternative parsing as fallback
+			$date_obj = $this->try_alternative_date_parsing($date_only);
+			
+			if ( $date_obj === false ) {
+				error_log("Listeo Event Timestamp: Alternative parsing also failed for '{$date_string}' on post {$post_ID}");
+				return false;
 			}
+		}
 
+		// Create timestamp and save
+		$timestamp = $date_obj->getTimestamp();
+		$result = update_post_meta($post_ID, $timestamp_meta_key, $timestamp);
+
+		// Log successful timestamp creation for debugging
+		if ( defined('WP_DEBUG') && WP_DEBUG ) {
+			error_log("Listeo Event Timestamp: Successfully created {$timestamp_meta_key} = {$timestamp} (" . $date_obj->format('Y-m-d H:i:s') . ") for post {$post_ID}");
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Try alternative date parsing methods as fallback
+	 */
+	private function try_alternative_date_parsing( $date_string ) {
+		// Common date formats to try
+		$formats = array(
+			'Y-m-d',     // 2024-03-15
+			'm/d/Y',     // 03/15/2024
+			'd/m/Y',     // 15/03/2024
+			'm-d-Y',     // 03-15-2024
+			'd-m-Y',     // 15-03-2024
+			'Y/m/d',     // 2024/03/15
+			'j/n/Y',     // 15/3/2024 (no leading zeros)
+			'n/j/Y',     // 3/15/2024 (no leading zeros)
+		);
+
+		foreach ($formats as $format) {
+			$date_obj = DateTime::createFromFormat($format, $date_string);
+			if ( $date_obj !== false ) {
+				error_log("Listeo Event Timestamp: Alternative parsing successful using format '{$format}' for date '{$date_string}'");
+				return $date_obj;
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -322,6 +415,9 @@ class Listeo_Core_Post_Types {
 		// Custom admin capability
 		$admin_capability = 'edit_listings';
 		$permalink_structure = self::get_permalink_structure();
+		
+		// Get custom types settings to check if default taxonomies should be registered
+		$should_register_default_taxonomies = $this->get_default_taxonomy_settings();
 				
 	
 		// Set labels and localize them
@@ -446,56 +542,59 @@ class Listeo_Core_Post_Types {
 
 
 // Register taxonomy "Events Categry"
-		$singular  = __( 'Event Category', 'listeo_core' );
-		$plural    = __( 'Events Categories', 'listeo_core' );	
-		$rewrite   = array(
-			'slug'         => _x( 'events-category', 'Event Category slug - resave permalinks after changing this', 'listeo_core' ),
-			'with_front'   => false,
-			'hierarchical' => false
-		);
-		$public    = true;
-		register_taxonomy( "event_category",
-			apply_filters( 'register_taxonomy_event_category_object_type', array( 'listing' ) ),
-       	 	apply_filters( 'register_taxonomy_event_category_args', array(
-	            'hierarchical' 			=> true,
-	            /*'update_count_callback' => '_update_post_term_count',*/
-	            'label' 				=> $plural,
-	            'labels' => array(
-					'name'              => $plural,
-					'singular_name'     => $singular,
-					'menu_name'         => ucwords( $plural ),
-					'search_items'      => sprintf( __( 'Search %s', 'listeo_core' ), $plural ),
-					'all_items'         => sprintf( __( 'All %s', 'listeo_core' ), $plural ),
-					'parent_item'       => sprintf( __( 'Parent %s', 'listeo_core' ), $singular ),
-					'parent_item_colon' => sprintf( __( 'Parent %s:', 'listeo_core' ), $singular ),
-					'edit_item'         => sprintf( __( 'Edit %s', 'listeo_core' ), $singular ),
-					'update_item'       => sprintf( __( 'Update %s', 'listeo_core' ), $singular ),
-					'add_new_item'      => sprintf( __( 'Add New %s', 'listeo_core' ), $singular ),
-					'new_item_name'     => sprintf( __( 'New %s Name', 'listeo_core' ),  $singular )
-            	),
-	            'show_ui' 				=> true,
-	            'show_in_rest' => true,
-	            'show_tagcloud'			=> false,
-	            'public' 	     		=> $public,
-	            /*'capabilities'			=> array(
-	            	'manage_terms' 		=> $admin_capability,
-	            	'edit_terms' 		=> $admin_capability,
-	            	'delete_terms' 		=> $admin_capability,
-	            	'assign_terms' 		=> $admin_capability,
-	            ),*/
-	            'rewrite' 				=> $rewrite,
-	        ) )
-	    );	
+		if ($should_register_default_taxonomies['event']) {
+			$singular  = __( 'Event Category', 'listeo_core' );
+			$plural    = __( 'Events Categories', 'listeo_core' );	
+			$rewrite   = array(
+				'slug'         => _x( 'events-category', 'Event Category slug - resave permalinks after changing this', 'listeo_core' ),
+				'with_front'   => false,
+				'hierarchical' => false
+			);
+			$public    = true;
+			register_taxonomy( "event_category",
+				apply_filters( 'register_taxonomy_event_category_object_type', array( 'listing' ) ),
+	       	 	apply_filters( 'register_taxonomy_event_category_args', array(
+		            'hierarchical' 			=> true,
+		            /*'update_count_callback' => '_update_post_term_count',*/
+		            'label' 				=> $plural,
+		            'labels' => array(
+						'name'              => $plural,
+						'singular_name'     => $singular,
+						'menu_name'         => ucwords( $plural ),
+						'search_items'      => sprintf( __( 'Search %s', 'listeo_core' ), $plural ),
+						'all_items'         => sprintf( __( 'All %s', 'listeo_core' ), $plural ),
+						'parent_item'       => sprintf( __( 'Parent %s', 'listeo_core' ), $singular ),
+						'parent_item_colon' => sprintf( __( 'Parent %s:', 'listeo_core' ), $singular ),
+						'edit_item'         => sprintf( __( 'Edit %s', 'listeo_core' ), $singular ),
+						'update_item'       => sprintf( __( 'Update %s', 'listeo_core' ), $singular ),
+						'add_new_item'      => sprintf( __( 'Add New %s', 'listeo_core' ), $singular ),
+						'new_item_name'     => sprintf( __( 'New %s Name', 'listeo_core' ),  $singular )
+	            	),
+		            'show_ui' 				=> true,
+		            'show_in_rest' => true,
+		            'show_tagcloud'			=> false,
+		            'public' 	     		=> $public,
+		            /*'capabilities'			=> array(
+		            	'manage_terms' 		=> $admin_capability,
+		            	'edit_terms' 		=> $admin_capability,
+		            	'delete_terms' 		=> $admin_capability,
+		            	'assign_terms' 		=> $admin_capability,
+		            ),*/
+		            'rewrite' 				=> $rewrite,
+		        ) )
+		    );
+		}	
 // Register taxonomy "Service Categry"
-		$singular  = __( 'Service Category', 'listeo_core' );
-		$plural    = __( 'Service Categories', 'listeo_core' );	
-		$rewrite   = array(
-			'slug'         => _x( 'service-category', 'Service Category slug - resave permalinks after changing this', 'listeo_core' ),
-			'with_front'   => false,
-			'hierarchical' => false
-		);
-		$public    = true;
-		register_taxonomy( "service_category",
+		if ($should_register_default_taxonomies['service']) {
+			$singular  = __( 'Service Category', 'listeo_core' );
+			$plural    = __( 'Service Categories', 'listeo_core' );	
+			$rewrite   = array(
+				'slug'         => _x( 'service-category', 'Service Category slug - resave permalinks after changing this', 'listeo_core' ),
+				'with_front'   => false,
+				'hierarchical' => false
+			);
+			$public    = true;
+			register_taxonomy( "service_category",
 			apply_filters( 'register_taxonomy_service_category_object_type', array( 'listing' ) ),
        	 	apply_filters( 'register_taxonomy_service_category_args', array(
 	            'hierarchical' 			=> true,
@@ -527,13 +626,15 @@ class Listeo_Core_Post_Types {
 	            'rewrite' 				=> $rewrite,
 	        ) )
 	    );	
+		}
 // Register taxonomy "Rental Categry"
-		$singular  = __( 'Rental Category', 'listeo_core' );
-		$plural    = __( 'Rentals Categories', 'listeo_core' );	
-		$rewrite   = array(
-			'slug'         => _x( 'rental-category', 'Rental Category slug - resave permalinks after changing this', 'listeo_core' ),
-			'with_front'   => false,
-			'hierarchical' => false
+		if ($should_register_default_taxonomies['rental']) {
+			$singular  = __( 'Rental Category', 'listeo_core' );
+			$plural    = __( 'Rentals Categories', 'listeo_core' );	
+			$rewrite   = array(
+				'slug'         => _x( 'rental-category', 'Rental Category slug - resave permalinks after changing this', 'listeo_core' ),
+				'with_front'   => false,
+				'hierarchical' => false
 		);
 		$public    = true;
 		register_taxonomy( "rental_category",
@@ -568,15 +669,17 @@ class Listeo_Core_Post_Types {
 	            'rewrite' 				=> $rewrite,
 	        ) )
 	    );	
+		}
 // Register taxonomy "classifieds Categry"
-		$singular  = __( 'Classifieds Category', 'listeo_core' );
-		$plural    = __( 'Classifieds Categories', 'listeo_core' );	
-		$rewrite   = array(
-			'slug'         => _x( 'classifieds-category', 'Classifieds Category slug - resave permalinks after changing this', 'listeo_core' ),
-			'with_front'   => false,
-			'hierarchical' => false
-		);
-		$public    = true;
+		if ($should_register_default_taxonomies['classifieds']) {
+			$singular  = __( 'Classifieds Category', 'listeo_core' );
+			$plural    = __( 'Classifieds Categories', 'listeo_core' );	
+			$rewrite   = array(
+				'slug'         => _x( 'classifieds-category', 'Classifieds Category slug - resave permalinks after changing this', 'listeo_core' ),
+				'with_front'   => false,
+				'hierarchical' => false
+			);
+			$public    = true;
 		register_taxonomy( "classifieds_category",
 			apply_filters( 'register_taxonomy_classifieds_category_object_type', array( 'listing' ) ),
        	 	apply_filters( 'register_taxonomy_classifieds_category_args', array(
@@ -609,6 +712,7 @@ class Listeo_Core_Post_Types {
 	            'rewrite' 				=> $rewrite,
 	        ) )
 	    );	
+		}
 
 	    // Register taxonomy "Features"
 		$singular  = __( 'Feature', 'listeo_core' );
@@ -693,9 +797,123 @@ class Listeo_Core_Post_Types {
 	            'rewrite' 				=> $rewrite,
 	        ) )
 	    );
-			
+		
+		// Register dynamic taxonomies for custom listing types
+		$this->register_dynamic_listing_type_taxonomies();
+				
 		
 	} /* eof register*/
+
+	/**
+	 * Register taxonomies for custom listing types
+	 */
+	private function register_dynamic_listing_type_taxonomies() {
+		// Only register if custom types manager is available
+		if (!function_exists('listeo_core_custom_listing_types')) {
+			return;
+		}
+		
+		$custom_types_manager = listeo_core_custom_listing_types();
+		$listing_types = $custom_types_manager->get_listing_types(true); // Get active types only
+		
+		// Debug logging
+		// if (defined('WP_DEBUG') && WP_DEBUG) {
+		//		error_log('Listeo: Attempting to register taxonomies for ' . count($listing_types) . ' listing types');
+		// }
+		
+		foreach ($listing_types as $type) {
+			// Skip if taxonomy registration is disabled for this type
+			if (!isset($type->register_taxonomy) || !$type->register_taxonomy) {
+				
+				continue;
+			}
+			
+			// For default types, we need to check if they should be registered or not
+			// but we can't unregister already registered taxonomies, only skip registration
+			if (in_array($type->slug, array('service', 'rental', 'event', 'classifieds'))) {
+				
+				continue;
+			}
+			
+			$taxonomy_slug = $type->slug . '_category';
+			$singular = sprintf(__('%s Category', 'listeo_core'), $type->name);
+			$plural = sprintf(__('%s Categories', 'listeo_core'), $type->plural_name);
+			
+			$rewrite = array(
+				'slug' => $type->slug . '-category',
+				'with_front' => false,
+				'hierarchical' => false
+			);
+			
+			// Debug logging
+			// if (defined('WP_DEBUG') && WP_DEBUG) {
+			//		error_log('Listeo: Registering taxonomy ' . $taxonomy_slug . ' for type ' . $type->slug);
+			// }
+			
+			register_taxonomy($taxonomy_slug,
+				apply_filters('register_taxonomy_' . $taxonomy_slug . '_object_type', array('listing')),
+				apply_filters('register_taxonomy_' . $taxonomy_slug . '_args', array(
+					'hierarchical' => true,
+					'label' => $plural,
+					'labels' => array(
+						'name' => $plural,
+						'singular_name' => $singular,
+						'menu_name' => ucwords($plural),
+						'search_items' => sprintf(__('Search %s', 'listeo_core'), $plural),
+						'all_items' => sprintf(__('All %s', 'listeo_core'), $plural),
+						'parent_item' => sprintf(__('Parent %s', 'listeo_core'), $singular),
+						'parent_item_colon' => sprintf(__('Parent %s:', 'listeo_core'), $singular),
+						'edit_item' => sprintf(__('Edit %s', 'listeo_core'), $singular),
+						'update_item' => sprintf(__('Update %s', 'listeo_core'), $singular),
+						'add_new_item' => sprintf(__('Add New %s', 'listeo_core'), $singular),
+						'new_item_name' => sprintf(__('New %s Name', 'listeo_core'), $singular)
+					),
+					'show_ui' => true,
+					'show_in_rest' => true,
+					'show_tagcloud' => false,
+					'public' => true,
+					'rewrite' => $rewrite,
+				))
+			);
+		}
+	}
+
+	/**
+	 * Get taxonomy registration settings for default types
+	 */
+	private function get_default_taxonomy_settings() {
+		$settings = array(
+			'service' => true,
+			'rental' => true, 
+			'event' => true,
+			'classifieds' => true
+		);
+		
+		// Check custom types manager for override settings
+		if (function_exists('listeo_core_custom_listing_types')) {
+			$custom_types_manager = listeo_core_custom_listing_types();
+			$listing_types = $custom_types_manager->get_listing_types(true);
+			
+			foreach ($listing_types as $type) {
+				if (in_array($type->slug, array('service', 'rental', 'event', 'classifieds'))) {
+					$settings[$type->slug] = isset($type->register_taxonomy) && $type->register_taxonomy;
+				}
+			}
+		}
+		
+		return $settings;
+	}
+
+	/**
+	 * Force refresh taxonomies (called when listing types are updated)
+	 */
+	public static function refresh_dynamic_taxonomies() {
+		$post_types = new self();
+		$post_types->register_dynamic_listing_type_taxonomies();
+		
+		// Flush rewrite rules to ensure new taxonomies work properly
+		flush_rewrite_rules();
+	}
 
 	/**
 	 * Adds columns to admin listing of listing Listings.
@@ -708,15 +926,82 @@ class Listeo_Core_Post_Types {
 			$columns = array();
 		}
 		
+		
 		$columns["listing_type"]     	 	= __( "Type", 'listeo_core');
 		$columns["listing_region"]      	= __( "Region", 'listeo_core');
 		$columns["listing_address"]      	= __( "Address", 'listeo_core');
 		$columns["listing_posted"]          = __( "Posted", 'listeo_core');
 		$columns["expires"]           		= __( "Expires", 'listeo_core');
+		if(get_option('listeo_new_listing_requires_purchase') ) {
+			$columns['listing_package']         = __( "Package", 'listeo_core');
+		}
 		$columns['featured_listing']        = '<span class="tips" data-tip="' . __( "Featured?", 'listeo_core') . '">' . __( "Featured?", 'listeo_core') . '</span>';
 		$columns['listing_actions']         = __( "Actions", 'listeo_core');
 		return $columns;
 	}
+
+	/**
+	 * Make listing columns sortable
+	 *
+	 * @access public
+	 * @param mixed $columns
+	 * @return array
+	 */
+	public function sortable_columns($columns)
+	{
+		$custom = array(
+			'listing_type'     => '_listing_type',
+			'listing_region'   => 'listing_region',
+			'listing_address'  => '_address',
+			'listing_posted'   => 'date',
+			'expires'          => '_listing_expires',
+			'featured_listing' => '_featured'
+		);
+		return wp_parse_args($custom, $columns);
+	}
+
+	/**
+	 * Listing columns orderby
+	 *
+	 * @access public
+	 * @param mixed $query
+	 * @return void
+	 */
+	public function sort_columns_query($query)
+	{
+		if (! is_admin() || ! $query->is_main_query() || $query->get('post_type') !== 'listing') {
+			return;
+		}
+
+		$orderby = $query->get('orderby');
+
+		switch ($orderby) {
+			case '_listing_type':
+				$query->set('meta_key', '_listing_type');
+				$query->set('orderby', 'meta_value');
+				break;
+
+			case '_address':
+				$query->set('meta_key', '_address');
+				$query->set('orderby', 'meta_value');
+				break;
+
+			case '_listing_expires':
+				$query->set('meta_key', '_listing_expires');
+				$query->set('orderby', 'meta_value_num');
+				break;
+
+			case '_featured':
+				$query->set('meta_key', '_featured');
+				$query->set('orderby', 'meta_value');
+				break;
+
+			case 'listing_region':
+				$query->set('orderby', 'title');
+				break;
+		}
+	}
+
 
 	/**
 	 * Displays the content for each custom column on the admin list for listing Listings.
@@ -727,8 +1012,10 @@ class Listeo_Core_Post_Types {
 		global $post;
 
 		switch ( $column ) {
+	
 			case "listing_type" :
 				$type = get_post_meta($post->ID, '_listing_type', true);
+
 				switch ($type) {
 					case 'service':
 						echo esc_html_e('Service','listeo_core');
@@ -739,9 +1026,26 @@ class Listeo_Core_Post_Types {
 					case 'event':
 						echo esc_html_e('Event','listeo_core');
 						break;
-					
+					case 'classifieds':
+						echo esc_html_e('Classifieds','listeo_core');
+						break;
+
 					default:
-						# code...
+						// Handle custom listing types
+						if (!empty($type) && function_exists('listeo_core_custom_listing_types')) {
+							$custom_types_manager = listeo_core_custom_listing_types();
+							$type_obj = $custom_types_manager->get_listing_type_by_slug($type);
+
+							if ($type_obj && $type_obj->is_active) {
+								echo esc_html($type_obj->name);
+							} else {
+								// Fallback: capitalize the type slug
+								echo esc_html(ucfirst(str_replace('_', ' ', $type)));
+							}
+						} else {
+							// Fallback: capitalize the type slug for non-custom types
+							echo esc_html(ucfirst(str_replace('_', ' ', $type)));
+						}
 						break;
 				}
 			break;
@@ -763,6 +1067,36 @@ class Listeo_Core_Post_Types {
 
 			break;
 
+			case "listing_package" :
+				
+				$user_package = get_post_meta($post->ID, '_user_package_id', true);
+				
+				//echo $user_package;
+				//$user_packages = listeo_core_available_packages($post_author_id,$user_package);
+				if ($user_package) {
+					$package = listeo_core_get_package_by_id($user_package);
+					
+					
+					if ($package && $package->product_id) {
+						echo get_the_title($package->product_id);
+						
+					}
+
+					//return $package->get_title();
+				} else {
+					echo __('None','listeo_core');
+				}
+				$edit_url = esc_url(add_query_arg(
+					array(
+						'action' => 'edit',
+						'listing_id' => $post->ID,
+						'package_id' => $user_package,
+					),
+					admin_url('admin.php?page=listeo_core_paid_listings_package_editor')
+				));
+				echo ' <a href="' . $edit_url . '"><i class="fa fa-pencil"></i></a>';
+			break;
+
 			case "featured_listing" :
 				if ( listeo_core_is_featured( $post->ID ) ) echo '&#10004;'; else echo '&ndash;';
 			break;
@@ -772,6 +1106,8 @@ class Listeo_Core_Post_Types {
 			break;
 			
 			case "listing_actions" :
+				// Get the view count
+				
 				echo '<div class="actions">';
 
 				$admin_actions = apply_filters( 'listeo_core_post_row_actions', array(), $post );
@@ -818,6 +1154,15 @@ class Listeo_Core_Post_Types {
 				}
 
 				echo '</div>';
+				$views = get_post_meta($post->ID,
+					'_listing_views_count',
+					true
+				);
+				$views = $views ? $views : '0';
+
+				// Display title and views
+
+				echo '<br><small>' . sprintf(__('Views: %s', 'listeo_core'), $views) . '</small>';
 
 			break;
 		}
@@ -894,6 +1239,7 @@ class Listeo_Core_Post_Types {
 		global $wpdb;
 		//$date_format = get_option('date_format');
 		$date_format = 'm/d/Y';
+		$current_time = current_time('timestamp');
 		// Change status to expired
 		$listing_ids = $wpdb->get_col( $wpdb->prepare( "
 			SELECT postmeta.post_id FROM {$wpdb->postmeta} as postmeta
@@ -903,7 +1249,7 @@ class Listeo_Core_Post_Types {
 			AND postmeta.meta_value < %s
 			AND posts.post_status = 'publish'
 			AND posts.post_type = 'listing'
-		",  current_time( 'timestamp' ) ) );
+		", $current_time));
 
 		if ( $listing_ids ) {
 			foreach ( $listing_ids as $listing_id ) {
@@ -916,6 +1262,29 @@ class Listeo_Core_Post_Types {
 			}
 		}
 
+		// Event listings expiry check
+		if(get_option('listeo_expire_after_event')){
+
+		
+		$event_listing_ids = $wpdb->get_col($wpdb->prepare("
+			SELECT DISTINCT p.ID 
+			FROM {$wpdb->posts} p
+			LEFT JOIN {$wpdb->postmeta} pm_type ON p.ID = pm_type.post_id AND pm_type.meta_key = '_listing_type'
+			LEFT JOIN {$wpdb->postmeta} pm_end ON p.ID = pm_end.post_id AND pm_end.meta_key = '_event_date_end_timestamp'
+			LEFT JOIN {$wpdb->postmeta} pm_start ON p.ID = pm_start.post_id AND pm_start.meta_key = '_event_date_timestamp'
+			WHERE p.post_type = 'listing'
+			AND p.post_status = 'publish'
+			AND pm_type.meta_value = 'event'
+			AND (
+				(pm_end.meta_value IS NOT NULL AND pm_end.meta_value < %d)
+				OR 
+				(pm_end.meta_value IS NULL AND pm_start.meta_value < %d)
+			)
+		", $current_time, $current_time));
+		} else {
+			$event_listing_ids = array();
+		}
+		$all_expired_ids = array_merge($listing_ids, $event_listing_ids);
 		// Notifie expiring in 5 days
 		$listing_ids = $wpdb->get_col( $wpdb->prepare( "
 			SELECT postmeta.post_id FROM {$wpdb->postmeta} as postmeta
@@ -927,29 +1296,59 @@ class Listeo_Core_Post_Types {
 			AND posts.post_type = 'listing'
 		", strtotime( date( $date_format, strtotime('+5 days') ) ) ) );
 
-		if ( $listing_ids ) {
-			foreach ( $listing_ids as $listing_id ) {
-				$listing_data['ID'] = $listing_id;
-				do_action('listeo_core_expiring_soon_listing',$listing_id);
+		if ($all_expired_ids) {
+			foreach ($all_expired_ids as $listing_id) {
+				$listing_data = array(
+					'ID' => $listing_id,
+					'post_status' => 'expired'
+				);
+				wp_update_post($listing_data);
+				do_action('listeo_core_expired_listing', $listing_id);
 			}
 		}
 		// Delete old expired listings
 		if ( apply_filters( 'listeo_core_delete_expired_listings', false ) ) {
-			$listing_ids = $wpdb->get_col( $wpdb->prepare( "
+			$all_expired_ids = $wpdb->get_col( $wpdb->prepare( "
 				SELECT posts.ID FROM {$wpdb->posts} as posts
 				WHERE posts.post_type = 'listing'
 				AND posts.post_modified < %s
 				AND posts.post_status = 'expired'
 			", strtotime( date( $date_format, strtotime( '-' . apply_filters( 'listeo_delete_expired_listings_days', 30 ) . ' days', current_time( 'timestamp' ) ) ) ) ) );
 
-			if ( $listing_ids ) {
-				foreach ( $listing_ids as $listing_id ) {
+			if ($all_expired_ids ) {
+				foreach ($all_expired_ids as $listing_id ) {
 					wp_trash_post( $listing_id );
 				}
 			}
 		}
 	}
 
+	public function check_for_expiring() {
+		global $wpdb;
+
+		$current_time = current_time('timestamp');
+		$reminder_time = $current_time + (5 * 24 * 60 * 60); // 5 days from now
+
+		// Get listings that expire in 5 days and haven't been reminded yet
+		$listing_ids = $wpdb->get_col($wpdb->prepare("
+		SELECT postmeta.post_id FROM {$wpdb->postmeta} as postmeta
+		LEFT JOIN {$wpdb->posts} as posts ON postmeta.post_id = posts.ID
+		LEFT JOIN {$wpdb->postmeta} as reminder_meta ON (postmeta.post_id = reminder_meta.post_id AND reminder_meta.meta_key = '_expiration_reminder_sent')
+		WHERE postmeta.meta_key = '_listing_expires'
+		AND postmeta.meta_value > 0
+		AND postmeta.meta_value <= %s
+		AND postmeta.meta_value > %s
+		AND posts.post_status = 'publish'
+		AND posts.post_type = 'listing'
+		AND (reminder_meta.meta_value IS NULL OR reminder_meta.meta_value != '1')
+	", $reminder_time, $current_time));
+
+		if ($listing_ids) {
+			foreach ($listing_ids as $listing_id) {
+				do_action('listeo_core_expiring_soon_listing', $listing_id);
+			}
+		}
+	}
 
 	/**
 	 * Adds bulk actions to drop downs on Job Listing admin page.
@@ -1218,7 +1617,7 @@ class Listeo_Core_Post_Types {
 		foreach ( $categories as $category )
 			$post_categories[] = $category->slug;
 		
-		$permalink = str_replace( '%listing_category%', implode( ',', $post_categories ) , $permalink );
+		$permalink = str_replace( '%listing_category%', implode( '-', $post_categories ) , $permalink );
 		}
 
 
@@ -1230,7 +1629,7 @@ class Listeo_Core_Post_Types {
 	function add_term_parents_to_permalinks( $permalink, $term ) {
 		$term_parents = $this->get_term_parents( $term );
 		foreach ( $term_parents as $term_parent )
-			$permlink = str_replace( $term->slug, $term_parent->slug . ',' . $term->slug, $permalink );
+			$permalink = str_replace( $term->slug, $term_parent->slug . ',' . $term->slug, $permalink );
 		return $permalink;
 	}
 
@@ -1268,6 +1667,8 @@ class Listeo_Core_Post_Types {
 
 			
 			$product_id = get_post_meta($post_ID, 'product_id', true);
+			$listing_id = $post->ID;
+			$listing_url = get_permalink($listing_id);
 
 			// basic listing informations will be added to listing
 			$product = array (
@@ -1310,8 +1711,679 @@ class Listeo_Core_Post_Types {
 			wp_set_object_terms( $product_id, $term['term_id'], 'product_cat');
 
 			update_post_meta($post_ID, 'product_id', $product_id);
+			update_post_meta($post_ID, 'listing_url', $product_id);
 		}
 	
-	}	
+	}
+
+
+	function add_local_business_schema()
+	{
+		global $post;
+
+		if (!$post) return;
+		// check if post is listing
+		if (get_post_type($post->ID) != 'listing') {
+			return;
+		}
+		// Get the business name (page title)
+		$business_name = esc_attr(get_the_title($post->ID));
+ 
+		// Get the price range
+		$price_range = get_the_listing_price_range();
+		if (empty($price_range)) {
+			$price_range = esc_html__('Not available', 'listeo');  // Make string translatable
+		}
+
+		// Get the business address
+		$business_address = get_the_listing_address();
+		if (empty($business_address)) {
+			$business_address = esc_html__('Address not available', 'listeo');
+		}
+
+		// Try to parse address components
+		$address_components = [
+			'street' => '',
+			'city' => '',
+			'country' => ''
+		];
+
+		if (!empty($business_address) && $business_address !== esc_html__('Address not available', 'listeo')) {
+			// Attempt to parse the last comma-separated part as country
+			$address_parts = array_map('trim', explode(',', $business_address));
+			if (count($address_parts) > 1) {
+				$address_components['country'] = end($address_parts);
+				$address_components['city'] = prev($address_parts);
+				// Everything before the city is the street address
+				$address_components['street'] = implode(', ', array_slice($address_parts, 0, -2));
+			}
+		}
+		// Get the service category using listing_category
+		$category_terms = get_the_terms($post->ID, 'listing_category');
+		$business_category = '';
+		if ($category_terms && !is_wp_error($category_terms)) {
+			// We use the first term found
+			$business_category = $category_terms[0]->name;
+		}
+
+		// Get latitude and longitude coordinates
+		$latitude = get_post_meta($post->ID, '_geolocation_lat', true);
+		$longitude = get_post_meta($post->ID, '_geolocation_lng', true);
+
+		// Get reviews and rating (if available)
+		$rating = null;
+		$review_count = null;
+		$reviews = [];
+		if (!get_option('listeo_disable_reviews')) {
+			// Use the new combined rating display function
+			$rating_data = listeo_get_rating_display($post->ID);
+			$rating = $rating_data['rating'];
+			$review_count = $rating_data['count'];
+
+			if (!$rating && get_option('listeo_google_reviews_instead')) {
+				$reviews = listeo_get_google_reviews($post);
+				if (!empty($reviews['result']['reviews'])) {
+					$rating = number_format_i18n($reviews['result']['rating'], 1);
+					$rating = str_replace(',', '.', $rating);  // Format the rating
+					$review_count = count($reviews['result']['reviews']);
+				}
+			}
+		}
+
+		// Get additional review details (such as author and comment)
+		$review_data = [];
+		if ($reviews && !empty($reviews['result']['reviews'])) {
+			foreach ($reviews['result']['reviews'] as $review) {
+				$review_data[] = [
+					"@type" => "Review",
+					"author" => [
+						"@type" => "Person",
+						"name" => $review['author_name']
+					],
+					"datePublished" => date("c", $review['time']),
+					"reviewBody" => $review['text'],
+					"reviewRating" => [
+						"@type" => "Rating",
+						"ratingValue" => $review['rating'],
+						"bestRating" => "5",
+					]
+				];
+			}
+		}
+
+		// Get business hours from Listeo
+		$opening_hours = get_post_meta($post->ID, '_opening_hours', true);
+// status if are enabled
+		$opening_hours_status = get_post_meta($post->ID, '_opening_hours_status', true);
+		// Get business phone from Listeo
+		$phone = get_post_meta($post->ID, '_phone', true);
+
+		// Get business email from Listeo
+		$email = get_post_meta($post->ID, '_email', true);
+
+		// Get business website from Listeo
+		$website = get_post_meta($post->ID, '_website', true);
+
+		// Get business image (featured image with fallback to gallery/placeholder)
+		$image_url = listeo_core_get_listing_image($post->ID);
+		// Handle case where placeholder returns ID instead of URL
+		if (is_numeric($image_url)) {
+			$image_url = wp_get_attachment_image_url($image_url, 'full');
+		}
+
+		// Get business description
+		$description = get_post_meta($post->ID, '_listing_description', true);
+		if (empty($description)) {
+			$description = get_the_excerpt($post->ID);
+		}
+
+		// Get social media links from Listeo
+		$facebook = get_post_meta($post->ID, '_facebook', true);
+		$twitter = get_post_meta($post->ID, '_twitter', true);
+		$instagram = get_post_meta($post->ID, '_instagram', true);
+
+		// Get menu link if it's a restaurant
+		$menu_link = get_post_meta($post->ID, '_menu_link', true);
+
+		// Define the JSON-LD schema
+		$schema_data = [
+			"@context" => "https://schema.org",
+			"@type" => ["LocalBusiness", "Product"],
+			"name" => $business_name,
+			"priceRange" => $price_range,
+			"address" => [
+				"@type" => "PostalAddress",
+				"streetAddress" => $address_components['street'] ?: $business_address,
+				"addressLocality" => $address_components['city'],
+				"addressCountry" => $address_components['country']
+			],
+			//"category" => $business_category,
+			"image" => $image_url,
+			"telephone" => $phone,
+			"email" => $email,
+			"url" => $website ? $website : get_permalink($post->ID),
+			"description" => $description,
+			"sameAs" => array_filter([
+				$facebook,
+				$twitter,
+				$instagram
+			])
+		];
+
+		// Add rating if available
+		if ($rating && $review_count) {
+			$schema_data["aggregateRating"] = [
+				"@type" => "AggregateRating",
+				"ratingValue" => $rating,
+				"reviewCount" => $review_count,
+				"bestRating" => "5",
+				"worstRating" => "1"
+			];
+			// Add offers data for Product schema compatibility
+			$schema_data["offers"] = [
+				"@type" => "Offer",
+				"priceCurrency" => !empty($currency) ? $currency : "USD",
+				"availability" => "https://schema.org/InStock"
+			];
+
+			// If we have price data, add it to the offers
+			$price_min = get_post_meta($post->ID, '_price_min', true);
+			if (!empty($price_min)) {
+				$schema_data["offers"]["price"] = $price_min;
+			} else {
+				// Add a default price to satisfy Product schema requirements
+				$schema_data["offers"]["price"] = "0";
+			}
+		} else {
+			// If no rating, we can still add offers data
+			$schema_data["offers"] = [
+				"@type" => "Offer",
+				"priceCurrency" => !empty($currency) ? $currency : "USD",
+				"availability" => "https://schema.org/InStock",
+				"price" => "0" // Default price if no rating
+			];
+		}
+
+		// Add individual reviews if available
+		if (!empty($review_data)) {
+			$schema_data["review"] = $review_data;
+		}
+
+		// Add coordinates if available
+		if ($latitude && $longitude) {
+			$schema_data["geo"] = [
+				"@type" => "GeoCoordinates",
+				"latitude" => $latitude,
+				"longitude" => $longitude
+			];
+		}
+
+		// Add opening hours if available
+		if ($opening_hours_status && !empty($opening_hours) && is_array($opening_hours)) {
+			$schema_data["openingHoursSpecification"] = array_map(function ($day, $hours) {
+				return [
+					"@type" => "OpeningHoursSpecification",
+					"dayOfWeek" => $day,
+					"opens" => $hours['open'] ?? '',
+					"closes" => $hours['close'] ?? ''
+				];
+			}, array_keys($opening_hours), $opening_hours);
+		}
+
+		// Add payment methods accepted if available
+		$payment_methods = get_post_meta($post->ID, '_payment_methods', true);
+		if (!empty($payment_methods)) {
+			$schema_data["paymentAccepted"] = $payment_methods;
+		}
+		// Get currency (try Listeo settings first, then WooCommerce)
+		
+		$currency = get_option('listeo_currency');
+		
+		// Fallback to WooCommerce if available
+		if (empty($currency) && function_exists('get_woocommerce_currency')) {
+			$currency = get_woocommerce_currency();
+		}
+
+		if (!empty($currency)) {
+			$schema_data["currenciesAccepted"] = $currency;
+		}
+		
+
+		// Add business type more specifically based on Listeo category
+		if ($business_category) {
+			$type_mapping = [
+				'Restaurants' => 'Restaurant',
+				'Hotels' => 'Hotel',
+				'Bars' => 'BarOrPub',
+				'Fitness' => 'GymOrExerciseFacility',
+				'Beauty' => 'BeautySalon',
+				'Shopping' => 'Store',
+				// Add more mappings as needed
+			];
+
+			if (isset($type_mapping[$business_category])) {
+				$schema_data["@type"] = [$type_mapping[$business_category], "LocalBusiness"];
+			}
+		}
+
+		// Add menu for restaurants
+		if (!empty($menu_link) && $schema_data["@type"][0] === 'Restaurant') {
+			$schema_data["hasMenu"] = $menu_link;
+		}
+
+		// Print the JSON-LD in the head
+		echo '<script type="application/ld+json">' . json_encode($schema_data) . '</script>';
+	}
+
+	/**
+	 * Combined Taxonomy URL Methods
+	 */
+
+	/**
+	 * Add rewrite rules for combined taxonomy URLs
+	 */
+	public function add_combined_taxonomy_rewrite_rules() {
+		// Get all region and listing feature terms to create specific rules
+		$regions = get_terms(array(
+			'taxonomy' => 'region',
+			'hide_empty' => false,
+			'fields' => 'slugs'
+		));
+		
+		$features = get_terms(array(
+			'taxonomy' => 'listing_feature', 
+			'hide_empty' => false,
+			'fields' => 'slugs'
+		));
+		
+		if (!empty($regions) && !empty($features)) {
+			// Create a regex pattern that only matches valid region/feature combinations
+			$region_pattern = '(' . implode('|', array_map('preg_quote', $regions)) . ')';
+			$feature_pattern = '(' . implode('|', array_map('preg_quote', $features)) . ')';
+			
+			add_rewrite_rule(
+				'^' . $region_pattern . '/' . $feature_pattern . '/?$',
+				'index.php?region_slug=$matches[1]&listing_feature_slug=$matches[2]',
+				'top'
+			);
+		}
+	}
+
+	/**
+	 * Add query vars for combined taxonomy URLs
+	 */
+	public function add_combined_taxonomy_query_vars($vars) {
+		if ( get_option( 'listeo_combined_taxonomy_urls' ) ) {
+			$vars[] = 'region_slug';
+			$vars[] = 'listing_feature_slug';
+		}
+		return $vars;
+	}
+
+	/**
+	 * Modify query for combined taxonomy pages
+	 */
+	public function modify_combined_taxonomy_query($query) {
+		if (!is_admin() && $query->is_main_query()) {
+			$region_slug = get_query_var('region_slug');
+			$listing_feature_slug = get_query_var('listing_feature_slug');
+
+			// IMPORTANT: Only modify if both slugs are present (combined taxonomy view)
+			// This prevents breaking other taxonomy pages (blog categories, etc.)
+			if (!$region_slug || !$listing_feature_slug) {
+				return; // Exit early - don't modify other queries!
+			}
+
+			$region_term = get_term_by('slug', $region_slug, 'region');
+			$listing_feature_term = get_term_by('slug', $listing_feature_slug, 'listing_feature');
+
+			if ($region_term && $listing_feature_term) {
+				  $query->set('post_type', 'listing');
+            $query->set('post_status', 'publish');
+            
+            // Clear any existing taxonomy queries
+            $query->set('tax_query', array(
+                'relation' => 'AND',
+                array(
+                    'taxonomy' => 'region',
+                    'field'    => 'term_id',
+                    'terms'    => $region_term->term_id,
+                ),
+                array(
+                    'taxonomy' => 'listing_feature',
+                    'field'    => 'term_id',
+                    'terms'    => $listing_feature_term->term_id,
+                ),
+            ));
+
+            // Mark this as an archive page
+            $query->is_archive = true;
+            $query->is_home = false;
+            $query->is_singular = false;
+            $query->is_404 = false;
+			}
+		}
+		return $query;
+	}
+
+	/**
+	 * Include proper template for combined taxonomy pages
+	 */
+	public function combined_taxonomy_template_include($template) {
+		$region_slug = get_query_var('region_slug');
+		$listing_feature_slug = get_query_var('listing_feature_slug');
+
+		if ($region_slug && $listing_feature_slug) {
+			$new_template = locate_template(array('archive-listing.php'));
+			if (!empty($new_template)) {
+				return $new_template;
+			}
+
+			$listeo_template_loader = new Listeo_Core_Template_Loader;
+			return $listeo_template_loader->get_template_part('archive', 'listing');
+		}
+
+		return $template;
+	}
+
+	/**
+	 * Custom title for combined taxonomy pages
+	 */
+	public function combined_taxonomy_document_title($title) {
+		$region_slug = get_query_var('region_slug');
+		$listing_feature_slug = get_query_var('listing_feature_slug');
+
+		if ($region_slug && $listing_feature_slug) {
+			$region_term = get_term_by('slug', $region_slug, 'region');
+			$listing_feature_term = get_term_by('slug', $listing_feature_slug, 'listing_feature');
+
+			if ($region_term && $listing_feature_term) {
+				$title['title'] = $listing_feature_term->name . ' in ' . $region_term->name;
+			}
+		}
+
+		return $title;
+	}
+
+	/**
+	 * Custom archive title for combined taxonomy pages
+	 */
+	public function combined_taxonomy_archive_title($title) {
+		$region_slug = get_query_var('region_slug');
+		$listing_feature_slug = get_query_var('listing_feature_slug');
+
+		if ($region_slug && $listing_feature_slug) {
+			$region_term = get_term_by('slug', $region_slug, 'region');
+			$listing_feature_term = get_term_by('slug', $listing_feature_slug, 'listing_feature');
+
+			if ($region_term && $listing_feature_term) {
+				return $listing_feature_term->name . ' in ' . $region_term->name;
+			}
+		}
+
+		return $title;
+	}
+
+	/**
+	 * Custom wp_title for combined taxonomy pages
+	 */
+	public function combined_taxonomy_wp_title($title, $sep, $seplocation) {
+		$region_slug = get_query_var('region_slug');
+		$listing_feature_slug = get_query_var('listing_feature_slug');
+
+		if ($region_slug && $listing_feature_slug) {
+			$region_term = get_term_by('slug', $region_slug, 'region');
+			$listing_feature_term = get_term_by('slug', $listing_feature_slug, 'listing_feature');
+
+			if ($region_term && $listing_feature_term) {
+				$new_title = $listing_feature_term->name . ' in ' . $region_term->name;
+				
+				if ($seplocation == 'right') {
+					$title = $new_title . " $sep ";
+				} else {
+					$title = " $sep " . $new_title;
+				}
+			}
+		}
+
+		return $title;
+	}
+
+	/**
+	 * Check if current page is a combined taxonomy page
+	 */
+	public static function is_combined_taxonomy_page() {
+		$region_slug = get_query_var('region_slug');
+		$listing_feature_slug = get_query_var('listing_feature_slug');
+		
+		return !empty($region_slug) && !empty($listing_feature_slug);
+	}
+
+	/**
+	 * Get current combined taxonomy terms
+	 */
+	public static function get_combined_taxonomy_terms() {
+		$region_slug = get_query_var('region_slug');
+		$listing_feature_slug = get_query_var('listing_feature_slug');
+
+		if ($region_slug && $listing_feature_slug) {
+			$region_term = get_term_by('slug', $region_slug, 'region');
+			$listing_feature_term = get_term_by('slug', $listing_feature_slug, 'listing_feature');
+
+			if ($region_term && $listing_feature_term) {
+				return array(
+					'region' => $region_term,
+					'listing_feature' => $listing_feature_term
+				);
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Get combined taxonomy page title
+	 */
+	public static function get_combined_taxonomy_page_title() {
+		$terms = self::get_combined_taxonomy_terms();
+		
+		if ($terms) {
+			return $terms['listing_feature']->name . ' in ' . $terms['region']->name;
+		}
+		
+		return '';
+	}
+
+	/**
+	 * Protect WordPress core, WooCommerce, and Dokan URLs from Listeo rewrite rule conflicts
+	 * This method ensures other plugins' URLs work while allowing Listeo custom permalinks
+	 *
+	 * @param array $rules Existing rewrite rules
+	 * @return array Modified rewrite rules with protection
+	 */
+	public function protect_core_urls( $rules ) {
+		$protected_rules = array();
+		
+		// PRIORITY 1: Protect WooCommerce URLs (these must come first) - FULLY DYNAMIC
+		if ( class_exists( 'WooCommerce' ) ) {
+			// Get WooCommerce permalink settings dynamically
+			$wc_permalinks = wc_get_permalink_structure();
+			
+			// Product base (could be 'product', 'produkt', 'producto', etc.)
+			$product_base = trim( $wc_permalinks['product_base'], '/' );
+			$protected_rules['^' . $product_base . '/([^/]+)/?$'] = 'index.php?product=$matches[1]';
+			$protected_rules['^' . $product_base . '/([^/]+)/([^/]+)/?$'] = 'index.php?product=$matches[1]&$matches[2]=$matches[2]';
+			
+			// Product category base (could be 'product-category', 'producto-categoria', etc.)
+			$product_cat_base = trim( $wc_permalinks['category_base'], '/' );
+			$protected_rules['^' . $product_cat_base . '/(.+?)/?$'] = 'index.php?product_cat=$matches[1]';
+			$protected_rules['^' . $product_cat_base . '/(.+?)/page/?([0-9]{1,})/?$'] = 'index.php?product_cat=$matches[1]&paged=$matches[2]';
+			
+			// Shop page base (could be 'shop', 'tienda', 'boutique', etc.)
+			$shop_page_id = wc_get_page_id( 'shop' );
+			if ( $shop_page_id > 0 ) {
+				$shop_page = get_post( $shop_page_id );
+				if ( $shop_page ) {
+					$shop_base = $shop_page->post_name;
+					$protected_rules['^' . $shop_base . '/?$'] = 'index.php?post_type=product';
+					$protected_rules['^' . $shop_base . '/page/?([0-9]{1,})/?$'] = 'index.php?post_type=product&paged=$matches[1]';
+				}
+			}
+		}
+		
+		// PRIORITY 2: Protect Dokan URLs - FULLY DYNAMIC
+		if ( function_exists( 'dokan' ) ) {
+			// Get Dokan settings dynamically
+			$dokan_settings = get_option( 'dokan_pages' );
+			
+			// Store base (could be 'store', 'tienda', 'boutique', etc.)
+			if ( isset( $dokan_settings['store_listing'] ) && $dokan_settings['store_listing'] > 0 ) {
+				$store_page = get_post( $dokan_settings['store_listing'] );
+				if ( $store_page ) {
+					$store_base = $store_page->post_name;
+					$protected_rules['^' . $store_base . '/([^/]+)/?$'] = 'index.php?store=$matches[1]';
+					$protected_rules['^' . $store_base . '/([^/]+)/page/?([0-9]{1,})/?$'] = 'index.php?store=$matches[1]&paged=$matches[2]';
+				}
+			} else {
+				// Fallback to default if no custom page set
+				$protected_rules['^store/([^/]+)/?$'] = 'index.php?store=$matches[1]';
+				$protected_rules['^store/([^/]+)/page/?([0-9]{1,})/?$'] = 'index.php?store=$matches[1]&paged=$matches[2]';
+			}
+			
+			// Dashboard base (could be 'dashboard', 'panel', 'tablero', etc.)
+			if ( isset( $dokan_settings['dashboard'] ) && $dokan_settings['dashboard'] > 0 ) {
+				$dashboard_page = get_post( $dokan_settings['dashboard'] );
+				if ( $dashboard_page ) {
+					$dashboard_base = $dashboard_page->post_name;
+					$protected_rules['^' . $dashboard_base . '/?$'] = 'index.php?pagename=' . $dashboard_base;
+					$protected_rules['^' . $dashboard_base . '/([^/]+)/?$'] = 'index.php?pagename=' . $dashboard_base . '&dokan=$matches[1]';
+				}
+			} else {
+				// Fallback to default if no custom page set
+				$protected_rules['^dashboard/?$'] = 'index.php?pagename=dashboard';
+				$protected_rules['^dashboard/([^/]+)/?$'] = 'index.php?pagename=dashboard&dokan=$matches[1]';
+			}
+		}
+		
+		// PRIORITY 3: Protect WordPress core URLs
+		$category_base = get_option( 'category_base' ) ?: 'category';
+		$tag_base = get_option( 'tag_base' ) ?: 'tag';
+		
+		$protected_rules['^' . $category_base . '/(.+?)/?$'] = 'index.php?category_name=$matches[1]';
+		$protected_rules['^' . $category_base . '/(.+?)/page/?([0-9]{1,})/?$'] = 'index.php?category_name=$matches[1]&paged=$matches[2]';
+		$protected_rules['^' . $tag_base . '/([^/]+)/?$'] = 'index.php?tag=$matches[1]';
+		$protected_rules['^' . $tag_base . '/([^/]+)/page/?([0-9]{1,})/?$'] = 'index.php?tag=$matches[1]&paged=$matches[2]';
+		
+		// PRIORITY 4: Protect Listeo taxonomy URLs (get bases dynamically)
+		$listeo_permalinks = self::get_permalink_structure();
+		
+		// Listing category base (can be translated like 'kategoria')
+		if ( isset( $listeo_permalinks['category_rewrite_slug'] ) && ! empty( $listeo_permalinks['category_rewrite_slug'] ) ) {
+			$listing_category_base = $listeo_permalinks['category_rewrite_slug'];
+			$protected_rules['^' . $listing_category_base . '/([^/]+)/?$'] = 'index.php?listing_category=$matches[1]';
+			$protected_rules['^' . $listing_category_base . '/([^/]+)/page/?([0-9]{1,})/?$'] = 'index.php?listing_category=$matches[1]&paged=$matches[2]';
+		}
+		
+		// Region base (translatable via _x() function)
+		$region_base = _x( 'region', 'Region slug - resave permalinks after changing this', 'listeo_core' );
+		$protected_rules['^' . $region_base . '/([^/]+)/?$'] = 'index.php?region=$matches[1]';
+		$protected_rules['^' . $region_base . '/([^/]+)/page/?([0-9]{1,})/?$'] = 'index.php?region=$matches[1]&paged=$matches[2]';
+		
+		// Other Listeo taxonomies (also translatable)
+		$event_category_base = _x( 'events-category', 'Event Category slug - resave permalinks after changing this', 'listeo_core' );
+		$protected_rules['^' . $event_category_base . '/([^/]+)/?$'] = 'index.php?event_category=$matches[1]';
+		$protected_rules['^' . $event_category_base . '/([^/]+)/page/?([0-9]{1,})/?$'] = 'index.php?event_category=$matches[1]&paged=$matches[2]';
+		
+		$service_category_base = _x( 'service-category', 'Service Category slug - resave permalinks after changing this', 'listeo_core' );
+		$protected_rules['^' . $service_category_base . '/([^/]+)/?$'] = 'index.php?service_category=$matches[1]';
+		$protected_rules['^' . $service_category_base . '/([^/]+)/page/?([0-9]{1,})/?$'] = 'index.php?service_category=$matches[1]&paged=$matches[2]';
+		
+		$rental_category_base = _x( 'rental-category', 'Rental Category slug - resave permalinks after changing this', 'listeo_core' );
+		$protected_rules['^' . $rental_category_base . '/([^/]+)/?$'] = 'index.php?rental_category=$matches[1]';
+		$protected_rules['^' . $rental_category_base . '/([^/]+)/page/?([0-9]{1,})/?$'] = 'index.php?rental_category=$matches[1]&paged=$matches[2]';
+		
+		$classifieds_category_base = _x( 'classifieds-category', 'Classifieds Category slug - resave permalinks after changing this', 'listeo_core' );
+		$protected_rules['^' . $classifieds_category_base . '/([^/]+)/?$'] = 'index.php?classifieds_category=$matches[1]';
+		$protected_rules['^' . $classifieds_category_base . '/([^/]+)/page/?([0-9]{1,})/?$'] = 'index.php?classifieds_category=$matches[1]&paged=$matches[2]';
+		
+		$listing_feature_base = _x( 'listing-feature', 'Feature slug - resave permalinks after changing this', 'listeo_core' );
+		$protected_rules['^' . $listing_feature_base . '/([^/]+)/?$'] = 'index.php?listing_feature=$matches[1]';
+		$protected_rules['^' . $listing_feature_base . '/([^/]+)/page/?([0-9]{1,})/?$'] = 'index.php?listing_feature=$matches[1]&paged=$matches[2]';
+		
+		// PRIORITY 5: Handle Combined Taxonomy URLs (region + feature combinations) - DYNAMIC
+		if ( get_option( 'listeo_combined_taxonomy_urls' ) ) {
+			// Get all actual region and feature slugs dynamically
+			$regions = get_terms( array(
+				'taxonomy' => 'region',
+				'hide_empty' => false,
+				'fields' => 'slugs'
+			) );
+			
+			$features = get_terms( array(
+				'taxonomy' => 'listing_feature', 
+				'hide_empty' => false,
+				'fields' => 'slugs'
+			) );
+			
+			if ( ! empty( $regions ) && ! empty( $features ) ) {
+				// Create specific patterns for each region+feature combination to avoid conflicts
+				foreach ( $regions as $region_slug ) {
+					foreach ( $features as $feature_slug ) {
+						// Very specific pattern: exact region + exact feature
+						$protected_rules['^' . preg_quote( $region_slug ) . '/' . preg_quote( $feature_slug ) . '/?$'] = 
+							'index.php?region_slug=' . $region_slug . '&listing_feature_slug=' . $feature_slug;
+						
+						// With pagination
+						$protected_rules['^' . preg_quote( $region_slug ) . '/' . preg_quote( $feature_slug ) . '/page/?([0-9]{1,})/?$'] = 
+							'index.php?region_slug=' . $region_slug . '&listing_feature_slug=' . $feature_slug . '&paged=$matches[1]';
+					}
+				}
+			}
+		}
+		
+		// Add protected rules at the beginning, then existing rules
+		// This ensures core/WooCommerce/Dokan URLs work while allowing Listeo custom permalinks for everything else
+		return array_merge( $protected_rules, $rules );
+	}
+
+
+	/**
+	 * Initialize custom permalink settings on first installation
+	 * Sets safe defaults to prevent conflicts
+	 */
+	public function enable_custom_permalink_settings() {
+		$settings = get_option( 'listeo_core_permalinks', '{}' );
+		$settings_array = json_decode( $settings, true );
+		if ( ! is_array( $settings_array ) ) {
+			$settings_array = array();
+		}
+
+		// Only set defaults on first installation (when the setting doesn't exist at all)
+		if ( ! isset( $settings_array['custom_permalinks_enabled'] ) ) {
+			// First time setup - DISABLE custom permalinks by default for safety
+			// Users can enable them manually if needed
+			$settings_array['custom_permalinks_enabled'] = '0';  // Disabled by default
+			$settings_array['custom_structure'] = '%listing%';  // Simple structure as default
+			$settings_array['permalink_safe_mode'] = '1';  // Enable safe mode by default
+			$settings_array['enable_redirects'] = '0';  // Disable redirects by default
+			update_option( 'listeo_core_permalinks', json_encode( $settings_array ) );
+		}
+		// If custom_permalinks_enabled exists, respect the user's choice
+
+		// Enable region links for custom permalink structures that need them
+		// BUT only if the new custom permalinks toggle is not being used
+		if ( !get_option('listeo_enable_custom_permalinks', false) && is_array( $settings_array ) && isset( $settings_array['custom_permalinks_enabled'] ) && $settings_array['custom_permalinks_enabled'] === '1' ) {
+			$custom_structure = isset( $settings_array['custom_structure'] ) ? $settings_array['custom_structure'] : '';
+			// Enable region links if the custom structure uses regions
+			if ( strpos( $custom_structure, '%region%' ) !== false ) {
+				update_option( 'listeo_region_in_links', true );
+			}
+		} else if ( get_option('listeo_enable_custom_permalinks', false) === false ) {
+			// If custom permalinks are disabled, also disable region in links
+			// This prevents the legacy region system from interfering
+			update_option( 'listeo_region_in_links', false );
+		}
+	}
+ 
 
 }

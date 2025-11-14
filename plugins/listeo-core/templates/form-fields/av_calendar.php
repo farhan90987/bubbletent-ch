@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if(is_array($field['value'])) :
 $i=0;
-//var_dump($field['value']);
+
 ?>
 	
 <div class="row">

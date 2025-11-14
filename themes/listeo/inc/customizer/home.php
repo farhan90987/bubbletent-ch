@@ -542,6 +542,8 @@ class Listeo_Customize_Control_Checkbox_Multiple extends WP_Customize_Control {
 	<?php }
 }
 }
+
+
 add_action( 'customize_register', 'listeo_customizer_register' );
 
 function listeo_customizer_register( $wp_customize ) {

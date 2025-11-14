@@ -5,7 +5,7 @@
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
-        'reference' => 'ef3af85645980494af3814ccd6a50d1fbd7d7a5f',
+        'reference' => '8d6d1c8f91bf448246729cb5711d6f672eb92afe',
         'name' => '__root__',
         'dev' => true,
     ),
@@ -16,7 +16,7 @@
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
-            'reference' => 'ef3af85645980494af3814ccd6a50d1fbd7d7a5f',
+            'reference' => '8d6d1c8f91bf448246729cb5711d6f672eb92afe',
             'dev_requirement' => false,
         ),
         'paypal/paypal-payouts-sdk' => array(

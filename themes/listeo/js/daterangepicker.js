@@ -498,6 +498,24 @@
             this.updateMonthsInView();
         },
 
+
+        setMinDate: function(minDate) {
+            if (typeof minDate === 'string')
+                this.minDate = moment(minDate, this.locale.format);
+
+            if (typeof startDate === 'object')
+                this.minDate = moment(minDate);
+        },
+
+        setMaxDate: function(maxDate) {
+            if (typeof maxDate === 'string')
+                this.maxDate = moment(maxDate, this.locale.format);
+
+            if (typeof maxDate === 'object')
+                this.maxDate = moment(maxDate);
+        },
+
+
         setEndDate: function(endDate) {
             if (typeof endDate === 'string')
                 this.endDate = moment(endDate, this.locale.format);
@@ -945,7 +963,7 @@
             // minutes
             //
 
-            html += ': <select class="minuteselect">';
+            html += '<select class="minuteselect">';
 
             for (var i = 0; i < 60; i += this.timePickerIncrement) {
                 var padded = i < 10 ? '0' + i : i;

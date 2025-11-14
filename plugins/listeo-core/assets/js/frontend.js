@@ -50,6 +50,10 @@ $(document).ready(function(){
             .addClass("liked")
             .addClass("listeo_core-unbookmark-it")
             .removeClass("clicked");
+          if (handler.hasClass("fa-regular")) {
+            handler.removeClass("fa-regular");
+            handler.addClass("fa-solid");
+          }
           var confirmed = handler.data("confirm");
           handler
             .children(".like-icon")
@@ -85,6 +89,10 @@ $(document).ready(function(){
         console.log(response);
         if (response.type == "success") {
           handler.closest("li").fadeOut();
+          if (handler.hasClass("fa-solid")) {
+            handler.removeClass("fa-solid");
+            handler.addClass("fa-regular");
+          }
           handler.removeClass("clicked");
           handler.removeClass("liked");
           handler.children(".like-icon").removeClass("liked");
@@ -143,60 +151,60 @@ $(document).ready(function(){
   //   }
   // );
 
-  $(".add-listing-section.availability_calendar").on(
-    "click",
-    "button",
-    function (e) {
-      e.preventDefault();
-      var td = $(this).parent().parent();
-      var timestamp = td.data("timestamp");
-      var date = td.data("date");
-      var $el = $(".listeo-calendar-avail");
-      var current_price = $(this).prev("span").text();
+  // $(".add-listing-section.availability_calendar").on(
+  //   "click",
+  //   "button",
+  //   function (e) {
+  //     e.preventDefault();
+  //     var td = $(this).parent().parent();
+  //     var timestamp = td.data("timestamp");
+  //     var date = td.data("date");
+  //     var $el = $(".listeo-calendar-avail");
+  //     var current_price = $(this).prev("span").text();
 
-      var price = (function ask() {
-        var n = prompt(listeo_core.prompt_price);
-        console.log(typeof n);
-        if (n === null) {
-          return n;
-        } else if (n === "") {
-          return current_price;
-        } else {
-          return isNaN(n) ? ask() : n;
-        }
-      })();
-      var json = {};
-      var reg_price;
-      if (td.hasClass("weekend")) {
-        reg_price = $("#_weekday_price").val();
-      } else {
-        reg_price = $("#_normal_price").val();
-      }
-      if (price != null && price != reg_price) {
-        $(this).parent().find("span").html(price);
-        // json.push({
-        //   date : price
-        // });
-        var current_value = $(".listeo-calendar-price").val();
-        if (current_value) {
-          var json = jQuery.parseJSON($(".listeo-calendar-price").val());
-        }
-        json[date] = price;
-        var stringit = JSON.stringify(json);
-        $(".listeo-calendar-price").val(stringit);
-      }
-      if (price == reg_price) {
-        $(this).parent().find("span").html(price);
-        var current_value = $(".listeo-calendar-price").val();
-        if (current_value) {
-          var json = jQuery.parseJSON($(".listeo-calendar-price").val());
-        }
-        delete json[date];
-        var stringit = JSON.stringify(json);
-        $(".listeo-calendar-price").val(stringit);
-      }
-    }
-  );
+  //     var price = (function ask() {
+  //       var n = prompt(listeo_core.prompt_price);
+  //       console.log(typeof n);
+  //       if (n === null) {
+  //         return n;
+  //       } else if (n === "") {
+  //         return current_price;
+  //       } else {
+  //         return isNaN(n) ? ask() : n;
+  //       }
+  //     })();
+  //     var json = {};
+  //     var reg_price;
+  //     if (td.hasClass("weekend")) {
+  //       reg_price = $("#_weekday_price").val();
+  //     } else {
+  //       reg_price = $("#_normal_price").val();
+  //     }
+  //     if (price != null && price != reg_price) {
+  //       $(this).parent().find("span").html(price);
+  //       // json.push({
+  //       //   date : price
+  //       // });
+  //       var current_value = $(".listeo-calendar-price").val();
+  //       if (current_value) {
+  //         var json = jQuery.parseJSON($(".listeo-calendar-price").val());
+  //       }
+  //       json[date] = price;
+  //       var stringit = JSON.stringify(json);
+  //       $(".listeo-calendar-price").val(stringit);
+  //     }
+  //     if (price == reg_price) {
+  //       $(this).parent().find("span").html(price);
+  //       var current_value = $(".listeo-calendar-price").val();
+  //       if (current_value) {
+  //         var json = jQuery.parseJSON($(".listeo-calendar-price").val());
+  //       }
+  //       delete json[date];
+  //       var stringit = JSON.stringify(json);
+  //       $(".listeo-calendar-price").val(stringit);
+  //     }
+  //   }
+  // );
 
   $("#_normal_price").on("input", function (e) {
     e.preventDefault();
@@ -421,10 +429,9 @@ $(document).ready(function(){
       $(this)
         .find(".single-slot-time")
         .each(function (slot_time) {
+          var timeText = $(this).text().replace(/-|-/g, "-");
           inside_slots[slot_number] =
-            $(this).text() +
-            "|" +
-            $(this).parent().parent().find("#slot-qty").val();
+            timeText + "|" + $(this).parent().parent().find("#slot-qty").val();
           slot_number++;
         });
       slots[slot_container] = inside_slots;
@@ -737,77 +744,80 @@ $(document).ready(function(){
   function get_url_extension(url) {
     return url.split(/\#|\?/)[0].split(".").pop().trim();
   }
+$("body").on("submit", ".ical-import-form", function (e) {
+  e.preventDefault();
 
-  $("body").on("submit", ".ical-import-form", function (e) {
-    e.preventDefault();
+  $(this).find("button").addClass("loading");
+  $("input.import_ical_url").removeClass("bounce");
 
-    $(this).find("button").addClass("loading");
-    $("input.import_ical_url").removeClass("bounce");
+  var form = $(this);
+  var listing_id = $(this).data("listing-id");
+  var name = $(this).find("input.import_ical_name").val();
+  var url = $(this).find("input.import_ical_url").val();
+  var force_update = $(this)
+    .find("input.import_ical_force_update")
+    .prop("checked");
+  var filetype = get_url_extension(url); //validate for .ical, .ics, .ifb, .icalendar
 
-    var form = $(this);
-    var listing_id = $(this).data("listing-id");
-    var name = $(this).find("input.import_ical_name").val();
-    var url = $(this).find("input.import_ical_url").val();
-    var force_update = $(this)
-      .find("input.import_ical_force_update")
-      .prop("checked");
-    var filetype = get_url_extension(url); //validate for .ical, .ics, .ifb, .icalendar
+  var valid_filetypes = ["ical", "ics", "ifb", "icalendar", "calendar"];
 
-    var valid_filetypes = ["ical", "ics", "ifb", "icalendar", "calendar"];
+  // Make URL checking case-insensitive for better compatibility
+  var urlLower = url.toLowerCase();
 
-    if (
-      url.indexOf("calendar") !== -1 ||
-      url.indexOf("accommodation_id") !== -1 ||
-      url.indexOf("ical") !== -1 ||
-      $.inArray(filetype, valid_filetypes) > -1
-    ) {
-      $.ajax({
-        type: "POST",
-        dataType: "json",
-        url: listeo.ajaxurl,
-        data: {
-          action: "add_new_listing_ical",
-          name: name,
-          url: url,
-          listing_id: listing_id,
-          force_update: force_update,
-          //'nonce': nonce
-        },
-        success: function (data) {
-          if (data.type == "success") {
-            form.find("button").removeClass("loading");
-            form.find("input.import_ical_name").val("");
-            form.find("input.import_ical_url").val("");
-            form
-              .parents(".ical-import-dialog")
-              .find(".saved-icals")
-              .html(data.output);
-            $(".ical-import-dialog .notification")
-              .removeClass("error notice")
-              .addClass("success")
-              .show()
-              .html(data.notification);
-          }
+  if (
+    urlLower.indexOf("calendar") !== -1 ||
+    urlLower.indexOf("accommodation_id") !== -1 ||
+    urlLower.indexOf("ical") !== -1 ||
+    urlLower.indexOf("airtable.com") !== -1 || // Explicit Airtable support
+    $.inArray(filetype, valid_filetypes) > -1
+  ) {
+    $.ajax({
+      type: "POST",
+      dataType: "json",
+      url: listeo.ajaxurl,
+      data: {
+        action: "add_new_listing_ical",
+        name: name,
+        url: url,
+        listing_id: listing_id,
+        force_update: force_update,
+        //'nonce': nonce
+      },
+      success: function (data) {
+        if (data.type == "success") {
+          form.find("button").removeClass("loading");
+          form.find("input.import_ical_name").val("");
+          form.find("input.import_ical_url").val("");
+          form
+            .parents(".ical-import-dialog")
+            .find(".saved-icals")
+            .html(data.output);
+          $(".ical-import-dialog .notification")
+            .removeClass("error notice")
+            .addClass("success")
+            .show()
+            .html(data.notification);
+        }
 
-          if (data.type == "error") {
-            form.find("button").removeClass("loading");
+        if (data.type == "error") {
+          form.find("button").removeClass("loading");
 
-            $(".ical-import-dialog .notification")
-              .removeClass("success notice")
-              .addClass("error")
-              .show()
-              .html(data.notification);
-          }
-        },
-      });
-    } else {
-      $(this).find("button").removeClass("loading");
-      $("input.import_ical_url").addClass("bounce");
-      window.setTimeout(function () {
-        $("input.import_ical_url").removeClass("bounce");
-      }, 1000);
-    }
-  });
+          $(".ical-import-dialog .notification")
+            .removeClass("success notice")
+            .addClass("error")
+            .show()
+            .html(data.notification);
+        }
+      },
+    });
+  } else {
+    $(this).find("button").removeClass("loading");
+    $("input.import_ical_url").addClass("bounce");
+    window.setTimeout(function () {
+      $("input.import_ical_url").removeClass("bounce");
+    }, 1000);
+  }
+});
 
   $("body").on("click", "a.ical-remove", function (e) {
     e.preventDefault();
@@ -874,7 +884,6 @@ $(document).ready(function(){
 
   $("#send-comment-edit-review").on("submit", function (e) {
     $("#send-comment-edit-review button").addClass("loading");
-    var value = "service";
     var button = $(this);
     var content = $(this).find("textarea#comment_reply").val();
     var reply_id = $(this).find("input#reply_id").val();
@@ -918,6 +927,11 @@ $(document).ready(function(){
     var $this = $(this),
       comment = $(this).data("comment"),
       nonce = $(this).data("nonce");
+    if ($this.data("processing")) {
+      return false;
+    }
+
+    $this.data("processing", true);
 
     $.ajax({
       type: "POST",
@@ -930,6 +944,11 @@ $(document).ready(function(){
       },
       success: function (data) {
         $this.html(data.output);
+      },
+
+      complete: function () {
+        // Reset processing flag after request completes
+        $this.data("processing", false);
       },
     });
     e.preventDefault();
@@ -986,10 +1005,94 @@ $(document).ready(function(){
     }
   }
 
+  // File attachment handling
+  $(document).on("change", "#message-attachment", function (e) {
+    var file = this.files[0];
+    if (file) {
+      var fileName = file.name;
+      var fileSize = file.size;
+      var maxSize = 10 * 1024 * 1024; // 10MB
+
+      // Check file size
+      if (fileSize > maxSize) {
+        alert("File size exceeds 10MB limit");
+        this.value = "";
+        return;
+      }
+
+      // Show preview
+      $(".attachment-preview").show();
+      $(".attachment-preview-name").text(fileName);
+      $(".attachment-label").hide();
+
+      // Upload file via AJAX
+      var formData = new FormData();
+      formData.append("attachment", file);
+      formData.append("conversation_id", $("#conversation_id").val());
+      formData.append("nonce", $("#messages_nonce").val());
+      formData.append("action", "listeo_upload_message_attachment");
+
+      // Show progress
+      $(".attachment-upload-progress").show();
+      $(".attachment-preview").hide();
+
+      $.ajax({
+        url: listeo.ajaxurl,
+        type: "POST",
+        data: formData,
+        processData: false,
+        contentType: false,
+        xhr: function () {
+          var xhr = new window.XMLHttpRequest();
+          xhr.upload.addEventListener(
+            "progress",
+            function (evt) {
+              if (evt.lengthComputable) {
+                var percentComplete = (evt.loaded / evt.total) * 100;
+                $(".progress-fill").css("width", percentComplete + "%");
+              }
+            },
+            false
+          );
+          return xhr;
+        },
+        success: function (response) {
+          if (response.success) {
+            // Store attachment info
+            $("#attachment_id").val(response.data.attachment_id);
+            $(".attachment-upload-progress").hide();
+            $(".attachment-preview").show();
+          } else {
+            alert(response.data);
+            $(".attachment-upload-progress").hide();
+            $(".attachment-label").show();
+            $("#message-attachment").val("");
+          }
+        },
+        error: function () {
+          alert("Upload failed. Please try again.");
+          $(".attachment-upload-progress").hide();
+          $(".attachment-label").show();
+          $("#message-attachment").val("");
+        },
+      });
+    }
+  });
+
+  // Remove attachment
+  $(document).on("click", ".remove-attachment", function (e) {
+    e.preventDefault();
+    $("#message-attachment").val("");
+    $("#attachment_id").val("");
+    $(".attachment-preview").hide();
+    $(".attachment-label").show();
+  });
+
   $("#send-message-from-chat").on("submit", function (e) {
     var message = $(this).find("textarea#contact-message").val();
+    var attachment_id = $(this).find("input#attachment_id").val();
 
-    if (message) {
+    if (message || attachment_id) {
       $(this).find("textarea#contact-message").removeClass("error");
       $(".loading").show();
       $(this).find("button").prop("disabled", true);
@@ -1002,6 +1105,7 @@ $(document).ready(function(){
           recipient: $(this).find("input#recipient").val(),
           conversation_id: $(this).find("input#conversation_id").val(),
           message: message,
+          attachment_id: attachment_id,
           //'nonce': nonce
         },
         success: function (data) {
@@ -1010,6 +1114,11 @@ $(document).ready(function(){
             refreshMessages();
             $("#send-message-from-chat textarea").val("");
             $("#send-message-from-chat button").prop("disabled", false);
+            // Reset attachment
+            $("#attachment_id").val("");
+            $("#message-attachment").val("");
+            $(".attachment-preview").hide();
+            $(".attachment-label").show();
           } else {
             $(this).addClass("error");
           }
@@ -1093,8 +1202,10 @@ $(document).ready(function(){
 
       success: function (file, response) {
         file.previewElement.classList.add("dz-success");
+        //remove any blank characters and empty lines from response
+        response = response.replace(/(\r\n|\n|\r)/gm, "");
         file["attachment_id"] = response; // push the id for future reference
-        console.log(file["attachment_id"]);
+
         $("#coupon_bg-uploader-id").val(file["attachment_id"]);
       },
       error: function (file, response) {
@@ -1188,6 +1299,7 @@ $(document).ready(function(){
       },
       error: function (file, response) {
         file.previewElement.classList.add("dz-error");
+        $(file.previewElement).find(".dz-error-message").text(response);
       },
       // update the following section is for removing image from library
       addRemoveLinks: true,
@@ -1241,33 +1353,47 @@ $(document).ready(function(){
   }
 
   $(
-    ".dynamic #tax-listing_category,.dynamic #tax-listing_category-panel input"
+    ".dynamic #tax-listing_category, .dynamic #tax-listing_category-panel input"
   ).on("change", function (e) {
     var cat_ids = [];
 
     $("#tax-listing_feature-panel .checkboxes").addClass("loading");
     $("#tax-listing_feature-panel .panel-buttons").hide();
     var panel = false;
-    if ($("#tax-listing_category-panel").length > 0) {
-      panel = true;
 
-      $("#tax-listing_category-panel input[type=checkbox]:checked").each(
-        function () {
+    // if div with class drilldown-menu and data-name="tax-listing_category" exists
+    if (
+      $(
+        ".drilldown-menu-panel .drilldown-menu[data-name='tax-listing_category']"
+      ).length > 0
+    ) {
+      $(".drilldown-generated").each(function () {
+        cat_ids.push($(this).val());
+      });
+      panel = true;
+    } else {
+      if ($("#tax-listing_category-panel").length > 0) {
+        panel = true;
+
+        $("#tax-listing_category-panel input[type=checkbox]:checked").each(
+          function () {
+            cat_ids.push($(this).val());
+          }
+        );
+      } else {
+        if ($("#tax-listing_feature-panel").length > 0) {
+          panel = true;
+        }
+        if ($(this).prop("multiple")) {
+          $("#tax-listing_category :selected").each(function (i, sel) {
+            cat_ids.push($(sel).val());
+          });
+        } else {
           cat_ids.push($(this).val());
         }
-      );
-    } else {
-      if ($("#tax-listing_feature-panel").length > 0) {
-        panel = true;
-      }
-      if ($(this).prop("multiple")) {
-        $("#tax-listing_category :selected").each(function (i, sel) {
-          cat_ids.push($(sel).val());
-        });
-      } else {
-        cat_ids.push($(this).val());
       }
     }
+
     $.ajax({
       type: "POST",
       dataType: "json",
@@ -1295,6 +1421,7 @@ $(document).ready(function(){
   });
   $(".dynamic #tax-listing_category").trigger("change");
   //listeo_get_listing_types_from_categories
+
   $(
     ".dynamic-taxonomies #tax-listing_category,.dynamic-taxonomies #tax-listing_category-panel input"
   ).on("change", function (e) {
@@ -1382,46 +1509,149 @@ $(document).ready(function(){
         //
         if (data["success"]) {
           var types = data["output"];
-          if (types.includes("service")) {
-            $(
-              ".dynamic-taxonomies #listeo-search-form_tax-service_category"
-            ).show();
-            $(".dynamic-taxonomies #tax-service_category-panel").css(
-              "display",
-              "inline-block"
-            );
-          }
-          if (types.includes("rental")) {
-            $(
-              ".dynamic-taxonomies #listeo-search-form_tax-rental_category"
-            ).show();
-            $(".dynamic-taxonomies #tax-rental_category-panel").css(
-              "display",
-              "inline-block"
-            );
-          }
-          if (types.includes("event")) {
-            $(
-              ".dynamic-taxonomies #listeo-search-form_tax-event_category"
-            ).show();
-            $(".dynamic-taxonomies #tax-event_category-panel").css(
-              "display",
-              "inline-block"
-            );
-          }
-          if (types.includes("classifieds")) {
-            $(
-              ".dynamic-taxonomies #listeo-search-form_tax-classifieds_category"
-            ).show();
-            $(".dynamic-taxonomies #tax-classifieds_category-panel").css(
-              "display",
-              "inline-block"
-            );
-          }
+          
+          // Dynamic handling for all listing types (including custom ones)
+          types.forEach(function(type) {
+            var categoryTaxonomy = type + '_category';
+            
+            // Show form elements for this type
+            $(".dynamic-taxonomies #listeo-search-form_tax-" + categoryTaxonomy).show();
+            $(".dynamic-taxonomies #tax-" + categoryTaxonomy + "-panel").css("display", "inline-block");
+            
+            // Also handle region taxonomy for backward compatibility
+            if (type === 'region') {
+              $(".dynamic-taxonomies #listeo-search-form_tax-region").show();
+              $(".dynamic-taxonomies #tax-region-panel").css("display", "inline-block");
+            }
+          });
         }
       },
     });
   });
+
+  // check if there's change in the input lists inside of .drilldown-menu
+
+  $(document).on(
+    "drilldown-updated",
+    ".submit-page .drilldown-menu",
+    function (e) {
+      var listing_id = $("input[name='listing_id']").val();
+
+      var cat_ids = [];
+      
+      // Collect from drilldown-generated elements (for drilldown taxonomies)
+      $(".drilldown-generated").each(function () {
+        if ($(this).val()) {
+          cat_ids.push($(this).val());
+        }
+      });
+      
+      // Collect from regular taxonomy dropdowns (service_category, rental_category, etc.)
+      $(".submit-page select[name*='tax-'], .submit-page select[name*='_category']").each(function() {
+        var selectValue = $(this).val();
+        if (selectValue && selectValue !== '' && selectValue !== 'all') {
+          cat_ids.push(selectValue);
+        }
+      });
+
+      $.ajax({
+        type: "POST",
+        dataType: "json",
+        url: listeo.ajaxurl,
+        data: {
+          action: "listeo_get_features_ids_from_category",
+          cat_ids: cat_ids,
+          listing_id: listing_id,
+          selected: selected_listing_feature,
+          panel: false,
+          //'nonce': nonce
+        },
+        success: function (data) {
+          $(
+            ".listeo_core-term-checklist-listing_feature,.listeo_core-term-checklist-tax-listing_feature"
+          ).removeClass("loading");
+          $(
+            ".listeo_core-term-checklist-listing_feature,.listeo_core-term-checklist-tax-listing_feature"
+          )
+            .html(data["output"])
+            .removeClass("loading");
+        },
+      });
+    }
+  );
+
+  $(document).on(
+    "drilldown-updated",
+    "#listeo_core-search-form .drilldown-menu",
+    function (e) {
+      var cat_ids = [];
+      $(".drilldown-generated").each(function () {
+        cat_ids.push($(this).val());
+      });
+
+      $("#tax-listing_feature-panel .checkboxes").addClass("loading");
+      $("#tax-listing_feature-panel .panel-buttons").hide();
+      var panel = false;
+
+      // if div with class drilldown-menu and data-name="tax-listing_category" exists
+      if (
+        $(
+          ".drilldown-menu-panel .drilldown-menu[data-name='tax-listing_category']"
+        ).length > 0
+      ) {
+        $(".drilldown-generated").each(function () {
+          cat_ids.push($(this).val());
+        });
+        panel = true;
+      } else {
+        if ($("#tax-listing_category-panel").length > 0) {
+          panel = true;
+
+          $("#tax-listing_category-panel input[type=checkbox]:checked").each(
+            function () {
+              cat_ids.push($(this).val());
+            }
+          );
+        } else {
+          if ($("#tax-listing_feature-panel").length > 0) {
+            panel = true;
+          }
+          if ($(this).prop("multiple")) {
+            $("#tax-listing_category :selected").each(function (i, sel) {
+              cat_ids.push($(sel).val());
+            });
+          } else {
+            cat_ids.push($(this).val());
+          }
+        }
+      }
+
+      $.ajax({
+        type: "POST",
+        dataType: "json",
+        url: listeo.ajaxurl,
+        data: {
+          action: "listeo_get_features_from_category",
+          cat_ids: cat_ids,
+          panel: panel,
+          //'nonce': nonce
+        },
+        success: function (data) {
+          $("#tax-listing_feature-panel .checkboxes").removeClass("loading");
+          $("#tax-listing_feature-panel .checkboxes .row")
+            .html(data["output"])
+            .removeClass("loading");
+          $("#tax-listing_feature").html(data["output"]).removeClass("loading");
+          // $("#tax-listing_feature").empty().select2({
+          //   data: data["data"],
+          // });
+          if (data["success"]) {
+            $("#tax-listing_feature-panel .panel-buttons").show();
+          }
+        },
+      });
+    }
+  );
 
   $(
     ".add-listing-section.dynamic-features #listing_category,.add-listing-section.dynamic-features #tax-listing_category"
@@ -1460,6 +1690,55 @@ $(document).ready(function(){
     });
   });
 
+  // Handle regular taxonomy dropdown changes to update features
+  $(document).on('change', '.submit-page select[name*="_category"], .submit-page select[name*="tax-"]', function(e) {
+    var listing_id = $("input[name='listing_id']").val();
+    var cat_ids = [];
+    
+    // Collect from drilldown-generated elements (for drilldown taxonomies)
+    $(".drilldown-generated").each(function () {
+      if ($(this).val()) {
+        cat_ids.push($(this).val());
+      }
+    });
+    
+    // Collect from regular taxonomy dropdowns (service_category, rental_category, etc.)
+    $(".submit-page select[name*='tax-'], .submit-page select[name*='_category']").each(function() {
+      var selectValue = $(this).val();
+      if (selectValue && selectValue !== '' && selectValue !== 'all') {
+        cat_ids.push(selectValue);
+      }
+    });
+
+    if (cat_ids.length > 0) {
+      var selected_listing_feature = [];
+      $.each($("input[name='tax_input[listing_feature][]']:checked"), function () {
+        selected_listing_feature.push($(this).val());
+      });
+
+      $(".listeo_core-term-checklist-listing_feature,.listeo_core-term-checklist-tax-listing_feature").addClass("loading");
+
+      $.ajax({
+        type: "POST",
+        dataType: "json",
+        url: listeo.ajaxurl,
+        data: {
+          action: "listeo_get_features_ids_from_category",
+          cat_ids: cat_ids,
+          listing_id: listing_id,
+          selected: selected_listing_feature,
+          panel: false,
+        },
+        success: function (data) {
+          $(".listeo_core-term-checklist-listing_feature,.listeo_core-term-checklist-tax-listing_feature").removeClass("loading");
+          $(".listeo_core-term-checklist-listing_feature,.listeo_core-term-checklist-tax-listing_feature")
+            .html(data["output"])
+            .removeClass("loading");
+        },
+      });
+    }
+  });
+
   var selected_listing_feature = [];
   if ($(".add-listing-section").length) {
     $.each(
@@ -1490,144 +1769,429 @@ $(document).ready(function(){
     $(this).parent().parent().find(".panel-buttons").hide();
   });
 
-  var uploadButton = {
-    $button: $(".uploadButton-input"),
-    $nameField: $(".uploadButton-file-name"),
-  };
+  // var uploadButton = {
+  //   $button: $(".uploadButton-input"),
+  //   $nameField: $(".uploadButton-file-name"),
+  // };
 
-  uploadButton.$button.on("change", function () {
+  // uploadButton.$button.on("change", function () {
+  //   _populateFileField($(this));
+  // });
+
+  // function _populateFileField($button) {
+  //   var selectedFile = [];
+  //   for (var i = 0; i < $button.get(0).files.length; ++i) {
+  //     selectedFile.push($button.get(0).files[i].name + "<br>");
+  //   }
+  //   uploadButton.$nameField.html(selectedFile);
+  // }
+
+  // var uploadButton = {
+  //   $button: $(".uploadButton-input"),
+  //   $nameField: $(".uploadButton-file-name"),
+  // };
+
+  $(".add-listing-section").on("change", ".uploadButton-input", function (e) {
+    _populateFileField($(this));
+  });
+  $(".dashboard-list-box-static").on(
+    "change",
+    ".uploadButton-input",
+    function (e) {
+      _populateFileField($(this));
+    }
+  );
+
+  $(".zoom-anim-dialog").on("change", ".uploadButton-input", function (e) {
     _populateFileField($(this));
   });
 
+  $(".uploadButton-input").on("change", function (e) {
+    _populateFileField($(this));
+  });
   function _populateFileField($button) {
+    console.log($button);
     var selectedFile = [];
+
     for (var i = 0; i < $button.get(0).files.length; ++i) {
       selectedFile.push($button.get(0).files[i].name + "<br>");
     }
-    uploadButton.$nameField.html(selectedFile);
+    console.log(selectedFile);
+    $($button).siblings(".uploadButton-file-name").html(selectedFile);
   }
 
   /*----------------------------------------------------*/
   /* Time Slots
   /*----------------------------------------------------*/
+  /*----------------------------------------------------*/
+  /* Time Slots
+/*----------------------------------------------------*/
 
   // Add validation parts
-  $(".day-slots").each(function () {
-    var daySlots = $(this);
+  function updateCopySlotsDisplay(daySlots) {
+    var dayIndex = daySlots.index(".day-slots");
 
-    daySlots.find(".add-slot-btn").on("click", function (e) {
-      e.preventDefault();
+    if (daySlots.find(".slots-container .single-slot").length > 0) {
+      $(".copy-slots-item[data-value='" + dayIndex + "']").css(
+        "display",
+        "block"
+      );
+    } else {
+      $(".copy-slots-item[data-value='" + dayIndex + "']").css(
+        "display",
+        "none"
+      );
+    }
+    // Check if there are any slots in any day
+    updateIcalDropdownVisibility();
+  }
 
-      var slotTime_Start = daySlots
-        .find(".add-slot-inputs input.time-slot-start")
-        .val();
-      var slotTimePM_AM_Start = daySlots
-        .find(".add-slot-inputs select.time-slot-start")
-        .val();
+  // Function to check if any day has slots and update ical-dropdown-btn visibility
+  function updateIcalDropdownVisibility() {
+    // First check each individual day
+    $(".day-slots").each(function (index) {
+      var $currentDay = $(this);
 
-      var slotTime_End = daySlots
-        .find(".add-slot-inputs input.time-slot-end")
-        .val();
-      var slotTimePM_AM_End = daySlots
-        .find(".add-slot-inputs select.time-slot-end")
-        .val();
-
-      // Checks if input values are not blank
-      if (slotTime_Start.length > 0 && slotTime_End.length > 0) {
-        // New Time Slot Div
-        var newTimeSlot = daySlots
-          .find(".single-slot.cloned")
-          .clone(true)
-          .addClass("slot-animation")
-          .removeClass("cloned");
-
-        setTimeout(function () {
-          newTimeSlot.removeClass("slot-animation");
-        }, 300);
-
-        newTimeSlot.find(".plusminus input").val("1");
-
-        // Plus - Minus Init
-        newTimeSlot.find(".plusminus").numberPicker();
-
-        // Check if there's am/pm dropdown
-        var $twelve_hr = $(".add-slot-inputs select.twelve-hr");
-
-        if ($twelve_hr.length) {
-          newTimeSlot
-            .find(".single-slot-time")
-            .html(
-              slotTime_Start +
-                " " +
-                '<i class="am-pm">' +
-                slotTimePM_AM_Start +
-                "</i>" +
-                " - " +
-                slotTime_End +
-                " " +
-                '<i class="am-pm">' +
-                slotTimePM_AM_End +
-                "</i>"
-            );
-        } else {
-          newTimeSlot
-            .find(".single-slot-time")
-            .html("" + slotTime_Start + " - " + slotTime_End);
+      // Check if any OTHER day has slots (days we could copy from)
+      var otherDaysWithSlots = false;
+      $(".day-slots").each(function (otherIndex) {
+        if (
+          index !== otherIndex &&
+          $(this).find(".slots-container .single-slot").length > 0
+        ) {
+          otherDaysWithSlots = true;
+          return false; // Break the loop when we find at least one
         }
+      });
 
-        // Appending new slot
-        newTimeSlot.appendTo(daySlots.find(".slots-container"));
-
-        // Refresh sotrable script
-        $(".slots-container").sortable("refresh");
-      }
-
-      // Validation Error
-      else {
-        daySlots.find(".add-slot").addClass("add-slot-shake-error");
-        setTimeout(function () {
-          daySlots.find(".add-slot").removeClass("add-slot-shake-error");
-        }, 600);
+      // Show Copy Day button only if other days have slots to copy from
+      if (otherDaysWithSlots) {
+        $currentDay.find(".ical-dropdown-btn").show();
+      } else {
+        $currentDay.find(".ical-dropdown-btn").hide();
       }
     });
+  }
 
-    // Removing "no slots" message
-    function hideSlotInfo() {
-      var slotCount = daySlots.find(".slots-container").children().length;
-      if (slotCount < 1) {
-        daySlots
-          .find(".no-slots")
-          .addClass("no-slots-fadein")
-          .removeClass("no-slots-fadeout");
+  function timeStringToMinutes(timeStr, ampm = null) {
+    // Split the time string to get hours and minutes
+    const [hours, minutes] = timeStr.split(":");
+    let totalHours = parseInt(hours, 10);
+
+    // Handle 12-hour format with AM/PM
+    if (ampm) {
+      // If it's 12 AM (midnight), we need to convert to 0 hours
+      if (totalHours === 12 && ampm.toLowerCase() === "am") {
+        totalHours = 0;
+      }
+      // If it's PM (but not 12 PM), we add 12 hours
+      else if (ampm.toLowerCase() === "pm" && totalHours !== 12) {
+        totalHours += 12;
+      }
+      // Note: 12 PM (noon) remains as 12 hours, which is correct
+    }
+
+    return totalHours * 60 + parseInt(minutes, 10);
+  }
+
+  function minutesToTimeString(minutes, use12HourFormat = false) {
+    let totalHours = Math.floor(minutes / 60);
+    let hours = totalHours % 24;
+    let mins = minutes % 60;
+    let ampm = "";
+
+    if (hours < 0) {
+      hours += 24;
+    }
+
+    if (mins < 0) {
+      mins += 60;
+      hours -= 1;
+      if (hours < 0) {
+        hours += 24;
       }
     }
-    hideSlotInfo();
 
-    // Removing Slot
-    daySlots.find(".remove-slot").bind("click", function (e) {
-      e.preventDefault();
-      $(this)
-        .closest(".single-slot")
-        .animate({ height: 0, opacity: 0 }, "fast", function () {
-          $(this).remove();
-        });
+    // Convert to 12-hour format if needed
+    if (use12HourFormat) {
+      // Determine AM/PM
+      ampm = hours >= 12 ? "pm" : "am";
+
+      // Convert to 12-hour clock
+      if (hours > 12) {
+        hours = hours - 12;
+      } else if (hours === 0) {
+        hours = 12; // 0 hours in 24-hour format is 12 AM in 12-hour format
+      }
+      // Note: hours = 12 stays as 12 (12 PM/noon)
+
+      return {
+        time: `${hours.toString().padStart(2, "0")}:${mins
+          .toString()
+          .padStart(2, "0")}`,
+        ampm: ampm,
+      };
+    }
+
+    // 24-hour format
+    return `${hours.toString().padStart(2, "0")}:${mins
+      .toString()
+      .padStart(2, "0")}`;
+  }
+
+  $(document).ready(function () {
+    // Check if we're using 12-hour or 24-hour format based on the listeo_core variable
+    // listeo_core.clockformat = true means 24h format, false means 12h format
+    var is12HourFormat =
+      typeof listeo_core !== "undefined" &&
+      listeo_core.clockformat !== undefined
+        ? !listeo_core.clockformat
+        : $(".availability-slots").data("clock-type") === "12hr";
+
+    $(".day-slots").each(function () {
+      var daySlots = $(this);
+
+      // Update the display of copy-slots-item elements initially
+      updateCopySlotsDisplay(daySlots);
+
+      // Copy slots FROM another day
+      daySlots.find(".copy-slots-item").on("click", function (e) {
+        e.preventDefault();
+        var targetDaySlots = $(this).closest(".day-slots");
+        var sourceDayIndex = $(this).data("value");
+        var sourceDaySlots = $(".day-slots").eq(sourceDayIndex);
+
+        var slotsToCopy = sourceDaySlots
+          .find(".slots-container .single-slot")
+          .clone();
+
+        // Remove existing slots with animation
+        targetDaySlots
+          .find(".slots-container .single-slot")
+          .animate({ height: 0, opacity: 0 }, "fast", function () {
+            $(this).remove();
+          });
+
+        // Add new slots with animation
+        setTimeout(function () {
+          targetDaySlots.find(".slots-container").append(slotsToCopy);
+          // Re-initialize the numberPicker for copied slots
+          slotsToCopy.find(".plusminus").each(function () {
+            $(this).numberPicker();
+          });
+          slotsToCopy
+            .hide()
+            .animate({ height: "show", opacity: "show" }, "fast");
+        }, 200);
+
+        // Remove the "no-slots" message if it exists in the target day
+        targetDaySlots
+          .find(".no-slots")
+          .addClass("no-slots-fadeout")
+          .removeClass("no-slots-fadein");
+
+        // Update the display of copy-slots-item elements after copying
+        updateCopySlotsDisplay(sourceDaySlots);
+        updateCopySlotsDisplay(targetDaySlots);
+      });
+
+      daySlots.find(".add-slot-btn").on("click", function (e) {
+        e.preventDefault();
+
+        var slotTime_Start = daySlots
+          .find(".add-slot-inputs input.time-slot-start")
+          .val();
+        var slotTime_End = daySlots
+          .find(".add-slot-inputs input.time-slot-end")
+          .val();
+
+        // Get AM/PM values for 12-hour format
+        var slotTimePM_AM_Start = "";
+        var slotTimePM_AM_End = "";
+
+        if (is12HourFormat) {
+          slotTimePM_AM_Start = daySlots
+            .find(".add-slot-inputs select.time-slot-start")
+            .val();
+          slotTimePM_AM_End = daySlots
+            .find(".add-slot-inputs select.time-slot-end")
+            .val();
+        }
+
+        // Checks if input values are not blank
+        if (slotTime_Start.length > 0 && slotTime_End.length > 0) {
+          // New Time Slot Div
+          var newTimeSlot = daySlots
+            .find(".single-slot.cloned")
+            .clone(true)
+            .addClass("slot-animation")
+            .removeClass("cloned");
+
+          setTimeout(function () {
+            newTimeSlot.removeClass("slot-animation");
+          }, 300);
+
+          newTimeSlot.find(".plusminus input").val("1");
+
+          // Plus - Minus Init
+          newTimeSlot.find(".plusminus").numberPicker();
+
+          // Check if there's am/pm dropdown (12-hour format)
+          if (is12HourFormat) {
+            newTimeSlot
+              .find(".single-slot-time")
+              .html(
+                slotTime_Start +
+                  " " +
+                  '<i class="am-pm">' +
+                  slotTimePM_AM_Start +
+                  "</i>" +
+                  " - " +
+                  slotTime_End +
+                  " " +
+                  '<i class="am-pm">' +
+                  slotTimePM_AM_End +
+                  "</i>"
+              );
+          } else {
+            newTimeSlot
+              .find(".single-slot-time")
+              .html("" + slotTime_Start + " - " + slotTime_End);
+          }
+
+          // Appending new slot
+          newTimeSlot.appendTo(daySlots.find(".slots-container"));
+
+          // Refresh sortable script
+          $(".slots-container").sortable("refresh");
+
+          // Update the display of copy-slots-item elements after adding a new slot
+          updateCopySlotsDisplay(daySlots);
+
+          // Calculate hour difference
+          var slotTime_StartInMinutes, slotTime_EndInMinutes;
+
+          if (is12HourFormat) {
+            slotTime_StartInMinutes = timeStringToMinutes(
+              slotTime_Start,
+              slotTimePM_AM_Start
+            );
+            slotTime_EndInMinutes = timeStringToMinutes(
+              slotTime_End,
+              slotTimePM_AM_End
+            );
+          } else {
+            slotTime_StartInMinutes = timeStringToMinutes(slotTime_Start);
+            slotTime_EndInMinutes = timeStringToMinutes(slotTime_End);
+          }
+
+          // If end time is on next day (crosses midnight), add 24 hours (1440 minutes) to the end time
+          if (slotTime_EndInMinutes < slotTime_StartInMinutes) {
+            slotTime_EndInMinutes += 24 * 60; // Add 24 hours in minutes
+          }
+
+          // Calculate the time difference
+          const hourDifferenceInMinutes =
+            slotTime_EndInMinutes - slotTime_StartInMinutes;
+
+          if (hourDifferenceInMinutes > 0) {
+            // Set the new start time to the previous end time
+            if (is12HourFormat) {
+              daySlots
+                .find(".add-slot-inputs input.time-slot-start")
+                .val(slotTime_End);
+              daySlots
+                .find(".add-slot-inputs select.time-slot-start")
+                .val(slotTimePM_AM_End);
+
+              // Calculate the new end time
+              const newEndTimeInMinutes =
+                slotTime_EndInMinutes + hourDifferenceInMinutes;
+              const newEndTimeObj = minutesToTimeString(
+                newEndTimeInMinutes,
+                true
+              );
+
+              // Set new end time and AM/PM
+              daySlots
+                .find(".add-slot-inputs input.time-slot-end")
+                .val(newEndTimeObj.time);
+              daySlots
+                .find(".add-slot-inputs select.time-slot-end")
+                .val(newEndTimeObj.ampm);
+            } else {
+              // For 24-hour format
+              daySlots
+                .find(".add-slot-inputs input.time-slot-start")
+                .val(slotTime_End);
+
+              // Calculate the new end time
+              const newEndTimeInMinutes =
+                slotTime_EndInMinutes + hourDifferenceInMinutes;
+              const newEndTime = minutesToTimeString(newEndTimeInMinutes);
+
+              // Set new end time
+              daySlots
+                .find(".add-slot-inputs input.time-slot-end")
+                .val(newEndTime);
+            }
+          } else {
+            console.log(
+              "End time is not larger than start time, not updating time inputs."
+            );
+          }
+        } else {
+          // Validation Error
+          daySlots.find(".add-slot").addClass("add-slot-shake-error");
+          setTimeout(function () {
+            daySlots.find(".add-slot").removeClass("add-slot-shake-error");
+          }, 600);
+        }
+      });
 
       // Removing "no slots" message
-      setTimeout(function () {
-        hideSlotInfo();
-      }, 400);
-    });
-
-    // Showing "no slots" message
-    daySlots.find(".add-slot-btn").on("click", function (e) {
-      e.preventDefault();
-      var slotCount = daySlots.find(".slots-container").children().length;
-      if (slotCount >= 1) {
-        daySlots
-          .find(".no-slots")
-          .removeClass("no-slots-fadein")
-          .addClass("no-slots-fadeout");
+      function hideSlotInfo() {
+        var slotCount = daySlots.find(".slots-container").children().length;
+        if (slotCount < 1) {
+          daySlots
+            .find(".no-slots")
+            .addClass("no-slots-fadein")
+            .removeClass("no-slots-fadeout");
+        }
       }
+      hideSlotInfo();
+
+      // Removing Slot
+      daySlots.on("click touchstart", ".remove-slot", function (e) {
+        e.preventDefault();
+        $(this)
+          .closest(".single-slot")
+          .animate({ height: 0, opacity: 0 }, "fast", function () {
+            $(this).remove();
+          });
+
+        // Removing "no slots" message
+        setTimeout(function () {
+          hideSlotInfo();
+        }, 400);
+
+        // Update the display of copy-slots-item elements after removing a slot
+        updateCopySlotsDisplay(daySlots);
+      });
+
+      // Showing "no slots" message
+      daySlots.find(".add-slot-btn").on("click", function (e) {
+        e.preventDefault();
+
+        var slotCount = daySlots.find(".slots-container").children().length;
+
+        if (slotCount >= 1) {
+          daySlots
+            .find(".no-slots")
+            .removeClass("no-slots-fadein")
+            .addClass("no-slots-fadeout");
+        }
+      });
     });
   });
 
@@ -1638,6 +2202,29 @@ $(document).ready(function(){
   if ($(".availability-slots").attr("data-clock-type") == "24hr") {
     $(".availability-slots").addClass("twenty-four-clock");
     $(".availability-slots").find('input[type="time"]').attr({ max: "24:00" });
+  }
+
+  // Unified visibility controller function
+  function shouldSectionBeVisible(section) {
+    // Check if multi-step form is active
+    const isMultiStepForm = document.querySelector(".submit-page")?.classList.contains("multi-step-form");
+    
+    if (!isMultiStepForm) {
+      // Original behavior for non-multi-step forms
+      const isBookingDependent = section.classList.contains('availability_calendar') ||
+                                section.classList.contains('slots') ||
+                                section.classList.contains('basic_prices');
+      const isBookingEnabled = document.querySelector('#_booking_status')?.checked;
+      
+      if (isBookingDependent) {
+        return isBookingEnabled;
+      }
+      return true;
+    }
+    
+    // For multi-step forms, let the step controller handle visibility
+    // Don't override with global booking visibility
+    return null; // Let step system decide
   }
 
   // Switcher
@@ -1654,29 +2241,54 @@ $(document).ready(function(){
         $(switcherSection).addClass("switcher-on");
 
         if (switcherInput.attr("id") == "_booking_status") {
-          $(
-            ".add-listing-section.slots,.add-listing-section.basic_prices,.add-listing-section.availability_calendar"
-          ).show();
+          // Check if this is a multi-step form
+          const isMultiStepForm = document.querySelector(".submit-page")?.classList.contains("multi-step-form");
+          
+          if (!isMultiStepForm) {
+            // Only apply global visibility for non-multi-step forms
+            $(
+              ".add-listing-section.slots,.add-listing-section.basic_prices,.add-listing-section.availability_calendar"
+            ).show();
+          }
+          // For multi-step forms, trigger an event for the step controller to handle
+          else if (typeof window.listeoUpdateFormUI === 'function') {
+            window.listeoUpdateFormUI();
+          }
         }
       } else {
         $(switcherSection).removeClass("switcher-on");
         if (switcherInput.attr("id") == "_booking_status") {
-          $(
-            ".add-listing-section.slots,.add-listing-section.basic_prices,.add-listing-section.availability_calendar"
-          ).hide();
+          // Check if this is a multi-step form
+          const isMultiStepForm = document.querySelector(".submit-page")?.classList.contains("multi-step-form");
+          
+          if (!isMultiStepForm) {
+            // Only apply global visibility for non-multi-step forms
+            $(
+              ".add-listing-section.slots,.add-listing-section.basic_prices,.add-listing-section.availability_calendar"
+            ).hide();
+          }
+          // For multi-step forms, trigger an event for the step controller to handle
+          else if (typeof window.listeoUpdateFormUI === 'function') {
+            window.listeoUpdateFormUI();
+          }
         }
       }
     });
   });
 
-  if ($("#_booking_status").is(":checked")) {
-    $(
-      ".add-listing-section.slots,.add-listing-section.basic_prices,.add-listing-section.availability_calendar"
-    ).show();
-  } else {
-    $(
-      ".add-listing-section.slots,.add-listing-section.basic_prices,.add-listing-section.availability_calendar"
-    ).hide();
+  // Initial state setup - only for non-multi-step forms
+  const isMultiStepForm = document.querySelector(".submit-page")?.classList.contains("multi-step-form");
+  
+  if (!isMultiStepForm) {
+    if ($("#_booking_status").is(":checked")) {
+      $(
+        ".add-listing-section.slots,.add-listing-section.basic_prices,.add-listing-section.availability_calendar"
+      ).show();
+    } else {
+      $(
+        ".add-listing-section.slots,.add-listing-section.basic_prices,.add-listing-section.availability_calendar"
+      ).hide();
+    }
   }
 
   /*----------------------------------------------------*/
@@ -1758,7 +2370,25 @@ $(document).ready(function(){
       });
   });
 
+  // On document ready, prevent select2 on registration fields
+  $(document).ready(function() {
+    // Trigger initial load for default selected role
+    setTimeout(function() {
+      var $defaultRadio = $("input[type=radio][name=user_role]:checked");
+      if ($defaultRadio.length > 0) {
+        $defaultRadio.trigger('change');
+      }
+    }, 100);
+  });
+
   $("input[type=radio][name=user_role]").change(function () {
+    // Destroy any existing select2 instances in registration fields
+    $("#listeo-core-registration-fields").find(".select2-hidden-accessible").each(function() {
+      try {
+        $(this).select2("destroy");
+      } catch(e) {}
+    });
+
     $("#listeo-core-registration-fields").html("");
     if (
       this.value == "owner" ||
@@ -1777,16 +2407,17 @@ $(document).ready(function(){
         ).html()
       );
     }
-    //$('.select2-single').select2("destroy");
 
-    $(".select2-single").select2({
-      dropdownPosition: "below",
-
-      minimumResultsForSearch: 20,
-      width: "100%",
-      placeholder: $(this).data("placeholder"),
-      formatNoMatches: listeo_core.no_results_text,
+    // Remove select2 classes to ensure generic dropdowns
+    $("#listeo-core-registration-fields").find("select").each(function() {
+      $(this).removeClass("select2-single select2-multiple select2-hidden-accessible");
+      $(this).removeAttr("data-select2-id");
+      $(this).removeAttr("aria-hidden");
+      $(this).removeAttr("tabindex");
     });
+
+    // Remove any select2 containers
+    $("#listeo-core-registration-fields").find(".select2-container").remove();
   });
 
   /*----------------------------------------------------*/
@@ -1883,7 +2514,7 @@ $(document).ready(function(){
         "</label>" +
         '<input type="number" class="bookable_quantity_max" step="1" name="_menu[0][menu_elements][0][bookable_quantity_max]" placeholder="' +
         listeo_core.bookable_quantity_max +
-        '" />"' +
+        '" />' +
         "</div>";
     }
 
@@ -1903,7 +2534,7 @@ $(document).ready(function(){
         '" name="_menu[0][menu_elements][0][description]"/></div>' +
         '<div class="fm-input pricing-price">' +
         '<i class="data-unit">' +
-        listeo_core.currency +
+        listeo_core.currency_symbol +
         "</i>" +
         '<input type="number" step="0.01" placeholder="' +
         listeo_core.menu_price +
@@ -2030,8 +2661,8 @@ $(document).ready(function(){
   }
 
   var test = "_menu[0][menu_elements][0][bookable_quantity]";
-  console.log(test);
-  console.log(test.search(/\[\d+\]/));
+  // console.log(test);
+  // console.log(test.search(/\[\d+\]/));
 
   function replaceLast(string, search, replace) {
     // find the index of last time word was used
@@ -2179,6 +2810,8 @@ $(document).ready(function(){
     .children("input")
     .before('<i class="data-unit">' + fieldUnit + "</i>");
 
+  // Unit character
+
   if (
     $("body").hasClass("page-template-template-home-search-splash") ||
     $("body").hasClass("page-template-template-home-search") ||
@@ -2188,6 +2821,66 @@ $(document).ready(function(){
   } else {
     var open_cal = "left";
   }
+
+  $(document).on("click", ".add-repeatable-list-item", function (e) {
+    e.preventDefault();
+    newRepeatableItem($(this));
+  });
+
+  // remove ingredient
+  $(document).on("click", "#repeatable-list-container .delete", function (e) {
+    e.preventDefault();
+    $(this).parent().parent().remove();
+  });
+
+  function newRepeatableItem(el) {
+    var newElem = el.parent().find(".repeatable-list-item").last().clone(true);
+    var appendTo = el.parent().find("table");
+    newElem.find("input").val("");
+    console.log(appendTo);
+    var prev_data_iterator = el
+      .parent()
+      .find(".repeatable-list-item")
+      .last()
+      .data("iterator");
+
+    var next_data_iterator = prev_data_iterator + 1;
+
+    newElem.find("input").each(function () {
+      // replace 1st number with current category title number
+
+      this.name = this.name.replace(/\[\d+\]/, "[" + next_data_iterator + "]");
+      this.id = this.id.replace(/\[\d+\]/, "[" + next_data_iterator + "]");
+    });
+    newElem.find("select").each(function () {
+      this.name = this.name.replace(/\[\d+\]/, "[" + next_data_iterator + "]");
+      this.id = this.id.replace(/\[\d+\]/, "[" + next_data_iterator + "]");
+    });
+    newElem.find("textarea").each(function () {
+      this.name = this.name.replace(/\[\d+\]/, "[" + next_data_iterator + "]");
+      this.id = this.id.replace(/\[\d+\]/, "[" + next_data_iterator + "]");
+    });
+    newElem
+      .appendTo(appendTo)
+      .removeClass("pattern")
+      .data("iterator", next_data_iterator);
+  }
+
+  // loop all .fm-input and check if it has data-unit attribute
+  $(".repeatable-list-item .fm-input").each(function () {
+    var repeatableFieldUnit = $(this).children("input").data("unit");
+    if (repeatableFieldUnit)
+      $(this)
+        .children("input")
+        .before('<i class="data-unit">' + repeatableFieldUnit + "</i>");
+  });
+
+  // var repeatableFieldUnit = $(".repeatable-list-item .fm-input input").data("unit");
+  // console.log($(".repeatable-list-item .fm-input input").data("unit"));
+  // if (repeatableFieldUnit)
+  //   $(".repeatable-list-item .fm-input")
+  //     .children("input")
+  //     .before('<i class="data-unit">' + repeatableFieldUnit + "</i>");
 
   $(".date_range").daterangepicker({
     opens: open_cal,
@@ -2538,6 +3231,194 @@ $(document).ready(function(){
   $(".dashboard-chart-full #stat_type").on("change", function (e) {
     updateDashboardChart();
   });
+
+  $(".listeo-create-stripe-express-link-account").on("click", function (e) {
+    e.preventDefault();
+    var $this = $(this);
+    $(this).addClass("loading");
+    $.ajax({
+      type: "POST",
+      dataType: "json",
+      url: listeo.ajaxurl,
+      data: {
+        action: "create_express_stripe_account",
+      },
+      success: function (data) {
+        if (data.success) {
+          get_listeo_stripe_account_link();
+        } else {
+          $this.removeClass("loading");
+          $this.after("<p>" + data.data + "</p>");
+        }
+      },
+    });
+  });
+
+  function get_listeo_stripe_account_link() {
+    $.ajax({
+      type: "POST",
+      dataType: "json",
+      url: listeo.ajaxurl,
+      data: {
+        action: "get_express_stripe_account_link",
+      },
+      success: function (data) {
+        if (data.success) {
+          $(".listeo-create-stripe-express-link-account").hide();
+          $(".real-conntect-w-stripe-btn").attr("href", data.data).show();
+        } else {
+          $(".listeo-create-stripe-express-link-account").removeClass(
+            "loading"
+          );
+          $(".listeo-create-stripe-express-link-account").after(
+            "<p>" + data.data + "</p>"
+          );
+        }
+      },
+    });
+  }
+
+  // claim listing
+
+  $("#claim-listing-form").on("submit", function (e) {
+    $("#claim-dialog button").addClass("loading").prop("disabled", true);
+
+    var form = $("#claim-listing-form")[0]; // Get the DOM element of the form
+    var formData = new FormData(form);
+
+    // check if required fields are filled
+    var required_fields = true;
+    $("#claim-listing-form .required").each(function () {
+      if (!$(this).val()) {
+        required_fields = false;
+        $(this).addClass("error");
+      }
+    });
+    // if required fields are not filled
+    if (!required_fields) {
+      $("#claim-dialog button").removeClass("loading").prop("disabled", false);
+      $("#claim-dialog .notification")
+        .removeClass("success")
+        .addClass("error")
+        .show()
+        .html(listeo_core.required_fields);
+      e.preventDefault();
+      return false;
+    }
+
+    $.ajax({
+      type: "POST",
+      dataType: "json",
+      url: listeo_core.ajax_url,
+      data: formData,
+      processData: false, // Set processData to false to prevent jQuery from automatically converting the data to a string
+      contentType: false, // Set contentType to false, so jQuery does not set the Content-Type header
+      success: function (data) {
+        if (data.success) {
+          // if data has a value payment and it's not empty
+          if (data.payment_url && data.payment_url !== "") {
+            //scroll to top
+            $("html, body").animate({ scrollTop: 0 }, "slow");
+            $("#claim-dialog button")
+              .removeClass("loading")
+              .prop("disabled", false);
+            $("#claim-dialog form").hide();
+            $(".claim-listing-pay-button")
+              .attr("href", data.payment_url)
+              .show();
+            $(".claim-confirmation-box").show();
+
+            // window.location.href = data.payment;
+          } else {
+            $("#claim-listing-form .required").each(function () {
+              $(this).removeClass("error");
+            });
+            $("#claim-dialog button").removeClass("loading");
+            $("#claim-dialog .notification")
+              .removeClass("error")
+              .addClass("success")
+              .show()
+              .html(data.message);
+            window.setTimeout(closepopup, 3000);
+            $(".claim-listing-button span").text(data.button_text);
+            $(".claim-listing-button").removeClass("popup-with-zoom-anim");
+            if (data.reload && listeo_core.autologin) {
+              setTimeout(function () {
+                window.location.reload(); // you can pass true to reload function to ignore the client cache and reload from the server
+              }, 2000);
+            }
+          }
+        } else {
+          $("#claim-dialog .notification")
+            .removeClass("success")
+            .addClass("error")
+            .show()
+            .html(data.message);
+          $("#claim-dialog button")
+            .removeClass("loading")
+            .prop("disabled", false);
+        }
+      },
+    });
+    e.preventDefault();
+  });
+
+  // review validation
+  $(".add-sub-rating").each(function () {
+    const ratingName = $(this).find('input[type="radio"]').first().attr("name");
+    $(this).append(`<input type="text" 
+            class="rating-validator" 
+            style="position: absolute; opacity: 0; pointer-events: none;" 
+            name="validate_${ratingName}" 
+            required 
+            data-rating-group="${ratingName}">`);
+  });
+
+  // Update validator input when stars are clicked
+  $('.leave-rating input[type="radio"]').on("change", function () {
+    const ratingGroup = $(this).attr("name");
+    const validator = $(`input[data-rating-group="${ratingGroup}"]`);
+    validator.val($(this).val());
+
+    // Remove error styling if present
+    $(this).closest(".add-sub-rating").removeClass("rating-validation-error");
+    $(this).closest(".add-sub-rating").find(".rating-error-message").hide();
+  });
+
+  // Handle form submission
+  $("#commentform").on("submit", function (e) {
+    let isValid = true;
+    let firstError = null;
+
+    $(".add-sub-rating").each(function () {
+      const ratingGroup = $(this);
+      const hasRating =
+        ratingGroup.find('input[type="radio"]:checked').length > 0;
+
+      if (!hasRating) {
+        isValid = false;
+        ratingGroup.addClass("rating-validation-error");
+        ratingGroup.find(".rating-error-message").show();
+
+        if (!firstError) {
+          firstError = ratingGroup;
+        }
+      }
+    });
+
+    if (!isValid) {
+      e.preventDefault();
+      if (firstError) {
+        $("html, body").animate(
+          {
+            scrollTop: firstError.offset().top - 100,
+          },
+          500
+        );
+      }
+    }
+  });
+
 
   // ------------------ End Document ------------------ //
 });

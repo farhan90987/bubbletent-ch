@@ -23,7 +23,6 @@ $store_url         = $vendor->get_shop_url();
     $include_posts = $set_products ? $set_products : array();
 
 
-    //var_dump($settings);
     $output = '';
     $randID = rand(1, 99); // Get unique ID for carousel
 

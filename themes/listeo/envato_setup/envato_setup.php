@@ -64,6 +64,7 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 		/** @var string Current Step */
 		protected $step = '';
 
+		protected $parent_slug;
 		/** @var array Steps for the setup wizard */
 		protected $steps = array();
 
@@ -138,6 +139,20 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 		 *
 		 */
 		public $site_styles = array();
+
+		/**
+		 * License validation message
+		 *
+		 * @var string
+		 */
+		protected $licenseMessage = '';
+
+		/**
+		 * License response object
+		 *
+		 * @var object|null
+		 */
+		protected $responseObj = null;
 
 		/**
 		 * Holds the current instance of the theme manager
@@ -434,7 +449,7 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 			$this->steps['license_activation'] = array(
 				'name'    => esc_html__('License Activation'),
 				'view'    => array($this, 'envato_setup_license_activation'),
-				'handler' => '',
+				'handler' => array($this, 'envato_setup_license_activation_save'),
 			);
 			if (class_exists('TGM_Plugin_Activation') && isset($GLOBALS['tgmpa'])) {
 				$this->steps['default_plugins'] = array(
@@ -459,11 +474,11 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 			// 	'view'    => array( $this, 'envato_setup_logo_design' ),
 			// 	'handler' => array( $this, 'envato_setup_logo_design_save' ),
 			// );
-			$this->steps['customize']       = array(
+			/* $this->steps['customize']       = array(
 				'name'    => esc_html__('Customize', 'listeo'),
 				'view'    => array($this, 'envato_setup_customize'),
 				'handler' => '',
-			);
+			); */
 			$this->steps['help_support']    = array(
 				'name'    => esc_html__('Support', 'listeo'),
 				'view'    => array($this, 'envato_setup_help_support'),
@@ -569,7 +584,15 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 				echo '<t';
 				echo 'itle>' . esc_html__('Theme &rsaquo; Setup Wizard', 'listeo') . '</ti' . 'tle>'; ?>
 				<?php wp_print_scripts('envato-setup'); ?>
-				<?php do_action('admin_print_styles'); ?>
+				<?php 
+				// Remove deprecated print_emoji_styles to avoid warning in WP 6.4+
+				remove_action('wp_print_styles', 'print_emoji_styles');
+				// Use the new method to enqueue emoji styles
+				if (function_exists('wp_enqueue_emoji_styles')) {
+					wp_enqueue_emoji_styles();
+				}
+				do_action('admin_print_styles'); 
+				?>
 				<?php do_action('admin_print_scripts'); ?>
 				<?php //do_action( 'admin_head' ); 
 				?>
@@ -813,27 +836,44 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 			return $plugins;
 		}
 
+		/**
+		 * Mask sensitive data in response objects for logging
+		 *
+		 * @param object $responseObj The response object to mask
+		 * @return object Masked response object
+		 */
+		private function mask_sensitive_response($responseObj) {
+			if (!$responseObj) {
+				return $responseObj;
+			}
+			
+			// Create a copy to avoid modifying the original
+			$masked = clone $responseObj;
+			
+			// Mask license_key if present
+			if (isset($masked->license_key) && !empty($masked->license_key)) {
+				$key = $masked->license_key;
+				if (strlen($key) > 8) {
+					$masked->license_key = substr($key, 0, 4) . '****-****-****-****' . substr($key, -4);
+				} else {
+					$masked->license_key = '****';
+				}
+			}
+			
+			return $masked;
+		}
+
 		public function envato_setup_license_activation()
 		{
-
-			if (isset($_POST['el_license_key']) && !empty($_POST['el_license_key'])) {
-
-
-				$licenseKey = !empty($_POST['el_license_key']) ?  sanitize_text_field($_POST['el_license_key']) : "";
-				$licenseEmail = !empty($_POST['el_license_email']) ? sanitize_email($_POST['el_license_email']) : "";
-
-				update_option("Listeo_lic_Key", $licenseKey);
-				update_option("Listeo_lic_email", $licenseEmail);
-			}
-
+			// Don't process POST data here - let the handler do it
+			// This was causing the handler to not receive POST data
+			
 			$licenseKey   = get_option("Listeo_lic_Key", "");
-
 			$liceEmail    = get_option("Listeo_lic_email", "");
-
 
 			$templateDir  = get_template_directory(); //or dirname(__FILE__);
 
-			if (ListeoBase::CheckWPPlugin($licenseKey, $liceEmail, $this->licenseMessage, $this->responseObj, $templateDir . "/style.css")) {			?>
+			if (b472b0Base::CheckWPPlugin($licenseKey, $liceEmail, $this->licenseMessage, $this->responseObj, $templateDir . "/style.css")) {			?>
 				<div class="listeo-setup-activated">
 					<svg width="133px" height="133px" viewBox="0 0 133 133" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 						<g id="check-group" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
@@ -845,6 +885,11 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 					</svg>
 
 					<h1><?php printf(esc_html__('Thank you for activating your %s license.'), wp_get_theme()); ?></h1>
+					<?php if ( get_option('listeo_offline_activation') === 'yes' ) : ?>
+						<!-- <p style="color: #FF8C00; font-weight: 500; margin-top: 10px;">
+							License activated offline due to server connectivity issues. <br>Your theme is fully functional.
+						</p> -->
+					<?php endif; ?>
 				</div>
 				<p class="envato-setup-actions step">
 					<a href="<?php echo esc_url($this->get_next_step_link()); ?>" class="button-primary button button-large button-next"><?php esc_html_e('Let\'s Go!'); ?></a>
@@ -856,14 +901,14 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 				}
 			?>
 				<form method="post">
-					<h1><?php printf(esc_html__('Welcome to the setup wizard for %s.'), wp_get_theme()); ?></h1>
+					<h1><?php printf(esc_html__('🚀 Welcome to the setup wizard for %s.'), wp_get_theme()); ?></h1>
 					<p>
 
 						Setup Wizard requires activating your license. Single license allows you to install theme on one domain and one dev/staging site.
 					</p>
 
 					<h3><a href="https://help.market.envato.com/hc/en-us/articles/202822600-Where-Is-My-Purchase-Code-" target="_blank">How to find your purchase code &rarr;</a></h3>
-					<ol>
+					<ol style="padding-left: 0; margin-left: 15px; margin-top: -10px;">
 						<li>Log into your Envato Market account.</li>
 						<li>Hover the mouse over your username at the top of the screen.</li>
 						<li>Click ‘Downloads’ from the drop-down menu.`</li>
@@ -871,17 +916,14 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 					</ol>
 
 					<?php
-					if (!empty($this->showMessage) && !empty($this->licenseMessage)) { ?>
+					// Check for error messages from the setup wizard handler
+					$setup_error = get_transient('listeo_setup_license_error');
+					if ($setup_error) {
+						delete_transient('listeo_setup_license_error'); ?>
 						<div class="license-notification error">
-							<p><?php
-								if ($this->licenseMessage == 'You license key has been waiting for manual approval, Please contact with license author') {
-									echo 'Provided license key is already assigned to other domain. Deactivate it for that domain or purchase new license. If you want to activate it on dev/staging environment, please contact us about it via Support Tab on ThemeForest https://themeforest.net/item/listeo-directory-listings-wordpress-theme/23239259/support';
-								} else {
-									echo $this->licenseMessage;
-								}
-								?></p>
+							<p><?php echo esc_html($setup_error); ?></p>
 						</div>
-					<?php }  ?>
+					<?php } ?>
 					<table class="form-table">
 						<tbody>
 							<tr class="listeo_settings_text">
@@ -903,14 +945,204 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 							</tr>
 						</tbody>
 					</table>
-					<?php wp_nonce_field('el-license'); ?>
-					<?php submit_button('Activate License'); ?>
+					<?php wp_nonce_field('listeo_action_verification_nonce', 'listeo_action_verification_nonce'); ?>
+					
+					<p class="envato-setup-actions step">
+						<input type="submit" class="button-primary button button-large button-next" value="Activate License" name="save_step" />
+					</p>
 
 				</form>
 			<?php } ?>
 
 		<?php
 		}
+
+		/**
+		 * Handle license activation form submission
+		 */
+		public function envato_setup_license_activation_save()
+		{
+			// Add both console and error log debugging
+			echo '<script>console.log("🚀 License handler called!");</script>';
+			error_log('🚀 Setup Wizard License Handler Called - ' . date('Y-m-d H:i:s'));
+			
+			echo '<script>console.log("POST data:", ' . json_encode($_POST) . ');</script>';
+			error_log('POST Data: ' . print_r($_POST, true));
+			
+			// Verify nonce for security
+			if (!wp_verify_nonce($_POST['listeo_action_verification_nonce'], 'listeo_action_verification_nonce')) {
+				echo '<script>console.error("❌ Nonce verification failed");</script>';
+				error_log('❌ Setup Wizard - Nonce verification failed');
+				set_transient('listeo_setup_license_error', 'Security verification failed. Please try again.', 60);
+				wp_redirect($this->get_step_link($this->step));
+				exit;
+			}
+
+			// Get form data
+			$license_key = !empty($_POST['el_license_key']) ? sanitize_text_field($_POST['el_license_key']) : "";
+			$license_email = !empty($_POST['el_license_email']) ? sanitize_email($_POST['el_license_email']) : "";
+
+			// Add console logging for debugging
+			echo '<script>console.log("🔧 Setup Wizard License Activation Debug");</script>';
+			echo '<script>console.log("License Key: ' . esc_js(substr($license_key, 0, 8)) . '...");</script>';
+			echo '<script>console.log("License Email: ' . esc_js($license_email) . '");</script>';
+
+			if (empty($license_key)) {
+				echo '<script>console.error("❌ License activation failed: No license key provided");</script>';
+				set_transient('listeo_setup_license_error', 'Please enter a valid license key.', 60);
+				wp_redirect($this->get_step_link($this->step));
+				exit;
+			}
+
+			if (empty($license_email)) {
+				echo '<script>console.error("❌ License activation failed: No email provided");</script>';
+				set_transient('listeo_setup_license_error', 'Please enter a valid email address.', 60);
+				wp_redirect($this->get_step_link($this->step));
+				exit;
+			}
+
+			// Save license data to database FIRST
+			update_option("Listeo_lic_Key", $license_key);
+			update_option("Listeo_lic_email", $license_email);
+
+			echo '<script>console.log("✅ License data saved to database");</script>';
+			error_log('✅ Setup Wizard - License data saved to database');
+
+			// IMPORTANT: Clear all license-related transients before validation
+			// This prevents cached "already used" messages from persisting
+			echo '<script>console.log("🧹 Clearing all license caches for fresh validation...");</script>';
+			error_log('🧹 Setup Wizard - Clearing all license caches for fresh validation');
+			
+			// Clear the 180-day cache for this license
+			$cache_key_180 = 'listeo_license_180_' . md5(site_url() . $license_key . $license_email);
+			delete_transient($cache_key_180);
+			
+			// Clear the standard license validation cache
+			$transient_key = 'listeo_license_valid_' . md5($license_key . $license_email . site_url());
+			delete_transient($transient_key);
+			
+			// Clear API request caches - construct the cache key to match b472b0Base
+			$server_host = "https://purethe.me/wp-json/licensor/";
+			$url = rtrim($server_host, '/') . "/" . ltrim('product/active/2', '/');
+			
+			// Create the request data structure to match cache key
+			$req = new stdClass();
+			$req->license_key = $license_key;
+			$req->email = $license_email;
+			$req->domain = site_url();
+			$req->app_version = wp_get_theme('listeo')->get('Version');
+			$req->product_id = "2";
+			$req->product_base = "listeo";
+			
+			// Clear multiple possible API cache patterns
+			global $wpdb;
+			// Clear all transients that might contain this license key
+			$like_pattern = '%' . substr($license_key, 0, 8) . '%';
+			$wpdb->query($wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s AND (option_name LIKE %s OR option_name LIKE %s)",
+				'_transient_listeo_%',
+				'%' . $wpdb->esc_like(substr($license_key, 0, 8)) . '%',
+				'%' . $wpdb->esc_like(md5($license_key)) . '%'
+			));
+			$wpdb->query($wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s AND (option_name LIKE %s OR option_name LIKE %s)",
+				'_transient_timeout_listeo_%',
+				'%' . $wpdb->esc_like(substr($license_key, 0, 8)) . '%',
+				'%' . $wpdb->esc_like(md5($license_key)) . '%'
+			));
+			
+			// Also clear broader API request caches for this domain
+			$domain_hash = md5(site_url());
+			$wpdb->query($wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s AND option_name LIKE %s",
+				'_transient_listeo_api_request_%',
+				'%' . $wpdb->esc_like($domain_hash) . '%'
+			));
+			$wpdb->query($wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s AND option_name LIKE %s",
+				'_transient_timeout_listeo_api_request_%',
+				'%' . $wpdb->esc_like($domain_hash) . '%'
+			));
+			
+			echo '<script>console.log("✅ License cache cleared successfully");</script>';
+
+			// Try to activate the license using the b472b0Base class
+			if (class_exists('b472b0Base')) {
+				try {
+					echo '<script>console.log("🔍 Attempting license verification...");</script>';
+					error_log('🔍 Setup Wizard - Attempting license verification');
+					
+					// Use the same method as the main license system
+					$message = '';
+					$responseObj = null;
+					$result = b472b0Base::CheckWPPlugin($license_key, $license_email, $message, $responseObj, get_template_directory() . "/style.css");
+					
+					echo '<script>console.log("License validation result: ' . ($result ? 'true' : 'false') . '");</script>';
+					echo '<script>console.log("License message: ' . esc_js($message) . '");</script>';
+					if ($responseObj) {
+						echo '<script>console.log("Response object:", ' . json_encode($responseObj) . ');</script>';
+					}
+					
+					error_log('License validation result: ' . ($result ? 'VALID' : 'INVALID'));
+					error_log('License message: ' . $message);
+					error_log('Response object: ' . print_r($this->mask_sensitive_response($responseObj), true));
+					
+					if ($result) {
+						echo '<script>console.log("✅ License activation successful!");</script>';
+						error_log('✅ Setup Wizard - License activation successful');
+						
+						// Update the verification status like the main theme does
+						update_option('license_verification_status', 'verified');
+						
+						echo '<script>console.log("✅ License status updated - proceeding to next step");</script>';
+						error_log('✅ Setup Wizard - License status updated, proceeding to next step');
+						
+						// License is valid, proceed to next step
+						return true;
+					} else {
+						// Provide more detailed error information
+						$detailed_error = '';
+						if (empty($message)) {
+							$detailed_error = 'License validation failed. Possible reasons: Invalid license key, license already used on another domain, expired license, or server connection issues. Please verify your license key and email address.';
+						} else {
+							// Improve specific error messages
+							if (strpos(strtolower($message), 'temporary inactivated') !== false) {
+								$detailed_error = 'Your license key has been temporarily deactivated. Please contact support for assistance.';
+							} elseif (strpos(strtolower($message), 'invalid license code') !== false) {
+								$detailed_error = 'Invalid license code. This usually means the license key is already registered on another domain. If you want to use it on this domain, please deactivate it from the previous domain first, or contact support if you need help transferring your license.';
+							} elseif (strpos(strtolower($message), 'expired') !== false) {
+								$detailed_error = 'Your license has expired. Please renew your license to continue using the theme.';
+							} else {
+								$detailed_error = $message;
+							}
+						}
+						
+						echo '<script>console.error("❌ License activation failed: ' . esc_js($detailed_error) . '");</script>';
+						error_log('❌ Setup Wizard - License activation failed: ' . $detailed_error);
+						
+						set_transient('listeo_setup_license_error', $detailed_error, 60);
+						
+						echo '<script>console.log("❌ Staying on current step to show error");</script>';
+						error_log('❌ Setup Wizard - Staying on current step to show error');
+						
+						// Redirect back to the same step to show the error message
+						wp_redirect($this->get_step_link($this->step));
+						exit;
+					}
+				} catch (Exception $e) {
+					echo '<script>console.error("❌ License activation error: ' . esc_js($e->getMessage()) . '");</script>';
+					set_transient('listeo_setup_license_error', 'License activation failed: ' . $e->getMessage(), 60);
+					wp_redirect($this->get_step_link($this->step));
+					exit;
+				}
+			} else {
+				echo '<script>console.error("❌ License validator class not found");</script>';
+				set_transient('listeo_setup_license_error', 'License system is not available. Please try activating from Appearance → Theme Options → License.', 60);
+				wp_redirect($this->get_step_link($this->step));
+				exit;
+			}
+		}
+
 		/**
 		 * Page setup
 		 */
@@ -977,7 +1209,14 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 					</ul>
 				<?php
 				} else {
-					echo '<p><strong>' . esc_html_e('Good news! All plugins are already installed and up to date. Please continue.', 'listeo') . '</strong></p>';
+					echo '<p style="    color: #0091cd;
+    background: #0091cd10;
+    margin: 0;
+    padding: 2px 9px;
+    border-radius: 5px;
+    display: flex
+;
+    margin-bottom: 8px;"><strong>' . esc_html__('Good news! All plugins are already installed and up to date. Please continue.', 'listeo') . '</strong></p>';
 				} ?>
 
 				<p><?php esc_html_e('You can add and remove plugins later on from within WordPress.', 'listeo'); ?></p>
@@ -1117,12 +1356,137 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 		{
 		?>
 			<h1><?php esc_html_e('Default Content', 'listeo'); ?></h1>
+			<?php
+			$current_kit = get_option('elementor_active_kit');
+			//remove current kit page
+			//remove page with id $current_kit
+
+			// if ($homepage) {
+			// 	update_option('page_on_front', $homepage->ID);
+			// 	update_option('show_on_front', 'page');
+			// }
+
+			if ($current_kit) {
+
+				global $wpdb;
+				$kit_options = serialize(array(
+					'system_colors' =>
+					array(
+						0 =>
+						array(
+							'_id' => 'primary',
+							'title' => 'Primary',
+							'color' => '#222222',
+						),
+						1 =>
+						array(
+							'_id' => 'secondary',
+							'title' => 'Secondary',
+							'color' => '#54595F',
+						),
+						2 =>
+						array(
+							'_id' => 'text',
+							'title' => 'Text',
+							'color' => '#7A7A7A',
+						),
+						3 =>
+						array(
+							'_id' => 'accent',
+							'title' => 'Accent',
+							'color' => '#61CE70',
+						),
+					),
+					'custom_colors' =>
+					array(),
+					'system_typography' =>
+					array(
+						0 =>
+						array(
+							'_id' => 'primary',
+							'title' => 'Primary',
+							'typography_typography' => 'custom',
+							'typography_font_family' => 'Roboto',
+							'typography_font_weight' => '600',
+						),
+						1 =>
+						array(
+							'_id' => 'secondary',
+							'title' => 'Secondary',
+							'typography_typography' => 'custom',
+							'typography_font_family' => 'Roboto Slab',
+							'typography_font_weight' => '400',
+						),
+						2 =>
+						array(
+							'_id' => 'text',
+							'title' => 'Text',
+							'typography_typography' => 'custom',
+							'typography_font_family' => 'Roboto',
+							'typography_font_weight' => '400',
+						),
+						3 =>
+						array(
+							'_id' => 'accent',
+							'title' => 'Accent',
+							'typography_typography' => 'custom',
+							'typography_font_family' => 'Roboto',
+							'typography_font_weight' => '500',
+						),
+					),
+					'custom_typography' =>
+					array(),
+					'default_generic_fonts' => 'Sans-serif',
+					'site_name' => 'Listeo',
+					'site_description' => 'Directory &amp; Listings WP Theme',
+					'container_width' =>
+					array(
+						'unit' => 'px',
+						'size' => 1180,
+						'sizes' =>
+						array(),
+					),
+					'page_title_selector' => 'h1.entry-title',
+					'viewport_md' => 768,
+					'viewport_lg' => 1025,
+					'active_breakpoints' =>
+					array(
+						0 => 'viewport_mobile',
+						1 => 'viewport_tablet',
+						2 => 'viewport_widescreen',
+					),
+					'viewport_widescreen' => 1700,
+					'container_width_widescreen' =>
+					array(
+						'unit' => 'px',
+						'size' => 1340,
+						'sizes' =>
+						array(),
+					),
+					'colors_enable_styleguide_preview' => 'yes',
+					'activeItemIndex' => 1,
+				));
+
+				// set kit_option as value of meta key '_elementor_page_settings' for page with id $current_kit
+
+				// Check if the meta key '_elementor_page_settings' exists for the page with id $current_kit
+				$meta_exists = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $wpdb->postmeta WHERE post_id = %d AND meta_key = '_elementor_page_settings'", $current_kit));
+
+				if ($meta_exists) {
+					// Update the meta key
+					$wpdb->query($wpdb->prepare("UPDATE $wpdb->postmeta SET meta_value = %s WHERE post_id = %d AND meta_key = '_elementor_page_settings'", $kit_options, $current_kit));
+				} else {
+					// Insert the meta key
+					$wpdb->query($wpdb->prepare("INSERT INTO $wpdb->postmeta (post_id, meta_key, meta_value) VALUES (%d, '_elementor_page_settings', %s)", $current_kit, $kit_options));
+				}
+			}
+			?>
 			<form method="post">
 				<?php if ($this->is_possible_upgrade()) { ?>
 					<p><?php esc_html_e('It looks like you already have content installed on this website. If you would like to install the default demo content as well you can select it below. Otherwise just choose the upgrade option to ensure everything is up to date.', 'listeo'); ?></p>
 				<?php } else { ?>
-					<p><?php printf(esc_html__('It\'s time to insert some default content for your new WordPress website. Choose what you would like inserted below and click Continue. It is recommended to leave everything selected. Once inserted, this content can be managed from the WordPress admin dashboard. ', 'listeo'), '<a href="' . esc_url(admin_url('edit.php?post_type=page')) . '" target="_blank">', '</a>'); ?></p>
-				<?php } ?>
+					<p><?php printf(esc_html__('Insert default content for your new site. Choose what to import below and click Continue. You can manage it later from the WordPress dashboard.', 'listeo'), '<a href="' . esc_url(admin_url('edit.php?post_type=page')) . '" target="_blank">', '</a>'); ?></p>
+					<?php } ?>
 				<table class="envato-setup-pages" cellspacing="0">
 					<thead>
 						<tr>
@@ -1148,7 +1512,7 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 						<?php } ?>
 					</tbody>
 				</table>
-
+								<br>
 				<p class="envato-setup-actions step">
 					<a href="<?php echo esc_url($this->get_next_step_link()); ?>" class="button-primary button button-large button-next" data-callback="install_content"><?php esc_html_e('Continue', 'listeo'); ?></a>
 					<a href="<?php echo esc_url($this->get_next_step_link()); ?>" class="button button-large button-next"><?php esc_html_e('Skip this step', 'listeo'); ?></a>
@@ -1161,8 +1525,15 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 
 		public function ajax_content()
 		{
+			error_log("ENVATO DEBUG: AJAX content request started for: " . (isset($_POST['content']) ? $_POST['content'] : 'UNKNOWN'));
+			
+			// Attempt to increase PHP limits for import reliability
+			@ini_set('max_execution_time', 300);
+			@ini_set('memory_limit', '512M');
+			
 			$content = $this->_content_default_get();
 			if (!check_ajax_referer('envato_setup_nonce', 'wpnonce') || empty($_POST['content']) && isset($content[$_POST['content']])) {
+				error_log("ENVATO DEBUG: AJAX content request FAILED - nonce or content issue");
 				wp_send_json_error(array('error' => 1, 'message' => esc_html__('No content Found', 'listeo')));
 			}
 
@@ -1171,6 +1542,7 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 
 			if (isset($_POST['proceed'])) {
 				// install the content!
+				error_log("ENVATO DEBUG: Processing content type: " . $_POST['content'] . " with proceed=true");
 
 				$this->log(' -!! STARTING SECTION for ' . $_POST['content']);
 
@@ -1487,10 +1859,17 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 				case 'attachment':
 					// import media via url
 					if (!empty($post_data['guid'])) {
+						error_log("ENVATO DEBUG: Processing attachment: " . $post_data['post_title'] . " (ID: " . $post_data['post_id'] . ")");
+
+						// Force GD image editor for better reliability on shared hosting
+						add_filter('wp_image_editors', function($editors) {
+							return ['WP_Image_Editor_GD'];
+						}, 999);
 
 						// check if this has already been imported.
 						$old_guid = $post_data['guid'];
 						if ($this->_imported_post_id($old_guid)) {
+							error_log("ENVATO DEBUG: Attachment already imported: " . $post_data['post_title']);
 							return true; // alrady done;
 						}
 						// ignore post parent, we haven't imported those yet.
@@ -1513,7 +1892,7 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 						$upload = $this->_fetch_remote_file($remote_url, $post_data);
 
 						if (!is_array($upload) || is_wp_error($upload)) {
-							// todo: error
+							error_log("ENVATO DEBUG: Attachment FAILED: " . ($upload && is_wp_error($upload) ? $upload->get_error_message() : 'Unknown error') . " for " . $post_data['post_title']);
 							return false;
 						}
 
@@ -1528,6 +1907,7 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 						// as per wp-admin/includes/upload.php
 						$post_id = wp_insert_attachment($post_data, $upload['file']);
 						if ($post_id) {
+							error_log("ENVATO DEBUG: Attachment SUCCESS: Created ID $post_id for " . $post_data['post_title']);
 
 							if (!empty($post_data['meta'])) {
 								foreach ($post_data['meta'] as $meta_key => $meta_val) {
@@ -1870,6 +2250,7 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 										// add the term meta.
 										if ($term_id && !empty($term['meta']) && is_array($term['meta'])) {
 											foreach ($term['meta'] as $meta_key => $meta_val) {
+											
 												// we have to replace certain meta_key/meta_val
 												// e.g. thumbnail id from woocommerce product categories.
 												switch ($meta_key) {
@@ -1879,8 +2260,10 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 															$meta_val = $new_meta_val;
 														}
 														break;
-													case 'cover':
-														if ($new_meta_val = $this->_imported_post_id($meta_val)) {
+													case '_cover':
+											
+														if ($new_meta_val = $this->_imported_post_id($meta_val[0])) {
+														
 															// use this new id.
 															$meta_val = $new_meta_val;
 														}
@@ -1889,9 +2272,9 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 
 												$meta_val      = maybe_unserialize($meta_val);
 												if (is_array($meta_val)) {
+												
 													foreach ($meta_val as $_meta_key => $_meta_val) {
-														// listeo_write_log('_meta_val');
-														// listeo_write_log($_meta_val);
+														
 														update_term_meta($term_id, $meta_key, $_meta_val);
 													}
 												} else {
@@ -2146,7 +2529,8 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 			if (!$post_type || !isset($all_data[$post_type])) {
 				return false;
 			}
-			$limit = 10 + (isset($_REQUEST['retry_count']) ? (int) $_REQUEST['retry_count'] : 0);
+			$limit = 5 + (isset($_REQUEST['retry_count']) ? (int) $_REQUEST['retry_count'] : 0);
+			// Note: Reduced from 10 to 5 for better reliability. If users report timeouts, reduce to 3.
 			$x     = 0;
 			foreach ($all_data[$post_type] as $post_data) {
 
@@ -2235,13 +2619,17 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 
 			$upload     = false;
 			if (is_file($local_file) && filesize($local_file) > 0) {
+				error_log("ENVATO DEBUG: Found local file: $local_file (" . filesize($local_file) . " bytes)");
 				require_once(ABSPATH . 'wp-admin/includes/file.php');
 				WP_Filesystem();
 				global $wp_filesystem;
 				$file_data = $wp_filesystem->get_contents($local_file);
 				$upload    = wp_upload_bits($file_name, 0, $file_data, $post['upload_date']);
 				if ($upload['error']) {
+					error_log("ENVATO DEBUG: wp_upload_bits FAILED for $file_name: " . $upload['error']);
 					return new WP_Error('upload_dir_error', $upload['error']);
+				} else {
+					error_log("ENVATO DEBUG: wp_upload_bits SUCCESS for $file_name -> " . $upload['url']);
 				}
 			}
 
@@ -2364,32 +2752,33 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 		{
 
 			$this->_handle_delayed_posts(true); // final wrap up of delayed posts.
-			$this->vc_post(); // final wrap of vc posts.
+			//$this->vc_post(); // final wrap of vc posts.
 
 			$custom_options = $this->_get_json('options.json');
 
 			// we also want to update the widget area manager options.
 			foreach ($custom_options as $option => $value) {
 				// we have to update widget page numbers with imported page numbers.
-				if (
-					preg_match('#(wam__position_)(\d+)_#', $option, $matches) ||
-					preg_match('#(wam__area_)(\d+)_#', $option, $matches)
-				) {
-					$new_page_id = $this->_imported_post_id($matches[2]);
-					if ($new_page_id) {
-						// we have a new page id for this one. import the new setting value.
-						$option = str_replace($matches[1] . $matches[2] . '_', $matches[1] . $new_page_id . '_', $option);
-					}
-				}
-				if ($value && !empty($value['custom_logo'])) {
-					$new_logo_id = $this->_imported_post_id($value['custom_logo']);
-					if ($new_logo_id) {
-						$value['custom_logo'] = $new_logo_id;
-					}
-				}
-				if (in_array($option, array('listeo_listing_types', 'listeo_single_taxonomies_checkbox_list', 'listeo_listings_top_buttons_conf', 'listeo_home_slider'))) {
-					$value      = (array) maybe_unserialize($value);
 
+				// if (
+				// 	preg_match('#(wam__position_)(\d+)_#', $option, $matches) ||
+				// 	preg_match('#(wam__area_)(\d+)_#', $option, $matches)
+				// ) {
+				// 	$new_page_id = $this->_imported_post_id($matches[2]);
+				// 	if ($new_page_id) {
+				// 		// we have a new page id for this one. import the new setting value.
+				// 		$option = str_replace($matches[1] . $matches[2] . '_', $matches[1] . $new_page_id . '_', $option);
+				// 	}
+				// }
+				// if ($value && !empty($value['custom_logo'])) {
+				// 	$new_logo_id = $this->_imported_post_id($value['custom_logo']);
+				// 	if ($new_logo_id) {
+				// 		$value['custom_logo'] = $new_logo_id;
+				// 	}
+				// }
+				if (in_array($option, array('pp_body_font','listeo_ad_campaigns_placement','listeo_side_social_icons', 'pp_footericons','listeo_listing_types', 'listeo_single_taxonomies_checkbox_list', 'listeo_listings_top_buttons_conf', 'listeo_home_slider', 'listeo_submit_classifieds_form_fields', 'listeo_submit_service_form_fields', 'listeo_submit_events_form_fields', 'listeo_submit_rental_form_fields'))) {
+					$value      = (array) maybe_unserialize($value);
+					
 					$new_values = array();
 					if (is_array($value)) {
 						foreach ($value as $option => $id) {
@@ -2419,115 +2808,140 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 				set_theme_mod('nav_menu_locations', array_map('absint', $save));
 			}
 			/*realteo_pages":{"my_account_page":"246","bookmarks_page":"253","my_properties_page":"258","submit_property_page":"260","change_password_page":"263","property_packages_page":"507"}*/
-			$my_account_page 		= get_page_by_title('My Profile');
-			$bookmarks_page 		= get_page_by_title('Bookmarked Listings');
-			$my_properties_page 	= get_page_by_title('My Properties');
-			$compare_page 			= get_page_by_title('Compare Properties');
-			$submit_property_page 	= get_page_by_title('Submit Property');
-			$change_password_page 	= get_page_by_title('Change Password');
-			$property_packages_page = get_page_by_title('My Packages');
-			$lost_password_page 	= get_page_by_title('Lost Password');
-			$reset_password_page 	= get_page_by_title('Reset Password');
-			$realteo_pages =
-				array(
-					'my_account_page' 			=> $my_account_page->ID,
-					'bookmarks_page' 			=> $bookmarks_page->ID,
-					'my_properties_page' 		=> $my_properties_page->ID,
-					'compare_page' 				=> $compare_page->ID,
-					'submit_property_page' 		=> $submit_property_page->ID,
-					'change_password_page' 		=> $change_password_page->ID,
-					'property_packages_page' 	=> $property_packages_page->ID,
-					'lost_password_page' 		=> $property_packages_page->ID,
-					'reset_password_page' 		=> $reset_password_page->ID,
-				);
+			// $my_account_page 		= $this->get_page_by_title('My Profile');
+			// $bookmarks_page 		= $this->get_page_by_title('Bookmarks');
+			// $my_properties_page 	= $this->get_page_by_title('My Properties');
+			// $compare_page 			= $this->get_page_by_title('Compare Properties');
+			// $submit_property_page 	= $this->get_page_by_title('Submit Property');
+			// $change_password_page 	= $this->get_page_by_title('Change Password');
+			// $property_packages_page = $this->get_page_by_title('My Packages');
+			// $lost_password_page 	= $this->get_page_by_title('Lost Password');
+			// $reset_password_page 	= $this->get_page_by_title('Reset Password');
+			// $realteo_pages =
+			// 	array(
+			// 		'my_account_page' 			=> $my_account_page->ID,
+			// 		'bookmarks_page' 			=> $bookmarks_page->ID,
+			// 		'my_properties_page' 		=> $my_properties_page->ID,
+			// 		'compare_page' 				=> $compare_page->ID,
+			// 		'submit_property_page' 		=> $submit_property_page->ID,
+			// 		'change_password_page' 		=> $change_password_page->ID,
+			// 		'property_packages_page' 	=> $property_packages_page->ID,
+			// 		'lost_password_page' 		=> $property_packages_page->ID,
+			// 		'reset_password_page' 		=> $reset_password_page->ID,
+			// 	);
 
 
 
 			update_option('listeo_page_builder', 'elementor');
 			update_option('listeo_iconsmind', 'hide');
 			// set the blog page and the home page.
-			$shoppage = get_page_by_title('Shop');
+			$shoppage = $this->get_page_by_title('Shop');
 			if ($shoppage) {
 				update_option('woocommerce_shop_page_id', $shoppage->ID);
 			}
-			$shoppage = get_page_by_title('Cart');
+			$shoppage = $this->get_page_by_title('Cart');
 			if ($shoppage) {
 				update_option('woocommerce_cart_page_id', $shoppage->ID);
 			}
-			$shoppage = get_page_by_title('Checkout');
+			$shoppage = $this->get_page_by_title('Checkout');
 			if ($shoppage) {
 				update_option('woocommerce_checkout_page_id', $shoppage->ID);
 			}
-			$shoppage = get_page_by_title('My Account');
+			$shoppage = $this->get_page_by_title('My Account');
 			if ($shoppage) {
 				update_option('woocommerce_myaccount_page_id', $shoppage->ID);
 			}
-			$homepage = get_page_by_title('Home 1');
+			$homepage = $this->get_page_by_title('Home 1');
 			if ($homepage) {
 				update_option('page_on_front', $homepage->ID);
 				update_option('show_on_front', 'page');
 			}
-			$dashboardpage = get_page_by_title('Dashboard');
+			$dashboardpage = $this->get_page_by_title('Dashboard');
 			if ($dashboardpage) {
 				update_option('listeo_dashboard_page', $dashboardpage->ID);
 			}
-			$listeo_messages_page = get_page_by_title('Messages');
+			$listeo_messages_page = $this->get_page_by_title('Messages');
 			if ($listeo_messages_page) {
 				update_option('listeo_messages_page', $listeo_messages_page->ID);
 			}
-			$listeo_bookings_page = get_page_by_title('Bookings');
+			$listeo_bookings_page = $this->get_page_by_title('Bookings');
 			if ($listeo_bookings_page) {
 				update_option('listeo_bookings_page', $listeo_bookings_page->ID);
 			}
-			$listeo_bookings_calendar_page = get_page_by_title('Calendar View');
+			$listeo_bookings_calendar_page = $this->get_page_by_title('Calendar View');
 			if ($listeo_bookings_calendar_page) {
 				update_option('listeo_bookings_calendar_page', $listeo_bookings_calendar_page->ID);
 			}
-			$listeo_user_bookings_page = get_page_by_title('My Bookings');
+			$listeo_user_bookings_page = $this->get_page_by_title('My Bookings');
 			if ($listeo_user_bookings_page) {
 				update_option('listeo_user_bookings_page', $listeo_user_bookings_page->ID);
 			}
-			$listeo_booking_confirmation_page = get_page_by_title('Booking Confirmation');
+			$listeo_booking_confirmation_page = $this->get_page_by_title('Booking Confirmation');
 			if ($listeo_booking_confirmation_page) {
 				update_option('listeo_booking_confirmation_page', $listeo_booking_confirmation_page->ID);
 			}
 
-			$listeo_listings_page = get_page_by_title('My Listings');
+			$listeo_listings_page = $this->get_page_by_title('My Listings');
 			if ($listeo_listings_page) {
 				update_option('listeo_listings_page', $listeo_listings_page->ID);
 			}
-			$listeo_wallet_page = get_page_by_title('Wallet');
+
+			$listeo_ads_page = $this->get_page_by_title('Ad Manager');
+			if ($listeo_ads_page) {
+				update_option('listeo_ad_campaigns_page', $listeo_ads_page->ID);
+			}
+
+			$ticket_check_page = $this->get_page_by_title('QR Scan');
+			if ($ticket_check_page) {
+				update_option('listeo_ticket_check_page', $ticket_check_page->ID);
+			}
+			$listeo_statistics_page = $this->get_page_by_title('Statistics');
+			if ($listeo_statistics_page) {
+				update_option('listeo_stats_page', $listeo_statistics_page->ID);
+			}
+			$listeo_wallet_page = $this->get_page_by_title('Wallet');
 			if ($listeo_wallet_page) {
 				update_option('listeo_wallet_page', $listeo_wallet_page->ID);
 			}
-			$listeo_coupon_page = get_page_by_title('Coupons');
+			$listeo_coupon_page = $this->get_page_by_title('Coupons');
 			if ($listeo_coupon_page) {
 				update_option('listeo_coupons_page', $listeo_coupon_page->ID);
 			}
-			$listeo_reviews_page = get_page_by_title('Reviews');
+			$listeo_reviews_page = $this->get_page_by_title('Reviews');
 			if ($listeo_reviews_page) {
 				update_option('listeo_reviews_page', $listeo_reviews_page->ID);
 			}
 
-			$listeo_bookmarks_page = get_page_by_title('Bookmarks');
+			$listeo_bookmarks_page = $this->get_page_by_title('Bookmarks');
 			if ($listeo_bookmarks_page) {
 				update_option('listeo_bookmarks_page', $listeo_bookmarks_page->ID);
 			}
 
-			$listeo_submit_page = get_page_by_title('Add Listing');
+			$listeo_submit_page = $this->get_page_by_title('Add Listing');
 			if ($listeo_submit_page) {
 				update_option('listeo_submit_page', $listeo_submit_page->ID);
 			}
 
-			$listeo_profile_page = get_page_by_title('My Profile');
+			$listeo_profile_page = $this->get_page_by_title('My Profile');
 			if ($listeo_profile_page) {
 				update_option('listeo_profile_page', $listeo_profile_page->ID);
 			}
-			$listeo_claim_page = get_page_by_title('Claim Listing');
+			$listeo_claim_page = $this->get_page_by_title('Claim Listing');
 			if ($listeo_claim_page) {
 				update_option('listeo_claim_page', $listeo_claim_page->ID);
 			}
-			$listeo_ical_page = get_page_by_title('iCal');
+
+			// lost password page
+			$listeo_lost_password_page = $this->get_page_by_title('Lost Password');
+			if ($listeo_lost_password_page) {
+				update_option('listeo_lost_password_page', $listeo_lost_password_page->ID);
+			}
+			//reset password
+			$listeo_reset_password_page = $this->get_page_by_title('Reset Password');
+			if ($listeo_reset_password_page) {
+				update_option('listeo_reset_password_page', $listeo_reset_password_page->ID);
+			}
+			$listeo_ical_page = $this->get_page_by_title('iCal');
 			if ($listeo_ical_page) {
 				update_option('listeo_ical_page', $listeo_ical_page->ID);
 			}
@@ -2540,15 +2954,15 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 			update_option('pp_sticky_logo_upload', $logo3);
 			update_option('pp_logo_upload', $logo3);
 
-
+			update_option('elementor_experiment-e_dom_optimization', 'inactive');
 
 			$home_banner = $this->get_attachment_url_by_title('main-search-background-01');
 
 			update_option('listeo_search_bg', $home_banner);
 
-			$dokan_store_listing = get_page_by_title('Store List');
-			$dokan_my_orders = get_page_by_title('My Orders');
-			$dokan_dashboard = get_page_by_title('Store Panel');
+			$dokan_store_listing = $this->get_page_by_title('Store List');
+			$dokan_my_orders = $this->get_page_by_title('My Orders');
+			$dokan_dashboard = $this->get_page_by_title('Store Panel');
 			$dokanpages = array();
 			if ($dokan_store_listing) {
 				$dokanpages['store_listing']  = $dokan_store_listing->ID;
@@ -2556,17 +2970,88 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 				$dokanpages['dashboard']  = $dokan_dashboard->ID;
 				$dokanpages['reg_tc_page']  = '';
 			}
+			update_option('pp_body_font', array(
+				'font-family' => 'Raleway',
+			));
+			update_option('listeo_side_social_icons', array(
+				0 =>
+				array(
+					'icons_service' => 'twitter',
+					'icons_url' => '#',
+				),
+				1 =>
+				array(
+					'icons_service' => 'linkedin',
+					'icons_url' => '#',
+				),
+				2 =>
+				array(
+					'icons_service' => 'facebook-messenger',
+					'icons_url' => '#',
+				),
+				3 =>
+				array(
+					'icons_service' => 'instagram',
+					'icons_url' => '#',
+				),
+			));
+			update_option('pp_footericons', array(
+				0 =>
+				array(
+					'icons_service' => 'twitter',
+					'icons_url' => '#',
+				),
+				1 =>
+				array(
+					'icons_service' => 'linkedin',
+					'icons_url' => '#',
+				),
+				2 =>
+				array(
+					'icons_service' => 'facebook-messenger',
+					'icons_url' => '#',
+				),
+				3 =>
+				array(
+					'icons_service' => 'instagram',
+					'icons_url' => '#',
+				),
+			));
 			update_option('dokan_pages', $dokanpages);
 			//update_option('dokan_pages_created', 1);
 			update_option('listeo_stats_type', array('unique', 'booking_click'));
-			global $wp_rewrite;
-			$wp_rewrite->set_permalink_structure('/%year%/%monthnum%/%day%/%postname%/');
-			update_option('rewrite_rules', false);
-			$wp_rewrite->flush_rules(true);
+			
+			// global $wp_rewrite;
+			// $wp_rewrite->set_permalink_structure('/%year%/%monthnum%/%day%/%postname%/');
+			// update_option('rewrite_rules', false);
+			// $wp_rewrite->flush_rules(true);
 
 			return true;
 		}
+		public function get_page_by_title($title)
+		{
+			$query = new WP_Query(
+				array(
+					'post_type'              => 'page',
+					'title'                  => $title,
+					'post_status'            => 'all',
+					'posts_per_page'         => 1,
+					'no_found_rows'          => true,
+					'ignore_sticky_posts'    => true,
+					'update_post_term_cache' => false,
+					'update_post_meta_cache' => false,
+					'orderby'                => 'post_date ID',
+					'order'                  => 'ASC',
+				)
+			);
 
+			if (!empty($query->post)) {
+				$page_got_by_title = $query->post;
+			} else {
+				$page_got_by_title = null;
+			}
+			return $page_got_by_title;
+		}
 		public function _get_json($file)
 		{
 
@@ -2832,37 +3317,40 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 		}
 
 
-		public function envato_setup_customize()
-		{
-		?>
-
-			<h1>Theme Customization</h1>
-			<p>
-				Most changes to the website can be made through the Appearance > Customize menu from the WordPress
-				dashboard. These include:
-			</p>
-			<ul>
-				<li>Logo: Upload a new logo and adjust its size.</li>
-				<li>Background: Upload a new background image.</li>
-				<li>Layouts for blog, archives etc.</li>
-				<li>..many many more</li>
-			</ul>
-			<p>To change the Sidebars go to Appearance > Widgets. Here widgets can be "drag &amp; droped" into sidebars.
-				To control which "widget areas" appear, go to an individual page and look for the "Left/Right Column"
-				menu. Here widgets can be chosen for display on the left or right of a page. More details in
-				documentation.</p>
-			<p>
-				<em>Advanced Users: If you are going to make changes to the theme source code please use a <a href="https://codex.wordpress.org/Child_Themes" target="_blank">Child Theme</a> rather than
-					modifying the main theme HTML/CSS/PHP code. This allows the parent theme to receive updates without
-					overwriting your source code changes. <br /> See <code>listeo-child.zip</code> in the main theme package (the one named as "All files & documentation" on your ThemeForest Downloads page) </em>
-			</p>
-
-			<p class="envato-setup-actions step">
-				<a href="<?php echo esc_url($this->get_next_step_link()); ?>" class="button button-primary button-large button-next"><?php esc_html_e('Continue', 'listeo'); ?></a>
-			</p>
-
-		<?php
-		}
+		public function envato_setup_customize() {
+			?>
+				<h1>Theme Customization</h1>
+				<p>
+					You can customize your site under <strong>Appearance → Customize</strong> – for logo, colors, background, layout, and more.
+				</p>
+			
+				<p>
+					<strong>Need help?</strong> See our <a href="https://docs.purethemes.net/listeo/knowledge-base-category/getting-started/" target="_blank">Getting Started Docs</a>  
+					for guides on <a href="https://docs.purethemes.net/listeo/knowledge-base/theme-installation/" target="_blank">installation</a>,  
+					<a href="https://docs.purethemes.net/listeo/knowledge-base/demo-content-import/" target="_blank">demo import</a>,  
+					<a href="https://docs.purethemes.net/listeo/knowledge-base/theme-translation/" target="_blank">translation</a>,  
+					<a href="https://docs.purethemes.net/listeo/knowledge-base/how-booking-works-in-listeo/" target="_blank">booking setup</a>,  
+					and <a href="https://docs.purethemes.net/listeo/knowledge-base/setting-up-woocommerce-payment-gateways/" target="_blank">payments</a>.
+				</p>
+				<p>
+					<a href="https://purethemes.net/listeo/ai-assistant/"><img style="    width: 100%;" src="https://purethemes.net/images/ai.png"></a>
+					<a href="https://www.facebook.com/groups/856478084819791/"><img style="    width: 100%;" src="https://purethemes.net/images/fb.png"></a>
+				</p>
+			
+				<p>
+					<em>Making code changes? Use a 
+					<a href="https://codex.wordpress.org/Child_Themes" target="_blank">Child Theme</a> to avoid losing changes during updates.  
+					Find <code>listeo-child.zip</code> in the “All files & documentation” download on ThemeForest.</em>
+				</p>
+			
+				<p class="envato-setup-actions step">
+					<a href="<?php echo esc_url($this->get_next_step_link()); ?>" class="button button-primary button-large button-next">
+						<?php esc_html_e('Continue', 'listeo'); ?>
+					</a>
+				</p>
+			<?php
+			}
+			
 
 		public function envato_setup_help_support()
 		{
@@ -2874,50 +3362,91 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 			}
 
 		?>
-			<h1>Help and Support</h1>
-			<p>This theme comes with 6 months item support from purchase date (with the option to extend this period).
-				This license allows you to use this theme on a single website. Please purchase an additional license to
-				use this theme on another website.</p>
-			<p>Item Support can be accessed from <a href="https://themeforest.net/item/listeo-real-estate-wordpress-theme/20697875/support" target="_blank">Support Tab on Items page</a>
-				and includes:</p>
-			<ul>
-				<li>Availability of the author to answer questions</li>
-				<li>Answering technical questions about item features</li>
-				<li>Assistance with reported bugs and issues</li>
-				<li>Help with bundled 3rd party plugins</li>
-			</ul>
+<h1>Help & Support</h1>
 
-			<p>Item Support <strong>DOES NOT</strong> Include:</p>
-			<ul>
-				<li>Customization services (this is available through <a href="https://codeable.io/?ref=MzT0b" target="_blank">co​dable.io</a>)
-				</li>
-				<li>Installation services (this is available through <a href="https://studio.envato.com/explore/wordpress-installation/37124-wordpress-theme-installation-and-setup" target="_blank">Envato Studio</a>)
-				</li>
-				<li>Help and Support for non-bundled 3rd party plugins (i.e. plugins you install yourself later on)</li>
-			</ul>
-			<p>More details about item support can be found in the ThemeForest <a href="http://themeforest.net/page/item_support_policy" target="_blank">Item Support Polity</a>. </p>
-			<p class="envato-setup-actions step">
-				<a href="<?php echo esc_url($this->get_next_step_link()); ?>" class="button button-primary button-large button-next"><?php esc_html_e('Continue', 'listeo'); ?></a>
-				<?php wp_nonce_field('envato-setup'); ?>
-			</p>
+<p>
+	This theme includes <strong>6 months of support</strong> from the purchase date.  
+	You can extend this period later if needed.
+</p>
+
+<p style="    background: #f4f4f4;
+    padding: 10px 16px;
+    border-radius: 5px;
+    line-height: 24px;">
+	Each license is valid for one website only.  
+	To use this theme on another site, please purchase an additional license.
+</p>
+
+<p>
+	You can access support via the <a href="https://themeforest.net/item/listeo-real-estate-wordpress-theme/20697875/support" target="_blank">Support tab</a> on our ThemeForest page.  
+	Support includes:
+</p>
+
+<ul style="    margin: -10px 0 20px 0;
+    padding: 0px;">
+	<li>✅ Author availability to answer questions</li>
+	<li>✅ Technical help with theme features</li>
+	<li>✅ Bug fixes and issue reporting</li>
+	<li>✅ Help with bundled third-party plugins</li>
+</ul>
+
+<p>
+	<strong>Support does not include:</strong>
+</p>
+<ul style="    margin: -10px 0 20px 0;
+    padding: 0px;">
+	<li>❌ Customization services (<a href="https://codeable.io/?ref=MzT0b" target="_blank">available via Codeable</a>)</li>
+	<li>❌ Help with third-party plugins you add yourself</li>
+</ul>
+
+<p>
+	See the full <a href="http://themeforest.net/page/item_support_policy" target="_blank">ThemeForest Item Support Policy</a> for more details.
+</p>
+
+<p class="envato-setup-actions step">
+	<a href="<?php echo esc_url($this->get_next_step_link()); ?>" class="button button-primary button-large button-next">
+		<?php esc_html_e('Continue', 'listeo'); ?>
+	</a>
+	<?php wp_nonce_field('envato-setup'); ?>
+</p>
+
 		<?php
 		}
 
-		public function envato_setup_multi_vendor()
-		{ ?>
-			<p>You're almost ready, but there's one more thing.</p>
+		public function envato_setup_multi_vendor() { ?>
 			<h1>Multi-Vendor Marketplace</h1>
-			<p>Would you like to enable multi-vendor marketplace feature? It requires installing additional plugin - Dokan, which is integrated with Listeo.</p>
-			<p><strong>This plugin is NOT required for Liste Booking functionality.</strong></p>
-			<img src="<?php echo get_template_directory_uri() . '/envato_setup/css/dokan.jpeg'; ?>" alt="" width="420px" height="auto" style="margin: 0px auto 40px;text-align: center;display: block" ;>
-
+		
+			<p>
+				You're almost ready — just one last thing.
+			</p>
+		
+			<p>
+				Do you want to enable the <strong>multi-vendor marketplace</strong> feature?  
+				This allows users to sell their own products or services through your site.
+			</p>
+		
+			<p>
+				<a target="_blank" href="https://docs.purethemes.net/listeo/knowledge-base/do-i-need-dokan-multi-vendor-marketplace-feature/" target="_blank">
+					Do I need Dokan & the multi-vendor feature?
+				</a>
+			</p>
+		
+			<p><strong>Note:</strong> Dokan is <strong><u>not required</u></strong> for the listings or booking features in Listeo.  
+			You can skip this step if you don’t plan to run a marketplace.</p>
+		
+			<img src="<?php echo get_template_directory_uri() . '/envato_setup/css/dokan.jpeg'; ?>" alt="Dokan Integration" width="420" style="margin: 0 auto 40px; display: block;">
+		
 			<p class="envato-setup-actions step">
-				<a href="<?php echo admin_url('plugin-install.php?tab=plugin-information&plugin=dokan-lite&TB_iframe=true&width=772&height=459'); ?>" class="button button-primary button-large button-next" style="float: revert;">Yes, install Dokan</a>
-				<a href="<?php echo esc_url($this->get_next_step_link()); ?>" class="button button-secondary button-large button-next"><?php esc_html_e('Skip this step', 'listeo'); ?></a>
+				<a href="<?php echo admin_url('plugin-install.php?tab=plugin-information&plugin=dokan-lite&TB_iframe=true&width=772&height=459'); ?>" class="button button-primary button-large button-next">
+					Yes, install Dokan
+				</a>
+				<a href="<?php echo esc_url($this->get_next_step_link()); ?>" class="button button-secondary button-large button-next">
+					Skip this step
+				</a>
 				<?php wp_nonce_field('envato-setup'); ?>
 			</p>
 		<?php }
-
+		
 		/**
 		 * Final step
 		 */
@@ -2927,7 +3456,6 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 			update_option('envato_setup_complete', time());
 			update_option('dtbwp_update_notice', strtotime('-4 days'));
 		?>
-			<a href="https://twitter.com/share" class="twitter-share-button" data-url="http://themeforest.net/user/purethemes/portfolio?ref=purethemes" data-text="<?php echo esc_attr('I just installed the ' . wp_get_theme() . ' #WordPress theme from #ThemeForest', 'listeo'); ?>" data-via="EnvatoMarket" data-size="large">Tweet</a>
 			<script>
 				! function(d, s, id) {
 					var js, fjs = d.getElementsByTagName(s)[0];
@@ -2939,43 +3467,40 @@ if (!class_exists('Envato_Theme_Setup_Wizard')) {
 					}
 				}(document, "script", "twitter-wjs");
 			</script>
+			<h1><?php esc_html_e('Your Website is Ready! 🚀', 'listeo'); ?></h1>
+				<p>
+					You can customize your site under <strong>Appearance → Customize</strong> – for logo, colors, background, layout, and more.
+				</p>
+			
+				<p>
+					<strong>Need help?</strong> See our <a href="https://docs.purethemes.net/listeo/knowledge-base-category/getting-started/" target="_blank">Getting Started Docs</a>  
+					for guides on <a href="https://docs.purethemes.net/listeo/knowledge-base/theme-installation/" target="_blank">installation</a>,  
+					<a href="https://docs.purethemes.net/listeo/knowledge-base/demo-content-import/" target="_blank">demo import</a>,  
+					<a href="https://docs.purethemes.net/listeo/knowledge-base/theme-translation/" target="_blank">translation</a>,  
+					<a href="https://docs.purethemes.net/listeo/knowledge-base/how-booking-works-in-listeo/" target="_blank">booking setup</a>,  
+					and <a href="https://docs.purethemes.net/listeo/knowledge-base/setting-up-woocommerce-payment-gateways/" target="_blank">payments</a>.
+				</p>
+				<p>
+					<a href="https://purethemes.net/listeo/ai-assistant/"><img style="    width: 100%;" src="https://purethemes.net/images/ai.png"></a>
+					<a href="https://www.facebook.com/groups/856478084819791/"><img style="    width: 100%;" src="https://purethemes.net/images/fb.png"></a>
+				</p>
+			
+				<p>
+					<em>Making code changes? Use a 
+					<a href="https://codex.wordpress.org/Child_Themes" target="_blank">Child Theme</a> to avoid losing changes during updates.  
+					Find <code>listeo-child.zip</code> in the “All files & documentation” download on ThemeForest.</em>
+				</p>
+			
+				<p class="envato-setup-actions step">
+					<a href="<?php echo esc_url( home_url( '/' ) ); ?>" class="button button-primary button-large">
+						<?php esc_html_e('Finish', 'listeo'); ?>
+					</a>
+				</p>
 
-			<h1><?php esc_html_e('Your Website is Ready!', 'listeo'); ?></h1>
 
-			<p>Congratulations! The theme has been activated and your website is (almost) ready.<br />
-				The last thing you need to do (that this Setup Wizard unfortunately can't for now) is to import <strong>RevolutionSliders</strong> from demo. <br /> Please download those files to your computer:</p>
-			<ul>
-				<li><a href="http://purethemes.net/listeo-revolution-slider.zip">Listeo Revolution slider</a></li>
-			</ul>
-			<p> Login to your WordPress
-				dashboard - go to <strong>RevolutionSlider</strong> menu and click Import, select the file you've downloaded and import it. Now your demo site is complete! <br />
-				You can start make changes and modify any of the default content to suit your needs.</p>
-			<p>Please come back and <a href="http://themeforest.net/downloads" target="_blank">leave a 5-star rating</a>
-				if you are happy with this theme. <br /> </p>
+	</ul>
+</div>
 
-			<div class="envato-setup-next-steps">
-				<div class="envato-setup-next-steps-first">
-					<h2><?php esc_html_e('Next Steps', 'listeo'); ?></h2>
-					<ul>
-
-						<li class="setup-product"><a class="button button-next button-large" href="<?php echo esc_url(home_url()); ?>"><?php esc_html_e('View your new website!', 'listeo'); ?></a>
-						</li>
-						<li class="setup-product"><a class="button button-primary button-large" href="https://www.facebook.com/groups/listeousers" target="_blank"><?php esc_html_e('Join Listeo Users FB Group', 'listeo'); ?></a>
-						</li>
-					</ul>
-				</div>
-				<div class="envato-setup-next-steps-last">
-					<h2><?php esc_html_e('More Resources', 'listeo'); ?></h2>
-					<ul>
-						<li class="documentation"><a href="http://www.docs.purethemes.net/listeo/" target="_blank"><?php esc_html_e('Read the Theme Documentation', 'listeo'); ?></a>
-						</li>
-						<li class="howto"><a href="https://wordpress.org/support/" target="_blank"><?php esc_html_e('Learn how to use WordPress', 'listeo'); ?></a>
-						</li>
-						<li class="rating"><a href="http://themeforest.net/downloads" target="_blank"><?php esc_html_e('Leave an Item Rating', 'listeo'); ?></a></li>
-
-					</ul>
-				</div>
-			</div>
 			<?php
 		}
 

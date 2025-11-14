@@ -1,7 +1,7 @@
 <?php
 
 
-//check if current user has any listings
+// check if current user has any listings
 // $user_id = get_current_user_id(); //the logged in user's id
 // $post_type = 'listing';
 // $posts = count_user_posts($user_id, $post_type); //cout user's posts
@@ -24,10 +24,19 @@ if (!in_array($role, array('administrator', 'admin', 'owner', 'seller'))) :
 	return;
 endif;
 
-$service_icon = get_option('listeo_service_type_icon');
-$rental_icon = get_option('listeo_rental_type_icon');
-$event_icon = get_option('listeo_event_type_icon');
-$classifieds_icon = get_option('listeo_classifieds_type_icon');
+// Get dynamic listing types
+if (function_exists('listeo_core_custom_listing_types')) {
+	$custom_types_manager = listeo_core_custom_listing_types();
+	$available_types = $custom_types_manager->get_listing_types(true); // Get active types only
+} else {
+	// Fallback to default types
+	$available_types = array(
+		(object) array('slug' => 'service', 'name' => 'Service', 'description' => 'Service-based listings'),
+		(object) array('slug' => 'rental', 'name' => 'Rental', 'description' => 'Rental listings'),
+		(object) array('slug' => 'event', 'name' => 'Event', 'description' => 'Event listings'),
+		(object) array('slug' => 'classifieds', 'name' => 'Classifieds', 'description' => 'Classified ads')
+	);
+}
 
 ?>
 <form action="<?php echo esc_url($data->action); ?>" method="post" id="submit-listing-form" class="listing-manager-form" enctype="multipart/form-data">
@@ -41,23 +50,26 @@ $classifieds_icon = get_option('listeo_classifieds_type_icon');
 			<div class="add-listing-headline">
 				<h3><?php esc_html_e('Choose Listing Type', 'listeo_core') ?></h3>
 			</div>
-			<?php $listing_types = get_option('listeo_listing_types', array('service', 'rental', 'event', 'classifieds'));
-			if (empty($listing_types)) {
-				$listing_types = array('service');
-			}
-			?>
 			<div class="row">
 				<div class="col-lg-12">
 					<div class="listing-type-container">
-						<?php if (in_array('service', $listing_types)) : ?>
-							<a href="#" class="listing-type" data-type="service">
-								<?php if ($service_icon) {
-									if (get_post_mime_type($service_icon) === 'image/svg+xml') { ?>
+						<?php foreach ($available_types as $type) : 
+						// Check for icon in new system first, then fallback to old option format
+						$type_icon = 0;
+						if (isset($type->icon_id) && $type->icon_id) {
+							$type_icon = $type->icon_id;
+						} else {
+							$type_icon = get_option('listeo_' . $type->slug . '_type_icon');
+						}
+						?>
+							<a href="#" class="listing-type" data-type="<?php echo esc_attr($type->slug); ?>">
+								<?php if ($type_icon) {
+									if (get_post_mime_type($type_icon) === 'image/svg+xml') { ?>
 										<span class="listing-type-icon">
-											<?php echo listeo_render_svg_icon($service_icon); ?>
+											<?php echo listeo_render_svg_icon($type_icon); ?>
 										</span>
 									<?php } else {
-										echo wp_get_attachment_image($service_icon); ?>
+										echo wp_get_attachment_image($type_icon); ?>
 									<?php } ?>
 								<?php } else { ?>
 									<span class="listing-type-icon">
@@ -113,167 +125,12 @@ $classifieds_icon = get_option('listeo_classifieds_type_icon');
 									</span>
 								<?php } ?>
 
-								<h3><?php esc_html_e('Service', 'listeo_core') ?></h3>
+								<h3><?php echo esc_html($type->name); ?></h3>
+								<!-- <?php if (!empty($type->description)) : ?>
+									<p class="listing-type-description"><?php echo esc_html($type->description); ?></p>
+								<?php endif; ?> -->
 							</a>
-						<?php endif; ?>
-						<?php if (in_array('rental', $listing_types)) : ?>
-							<a href="#" class="listing-type" data-type="rental">
-								<?php if ($rental_icon) {
-									if (get_post_mime_type($rental_icon) === 'image/svg+xml') { ?>
-										<span class="listing-type-icon">
-											<?php echo listeo_render_svg_icon($rental_icon); ?>
-										</span>
-									<?php } else {
-										echo wp_get_attachment_image($rental_icon); ?>
-									<?php } ?>
-								<?php } else { ?>
-									<span class="listing-type-icon">
-										<svg version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 254.182 254.182" style="enable-background:new 0 0 254.182 254.182;" xml:space="preserve">
-											<g>
-												<path d="M211.655,137.102c-4.143,0-7.5,3.358-7.5,7.5v77.064h-41.373v-77.064c0-4.142-3.357-7.5-7.5-7.5H98.903
-		c-4.143,0-7.5,3.358-7.5,7.5v77.064H50.026v-77.064c0-4.142-3.357-7.5-7.5-7.5c-4.143,0-7.5,3.358-7.5,7.5v84.564
-		c0,4.142,3.357,7.5,7.5,7.5h56.377h56.379h56.373c4.143,0,7.5-3.358,7.5-7.5v-84.564
-		C219.155,140.46,215.797,137.102,211.655,137.102z M106.403,221.666v-69.564h41.379v69.564H106.403z" />
-												<path d="M251.985,139.298L132.389,19.712c-2.928-2.929-7.677-2.928-10.607,0L2.197,139.298c-2.929,2.929-2.929,7.678,0,10.606
-		c2.93,2.929,7.678,2.929,10.607,0L127.086,35.622l114.293,114.283c1.464,1.464,3.384,2.196,5.303,2.196
-		c1.919,0,3.839-0.732,5.304-2.197C254.914,146.976,254.914,142.227,251.985,139.298z" />
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-										</svg>
-
-									</span>
-								<?php } ?>
-								<h3><?php esc_html_e('Rent', 'listeo_core') ?></h3>
-							</a>
-						<?php endif; ?>
-						<?php if (in_array('event', $listing_types)) : ?>
-							<a href="#" class="listing-type" data-type="event">
-								<?php if ($event_icon) {
-									if (get_post_mime_type($event_icon) === 'image/svg+xml') { ?>
-										<span class="listing-type-icon">
-											<?php echo listeo_render_svg_icon($event_icon); ?>
-										</span>
-									<?php } else {
-										echo wp_get_attachment_image($event_icon); ?>
-									<?php } ?>
-								<?php } else { ?>
-									<span class="listing-type-icon">
-										<svg width="512px" height="512px" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-											<path fill="var(--ci-primary-color, currentColor)" d="M472,96H384V40H352V96H160V40H128V96H40a24.028,24.028,0,0,0-24,24V456a24.028,24.028,0,0,0,24,24H472a24.028,24.028,0,0,0,24-24V120A24.028,24.028,0,0,0,472,96Zm-8,352H48V128h80v40h32V128H352v40h32V128h80Z" class="ci-primary" />
-											<polygon fill="var(--ci-primary-color, currentColor)" points="243.397 313.373 189.012 258.988 166.385 281.616 243.397 358.627 369.012 233.012 346.384 210.385 243.397 313.373" class="ci-primary" />
-										</svg>
-
-									</span>
-								<?php } ?>
-								<h3><?php esc_html_e('Event', 'listeo_core') ?></h3>
-							</a>
-						<?php endif; ?>
-						<?php if (in_array('classifieds', $listing_types)) : ?>
-							<a href="#" class="listing-type" data-type="classifieds">
-								<?php if ($classifieds_icon) {
-									if (get_post_mime_type($classifieds_icon) === 'image/svg+xml') { ?>
-										<span class="listing-type-icon">
-											<?php echo listeo_render_svg_icon($classifieds_icon); ?>
-										</span>
-									<?php } else {
-										echo wp_get_attachment_image($classifieds_icon); ?>
-									<?php } ?>
-								<?php } else { ?>
-									<span class="listing-type-icon">
-										<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 512.001 512.001" style="enable-background:new 0 0 512.001 512.001; margin-top: -7px !important;height: 28px;" xml:space="preserve">
-											<g>
-												<g>
-													<path d="M489.693,32.51l-280.307,98.585L91.35,128.168c-10.899-0.277-21.309,3.818-29.109,11.428
-			c-13.716,13.379-12.146,28.55-12.146,38.976C19.855,178.573,0,201.743,0,227.116c0,25.219,19.677,48.544,50.095,48.544v11.135
-			c0,21.834,17.761,39.89,39.591,40.251l15.377,0.255l-9.896,98.45c-2.935,29.198,20.018,54.701,49.478,54.701h0.108
-			c25.643,0,46.913-19.24,49.478-44.754l1.989-19.783c42.724,9.015,83.483-19.386,91.15-61.06l202.623,66.97
-			c10.781,3.563,22.008-4.444,22.008-15.904V48.312C512,36.768,500.575,28.683,489.693,32.51z M50.095,245.172
-			c-13.205,0-19.607-9.309-19.607-18.056c0-8.787,6.427-18.056,19.607-18.056V245.172z M163.897,432.648
-			c-0.993,9.872-9.223,17.315-19.143,17.315h-0.108c-11.355,0-20.284-9.822-19.143-21.164l10.152-100.994l37.206,0.615
-			L163.897,432.648z M195.294,295.286L90.24,293.549c-3.664-0.06-6.644-3.091-6.644-6.755V168.413c0-3.657,2.956-6.756,6.756-6.756
-			l104.942,2.6V295.286z M201.077,382.659l5.308-54.448c0,0,26.793,8.731,48.651,15.955
-			C253.067,370.863,227.235,389.524,201.077,382.659z M478.499,382.743c-9.309-3.076-240.663-79.543-249.705-82.532v-140.43
-			l249.705-87.822V382.743z" />
-												</g>
-											</g>
-											<g>
-												<g>
-													<path d="M349.446,174.366h-68.999c-9.251,0-16.75,7.5-16.75,16.75s7.5,16.75,16.75,16.75h68.999c9.251,0,16.75-7.5,16.75-16.75
-			S358.697,174.366,349.446,174.366z" />
-												</g>
-											</g>
-											<g>
-												<g>
-													<path d="M349.446,234.369h-68.999c-9.251,0-16.75,7.5-16.75,16.75s7.5,16.75,16.75,16.75h68.999c9.251,0,16.75-7.5,16.75-16.75
-			S358.697,234.369,349.446,234.369z" />
-												</g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-											<g>
-											</g>
-										</svg>
-
-									</span>
-								<?php } ?>
-								<h3><?php esc_html_e('Classifieds', 'listeo_core') ?></h3>
-							</a>
-						<?php endif; ?>
+						<?php endforeach; ?>
 						<input type="hidden" id="listing_type" name="_listing_type">
 					</div>
 				</div>

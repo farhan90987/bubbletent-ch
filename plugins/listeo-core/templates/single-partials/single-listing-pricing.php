@@ -12,10 +12,13 @@ if (!empty($data)) {
 }
 
 $_menu_status = get_post_meta(get_the_ID(), '_menu_status', true);
+
+
 if (!$_menu_status) {
 	return;
 }
 $_bookable_show_menu =  get_post_meta(get_the_ID(), '_hide_pricing_if_bookable', true);
+
 if (!empty($_bookable_show_menu)) {
 	return;
 }
@@ -68,7 +71,7 @@ if (isset($_menu[0]['menu_elements'][0]['name']) && !empty($_menu[0]['menu_eleme
 									<?php } ?>
 									<div class="pricing-menu-details">
 										<?php if (isset($item['name']) && !empty($item['name'])) { ?><h5><?php echo esc_html($item['name']) ?></h5><?php } ?>
-										<?php if (isset($item['description']) && !empty($item['description'])) { ?><p><?php echo ($item['description']) ?></p><?php } ?>
+										<?php if (isset($item['description']) && !empty($item['description'])) { ?><p><?php echo wpautop($item['description']) ?></p><?php } ?>
 									</div>
 									<?php if (isset($item['price']) && !empty($item['price'])) { ?><span>
 											<?php

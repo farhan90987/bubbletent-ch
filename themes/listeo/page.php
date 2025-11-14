@@ -11,8 +11,25 @@
  *
  * @package listeo
  */
+// get post meta listeo_full_width_header
 
-get_header();
+$full_width_header = get_post_meta($post->ID, 'listeo_full_width_header', TRUE);
+if(empty($full_width_header)){
+	$full_width_header = 'use_global';
+};
+
+
+if($full_width_header == 'use_global'){
+	$full_width_header = get_option('listeo_full_width_header');
+	
+}
+
+if($full_width_header == 'enable' || $full_width_header == 'true') {
+	get_header('fullwidth');
+} else {
+	get_header();
+}
+
 
 while ( have_posts() ) : the_post();
 

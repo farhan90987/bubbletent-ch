@@ -77,18 +77,101 @@ class Listeo_Core_Reviews {
 
 		add_action( 'wp_ajax_get_comment_review_details', array( $this, 'get_comment_review_details' ) );
 
+		add_action('template_redirect', array($this, 'show_pending_comment_message'));
+		add_filter('comment_post_redirect', array($this, 'modify_comment_redirect'), 10, 2);
 
+		// Add hooks to recalculate combined rating when Listeo reviews change
+		add_action('comment_post', array($this, 'recalculate_on_comment_post'), 10, 3);
+		add_action('wp_set_comment_status', array($this, 'recalculate_on_comment_status_change'), 10, 2);
+		add_action('edit_comment', array($this, 'recalculate_on_comment_edit'), 10, 2);
+		add_action('delete_comment', array($this, 'recalculate_on_comment_delete'), 10, 2);
+
+		// Enable comment pagination for listings
+		add_filter('option_page_comments', array($this, 'enable_comment_pagination_for_listings'));
+		add_filter('option_comments_per_page', array($this, 'set_comments_per_page_for_listings'));
+
+	}
+
+	/**
+	 * Enable comment pagination for listing post type
+	 */
+	public function enable_comment_pagination_for_listings($value) {
+		if (is_singular('listing')) {
+			return 1; // Force enable pagination for listings
+		}
+		return $value;
+	}
+
+	/**
+	 * Set comments per page for listing post type
+	 */
+	public function set_comments_per_page_for_listings($value) {
+		if (is_singular('listing')) {
+			return apply_filters('listeo_reviews_per_page', 10);
+		}
+		return $value;
 	}
 
 	public function comment_form_submit_button_label($args)
 	{		
 		global $post;
-		if($post && $post->post_type == 'listing');{
+		if($post && $post->post_type == 'listing'){
 			$args['label_submit'] = esc_html__('Submit Review','listeo_core');
 		}
 		return $args;
 	}
 
+	/**
+	 * Add this method to your Listeo_Core_Reviews class
+	 */
+	public function show_pending_comment_message()
+	{
+		
+		// Check if we're on a listing page and have the unapproved comment hash
+		if (is_singular('listing') && isset($_GET['unapproved']) && isset($_GET['moderation-hash'])) {
+			
+			$comment_id = absint($_GET['unapproved']);
+			
+			$comment = get_comment($comment_id);
+
+			// Get the comment
+			$comment = get_comment($comment_id);
+			
+			
+			$valid_hash = wp_hash($comment->comment_date_gmt);
+			
+			if ($comment && hash_equals($_GET['moderation-hash'], $valid_hash)) {
+				
+				// Show message to the user
+				add_action('listeo_before_comments', function () {
+					echo '<div class="notification success closeable margin-bottom-35">
+                    <p>' . esc_html__('Thank you for your review! Your comment is awaiting moderation and will be visible once approved.', 'listeo_core') . '</p>
+                    <a class="close"></a>
+                </div>';
+				});
+			}
+		}
+	}
+
+	/**
+	 * Modify comment posted redirect to include custom notification
+	 */
+	public function modify_comment_redirect($location, $comment)
+	{
+		if ($comment->comment_approved == 0 && get_post_type($comment->comment_post_ID) == 'listing') {
+			$hash = substr(wp_hash($comment->comment_date_gmt, 'c'), 0, 32);
+
+			// Build the new redirect URL
+			$location = add_query_arg(
+				array(
+					'unapproved' => $comment->comment_ID,
+					'moderation-hash' => $hash
+				),
+				get_permalink($comment->comment_post_ID)
+			) . '#comment-' . $comment->comment_ID;
+		}
+		return $location;
+	}
 
 	function reviews_action_handler(){
 		global $post;
@@ -171,10 +254,14 @@ class Listeo_Core_Reviews {
 									<div class="clearfix"></div>
 									<div class="leave-rating">
 										<?php for ($i=5; $i > 0; $i--) { ?>
-											<input type="radio"  name="<?php echo $key; ?>" id="rating-<?php echo $key.'-'.$i; ?>" value="<?php echo $i; ?>"/>
+											<input type="radio" name="<?php echo $key; ?>" 
+											id="rating-<?php echo $key.'-'.$i; ?>" 
+											value="<?php echo $i; ?>"/>
 											<label for="rating-<?php echo $key.'-'.$i; ?>" class="fa fa-star"></label>
 										<?php } ?>
-										
+										<span class="rating-error-message">
+											<?php echo sprintf(__('Please rate %s', 'listeo_core'), $value['label']); ?>
+										</span>
 									</div>
 								</div>
 							</div>
@@ -237,6 +324,12 @@ class Listeo_Core_Reviews {
                   	 	<input type="hidden" id="rc_action" name="rc_action" value="ws_review">
                     	<input type="hidden" id="token" name="token">';
             }
+			 if ($recaptcha_status && $recaptcha_version == 'hcaptcha'):
+						$fields['recaptcha'] =  '<div class="h-captcha" data-sitekey="'.esc_attr(get_option('listeo_hcaptcha_sitekey')).'"></div>';
+			endif;
+			if ($recaptcha_status && $recaptcha_version == 'turnstile'):
+						$fields['recaptcha'] =  '<div class="cf-turnstile" data-theme="light" data-sitekey="'.esc_attr(get_option('listeo_turnstile_sitekey')).'"></div>';
+			endif;
 
 		endif;
 		$fields['cookies'] = '<p class="comment-form-cookies-consent"><input id="wp-comment-cookies-consent" name="wp-comment-cookies-consent" type="checkbox" value="yes"' . $consent . ' />' .
@@ -320,6 +413,10 @@ class Listeo_Core_Reviews {
 					$reviews = $this->get_average_post_rating($parent_post->ID,'listeo-rating');
 
 					update_post_meta( $parent_post->ID, 'listeo-avg-rating', $reviews['rating']);
+					
+					// Recalculate combined rating after local rating changes
+					$this->get_combined_rating($parent_post->ID);
+					
 					$criteria_fields = listeo_get_reviews_criteria();
 					foreach ($criteria_fields as $key => $value) {
 						$reviews = $this->get_average_post_rating($parent_post->ID,$key);
@@ -342,6 +439,9 @@ class Listeo_Core_Reviews {
 				$criteria_fields = listeo_get_reviews_criteria();
 				$reviews = $this->get_average_post_rating($parent_post->ID,'listeo-rating');
 				update_post_meta( $parent_post->ID, 'listeo-avg-rating', $reviews['rating']);
+				
+				// Recalculate combined rating after local rating changes
+				$this->get_combined_rating($parent_post->ID);
 				
 				foreach ($criteria_fields as $key => $value) {
 					$reviews = $this->get_average_post_rating($parent_post->ID,$key);
@@ -629,6 +729,46 @@ class Listeo_Core_Reviews {
 	        		endif;
 	        endif;
 		}
+
+		if($recaptcha_version == 'hcaptcha'){
+			
+			$hcaptcha_response = isset( $_POST['h-captcha-response'] ) ? esc_attr( $_POST['h-captcha-response'] ) : '';
+			$secret = get_option('listeo_hcaptcha_secretkey');
+
+			$verify_url = 'https://hcaptcha.com/siteverify';
+			$data = array(
+				'secret' => $secret,
+				'response' => $hcaptcha_response
+			);
+			$verify = wp_remote_post($verify_url, array('body' => $data));
+			$response = json_decode(wp_remote_retrieve_body($verify));
+			if ($response->success) :
+				$result['success'] = true;
+			else:
+				$result['success'] = false;
+			endif;
+			
+		}
+
+		if($recaptcha_version == 'turnstile'){
+			
+			$turnstile_response = isset( $_POST['cf-turnstile-response'] ) ? esc_attr( $_POST['cf-turnstile-response'] ) : '';
+			$secret = get_option('listeo_turnstile_secretkey');
+
+			$verify_url = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+			$data = array(
+				'secret' => $secret,
+				'response' => $turnstile_response
+			);
+			$verify = wp_remote_post($verify_url, array('body' => $data));
+			$response = json_decode(wp_remote_retrieve_body($verify));
+			if ($response->success) :
+				$result['success'] = true;
+			else:
+				$result['success'] = false;
+			endif;
+			
+		}
 	
 		
 	}
@@ -683,6 +823,7 @@ class Listeo_Core_Reviews {
                 'image/jpeg',
                 'image/jpg',
                 'image/jp_',
+				'image/webp',
                 'application/jpg',
                 'application/x-jpg',
                 'image/pjpeg',
@@ -699,6 +840,7 @@ class Listeo_Core_Reviews {
     	$image_file_types = array(
     			'jpg',
     			'jpeg',
+				'webp',
 				'gif',
 				'png',
 			);
@@ -814,7 +956,7 @@ class Listeo_Core_Reviews {
 								<div class="avatar"><?php echo get_avatar( $review, 70 ); ?></div>
 								<div class="comment-content"><div class="arrow-comment"></div>
 									<div class="comment-by"><?php echo esc_html($review->comment_author); ?>
-									<div class="comment-by-listing"><?php esc_html_e('on','liste_core'); ?> 
+									<div class="comment-by-listing"><?php esc_html_e('on','listeo_core'); ?> 
 										<a href="<?php echo esc_url(get_permalink($review->comment_post_ID)); ?>"><?php echo get_the_title(
 										$review->comment_post_ID) ?></a></div> 
 										<span class="date"><?php echo date_i18n(  get_option( 'date_format' ),  strtotime($review->comment_date), false ); ?></span>
@@ -1006,32 +1148,50 @@ class Listeo_Core_Reviews {
 		die();
 	}
 
-	function rate_review(){
+	function rate_review()
+	{
 		$comment_id = $_POST['comment'];
-		if ( isset( $_COOKIE['listeo_rate_review_'.$comment_id] ) ) {
+
+		// Check for existing vote cookie
+		if (isset($_COOKIE['listeo_rate_review_' . $comment_id])) {
 			$result['type'] = 'error';
-		   	$result['output'] = '<i class="sl sl-icon-like"></i> '.esc_html__('You already voted ', 'listeo_core');
-		} else {
-			$rating = (int) get_comment_meta( $comment_id, 'listeo-review-rating', true );
-		
-			$new_rating = $rating+1;
-			$update = update_comment_meta($comment_id, 'listeo-review-rating', $new_rating );
-			$new_rating = (int) get_comment_meta( $comment_id, 'listeo-review-rating', true );
-			
-			if ($update) {
-			  $result['type'] = 'success';
-			  $result['output'] = '<i class="sl sl-icon-like"></i> '.esc_html__('Helpful Review ', 'listeo_core').'<span>'.$new_rating.'</span>';
-			  // Set a cookie. Change "August 15, 2016" to the date you want the cookie to expire.
-				setcookie( 'listeo_rate_review_'.$comment_id, $comment_id, 0, COOKIEPATH, COOKIE_DOMAIN, false, false );
-
-			} else {
-			   $result['type'] = 'error';
-			   $result['output'] = '<i class="sl sl-icon-like"></i> '.esc_html__('Helpful Review ', 'listeo_core').'<span>'.$new_rating.'</span>';
-			}
+			$result['output'] = '<i class="sl sl-icon-like"></i> ' . esc_html__('You already voted ', 'listeo_core');
+			wp_send_json($result);
+			die();
 		}
-		
 
-	
+		// Check for transient lock
+		if (get_transient('listeo_rate_review_lock_' . $comment_id)) {
+			$result['type'] = 'error';
+			$result['output'] = '<i class="sl sl-icon-like"></i> ' . esc_html__('Please wait before voting again', 'listeo_core');
+			wp_send_json($result);
+			die();
+		}
+
+		// Set a transient lock for 5 seconds
+		set_transient('listeo_rate_review_lock_' . $comment_id, true, 5);
+
+		// Get current rating
+		$rating = (int) get_comment_meta($comment_id, 'listeo-review-rating', true);
+		$new_rating = $rating + 1;
+
+		// Update the rating
+		$update = update_comment_meta($comment_id, 'listeo-review-rating', $new_rating);
+
+		if ($update) {
+			$result['type'] = 'success';
+			$result['output'] = '<i class="sl sl-icon-like"></i> ' . esc_html__('Helpful Review ', 'listeo_core') . '<span>' . $new_rating . '</span>';
+
+			// Set the vote cookie
+			setcookie('listeo_rate_review_' . $comment_id, $comment_id, 0, COOKIEPATH, COOKIE_DOMAIN, false, false);
+		} else {
+			$result['type'] = 'error';
+			$result['output'] = '<i class="sl sl-icon-like"></i> ' . esc_html__('Helpful Review ', 'listeo_core') . '<span>' . $new_rating . '</span>';
+		}
+
+		// Delete the lock transient since we're done
+		delete_transient('listeo_rate_review_lock_' . $comment_id);
+
 		wp_send_json($result);
 		die();
 	}
@@ -1070,13 +1230,158 @@ class Listeo_Core_Reviews {
 		$result['ratings'] = ob_get_clean();
 		// foreach ($criteria_fields as $key => $value) {
 
-		// 	$this_rating = get_comment_meta( $comment_id, $key, true );
-		// 	listeo_write_log($this_rating);
-		// 	$result[$key] = $this_rating;
-		// }
+		
 		
 		wp_send_json($result);
 		die();
+	}
+
+	/**
+	 * Calculate combined rating from Google Places and Listeo reviews
+	 * Uses weighted average based on review counts
+	 * 
+	 * @param int $post_id The post ID
+	 * @return float Combined rating (0-5) or 0 if no reviews
+	 */
+	public function get_combined_rating($post_id) {
+		// Get Google rating and count
+		$google_rating = floatval(get_post_meta($post_id, '_google_rating', true));
+		$google_count = intval(get_post_meta($post_id, '_google_review_count', true));
+		
+		// Get Listeo rating and count
+		$listeo_rating = floatval(get_post_meta($post_id, 'listeo-avg-rating', true));
+		$comments_count = wp_count_comments($post_id);
+		$listeo_count = intval($comments_count->approved);
+		
+		// Calculate combined rating and count
+		$combined_rating = 0;
+		$total_reviews = $google_count + $listeo_count;
+		
+		if ($total_reviews > 0) {
+			// Calculate weighted average when both types exist
+			$total_stars = ($google_rating * $google_count) + ($listeo_rating * $listeo_count);
+			$combined_rating = round($total_stars / $total_reviews, 1);
+		} elseif ($google_count > 0) {
+			// Only Google reviews exist
+			$combined_rating = round($google_rating, 1);
+			$total_reviews = $google_count;
+		} elseif ($listeo_count > 0) {
+			// Only Listeo reviews exist
+			$combined_rating = round($listeo_rating, 1);
+			$total_reviews = $listeo_count;
+		}
+		
+		// Always cache the results, even if 0 (this ensures the meta field exists for filtering)
+		update_post_meta($post_id, '_combined_rating', $combined_rating);
+		update_post_meta($post_id, '_combined_review_count', $total_reviews);
+		
+		return $combined_rating;
+	}
+
+	/**
+	 * Migrate all existing listings to use combined ratings
+	 * This should be run once after implementing the combined rating system
+	 * 
+	 * @param int $batch_size Number of listings to process per batch
+	 * @param int $offset Starting offset for batch processing
+	 * @return array Results with 'processed', 'remaining', and 'completed' status
+	 */
+	public function migrate_to_combined_ratings($batch_size = 50, $offset = 0) {
+		$args = array(
+			'post_type' => 'listing',
+			'post_status' => 'publish',
+			'posts_per_page' => $batch_size,
+			'offset' => $offset,
+			'meta_query' => array(
+				'relation' => 'OR',
+				array(
+					'key' => '_combined_rating',
+					'compare' => 'NOT EXISTS'
+				),
+				array(
+					'key' => '_combined_rating',
+					'value' => '',
+					'compare' => '='
+				)
+			)
+		);
+		
+		$listings = get_posts($args);
+		$processed = 0;
+		
+		foreach ($listings as $listing) {
+			$this->get_combined_rating($listing->ID);
+			$processed++;
+		}
+		
+		// Check if there are more listings to process
+		$remaining_args = $args;
+		$remaining_args['posts_per_page'] = 1;
+		$remaining_args['offset'] = $offset + $batch_size;
+		$remaining_listings = get_posts($remaining_args);
+		
+		return array(
+			'processed' => $processed,
+			'remaining' => !empty($remaining_listings),
+			'completed' => empty($remaining_listings),
+			'next_offset' => $offset + $batch_size
+		);
+	}
+
+	/**
+	 * Recalculate combined rating when a new comment is posted
+	 */
+	public function recalculate_on_comment_post($comment_id, $comment_approved, $commentdata) {
+		$comment = get_comment($comment_id);
+		if ($comment && get_post_type($comment->comment_post_ID) === 'listing') {
+			$this->recalculate_combined_rating($comment->comment_post_ID);
+		}
+	}
+
+	/**
+	 * Recalculate combined rating when comment status changes (approved/unapproved)
+	 */
+	public function recalculate_on_comment_status_change($comment_id, $status) {
+		$comment = get_comment($comment_id);
+		if ($comment && get_post_type($comment->comment_post_ID) === 'listing') {
+			$this->recalculate_combined_rating($comment->comment_post_ID);
+		}
+	}
+
+	/**
+	 * Recalculate combined rating when a comment is edited
+	 */
+	public function recalculate_on_comment_edit($comment_id, $data) {
+		$comment = get_comment($comment_id);
+		if ($comment && get_post_type($comment->comment_post_ID) === 'listing') {
+			$this->recalculate_combined_rating($comment->comment_post_ID);
+		}
+	}
+
+	/**
+	 * Recalculate combined rating when a comment is deleted
+	 */
+	public function recalculate_on_comment_delete($comment_id, $comment) {
+		if ($comment && get_post_type($comment->comment_post_ID) === 'listing') {
+			$this->recalculate_combined_rating($comment->comment_post_ID);
+		}
+	}
+
+	/**
+	 * Helper method to recalculate combined rating for a listing
+	 */
+	private function recalculate_combined_rating($listing_id) {
+		// Clear existing combined rating to force fresh calculation
+		delete_post_meta($listing_id, '_combined_rating');
+		delete_post_meta($listing_id, '_combined_review_count');
+		
+		// Recalculate with current data (Google cached + fresh Listeo)
+		$new_rating = $this->get_combined_rating($listing_id);
+		
+		// Log for debugging
+		
+		
+		return $new_rating;
 	}
 
 }

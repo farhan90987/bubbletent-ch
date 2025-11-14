@@ -7,7 +7,7 @@ class Listeo_Core_Stats
 
 
     public $post_types = array('listing');
-    public $stats = array('visits','unique','booking_click');
+    public $stats = array('visits','unique','booking_click', 'contact_click');
     public $cookie_name = 'listings_visited';
     /**
      * Cookie ID
@@ -41,7 +41,7 @@ class Listeo_Core_Stats
     {
         
         $stats_type = get_option('listeo_stats_type',array( 'unique', 'booking_click'));
-        
+       
         if(empty($stats_type)){
             $stats_type = array('visits');
         } else {

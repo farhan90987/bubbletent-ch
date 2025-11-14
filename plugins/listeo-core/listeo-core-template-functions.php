@@ -16,7 +16,50 @@
 function listeo_core_body_class($classes)
 {
 	$classes   = (array) $classes;
-	$classes[] = sanitize_title(wp_get_theme());
+	$classes[] = sanitize_html_class(wp_get_theme());
+
+	// Check if current page is a combined taxonomy page
+	if (class_exists('Listeo_Core_Post_Types') && Listeo_Core_Post_Types::is_combined_taxonomy_page()) {
+		$classes[] = 'listeo-combined-taxonomy-page';
+		
+		// Get the specific terms for more granular classes
+		$terms = Listeo_Core_Post_Types::get_combined_taxonomy_terms();
+		if ($terms) {
+			$top_layout = get_option('pp_listings_top_layout', 'map');
+		
+			$classes[] = $top_layout . '-archive-listings-layout';
+			if (isset($terms['region'])) {
+				$classes[] = 'listeo-region-' . sanitize_html_class($terms['region']->slug);
+			}
+			if (isset($terms['listing_feature'])) {
+				$classes[] = 'listeo-feature-' . sanitize_html_class($terms['listing_feature']->slug);
+			}
+		}
+	}
+
+	// Add top layout classes for listing archives
+	$is_listing_taxonomy = false;
+	if (is_post_type_archive('listing')) {
+		$is_listing_taxonomy = true;
+	} else {
+		// Check if we're on any listing taxonomy page
+		$listing_taxonomies = get_object_taxonomies('listing');
+		foreach ($listing_taxonomies as $taxonomy) {
+			if (is_tax($taxonomy)) {
+				$is_listing_taxonomy = true;
+				break;
+			}
+		}
+	}
+	
+	if ($is_listing_taxonomy) {
+		$top_layout = get_term_meta(get_queried_object_id(), 'listeo_taxonomy_top_layout', true);
+		
+		if (empty($top_layout)) {
+			$top_layout = get_option('pp_listings_top_layout', 'map');
+		}
+		$classes[] = $top_layout . '-archive-listings-layout';
+	}
 
 	return array_unique($classes);
 }
@@ -149,6 +192,21 @@ function get_the_listing_address($post = null)
 }
 
 
+function listeo_output_price($price){
+	$currency_abbr = get_option('listeo_currency');
+	$currency_postion = get_option('listeo_currency_postion');
+	$currency_symbol = Listeo_Core_Listing::get_currency_symbol($currency_abbr);
+	$price = floatval($price);
+	if ($currency_postion == 'before') {
+		return $currency_symbol . $price;
+	} else {
+		return $price . $currency_symbol;
+	} 
+	
+	//$price = number_format($price, 2, '.', '');
+	
+}
+
 /**
  * Outputs the listing price
  *
@@ -214,6 +272,22 @@ function get_the_listing_price_per_scale($post = null)
 	return Listeo_Core_Listing::get_listing_price_per_scale($post);
 }
 
+function has_listing_location($post = null)
+{
+	$post = get_post($post);
+	if ($post->post_type !== 'listing') {
+		return false;
+	}
+
+	$address = get_post_meta($post->ID, '_address', true);
+	// check if has _friendly_address
+	$friendly_address = get_post_meta($post->ID, '_friendly_address', true);
+	if (!empty($friendly_address)) {
+		$address = $friendly_address;
+	}
+	return !empty($address);
+}
+
 function the_listing_location_link($post = null, $map_link = true)
 {
 
@@ -234,9 +308,13 @@ function the_listing_location_link($post = null, $map_link = true)
 			} else {
 				echo wp_kses_post($friendly_address);
 			}
+		} else {
+			echo esc_html($friendly_address);
 		}
 	}
 }
+
+
 
 
 function listeo_core_check_if_bookmarked($id)
@@ -258,11 +336,15 @@ function listeo_core_is_featured($id)
 		return false;
 	}
 }
-
-function listeo_core_is_instant_booking($id)
+function listeo_core_is_verified($id)
 {
-	$featured = get_post_meta($id, '_instant_booking', true);
-	if (!empty($featured)) {
+	$author_id 		= get_post_field('post_author', $id);
+	$verified = get_user_meta($author_id, 'listeo_verified_user', true);
+
+	if (empty($verified)) {
+		$verified = get_post_meta($id, '_verified', true) == 'on';
+	}
+	if (!empty($verified)) {
 		return true;
 	} else {
 		return false;
@@ -270,6 +352,20 @@ function listeo_core_is_instant_booking($id)
 }
 
 
+
+function listeo_core_is_instant_booking($id)
+{
+	$featured = apply_filters('listeo_instant_booking', get_post_meta($id, '_instant_booking', true));
+	if (!empty($featured)) {
+		return true;
+	} else {
+		return false;
+	}
+}
+
+// make listeo_instant_booking always on
+//add_filter('listeo_instant_booking', '__return_true');
+//add_filter('listeo_allow_overbooking', '__return_true');
 
 /**
  * Gets the listing title for the listing.
@@ -371,9 +467,9 @@ function listeo_core_render_as_col_12($field_args, $field)
  * Dispays bootstarp column start
  * @param  string $col integer column width
  */
-function listeo_core_render_column($col = '', $name = '')
+function listeo_core_render_column($col = '', $name = '', $type = '')
 {
-	echo '<div class="col-md-' . $col . ' form-field-' . $name . '-container">';
+	echo '<div class="col-md-' . $col . ' form-field-' . $name . '-container form-field-container-type-' . $type . '">';
 }
 
 function listeo_archive_buttons($list_style, $list_top_buttons = null)
@@ -383,16 +479,122 @@ function listeo_archive_buttons($list_style, $list_top_buttons = null)
 	$template_loader->set_template_data($data)->get_template_part('archive/top-buttons');
 }
 
-// function listeo_result_layout_switch($list_style, $layout_switch = null){
-// 	if(!isset($layout_switch)){
-// 		$layout_switch = 'on';
-// 	}
-// 	if($list_style != 'compact' && $layout_switch == 'on') {
-// 		$template_loader = new Listeo_Core_Template_Loader; 
-// 		$template_loader->get_template_part( 'archive/layout-switcher' ); 	
-// 	}
+function listeo_get_categories_for_slider()
+{
+	$categories = get_terms(array(
+		'taxonomy'   => 'listing_category',
+		'hide_empty' => true,
+	));
 
-// }
+	$choices = array();
+	foreach ($categories as $category) {
+		$choices[$category->term_id] = $category->name;
+	}
+
+	return $choices;
+}
+
+/**
+ * Get categories grouped by listing types for slider
+ * Used for customizer option 'show_listing_types_categories'
+ * 
+ * @return array Flat array for multicheck field with grouped structure
+ */
+function listeo_get_categories_grouped_by_listing_types()
+{
+	$choices = array();
+	
+	// Get custom listing types and their categories (skip global categories)
+	if (function_exists('listeo_core_custom_listing_types')) {
+		$custom_types = listeo_core_custom_listing_types();
+		$types = $custom_types->get_listing_types(true); // active only
+		
+		if ($types) {
+			foreach ($types as $type) {
+				// Check if this type registers its own taxonomy
+				if ($type->register_taxonomy) {
+					$taxonomy_slug = $type->slug . '_category';
+					
+					// Check if taxonomy exists
+					if (taxonomy_exists($taxonomy_slug)) {
+						$categories = get_terms(array(
+							'taxonomy'   => $taxonomy_slug,
+							'hide_empty' => false,
+						));
+						
+						if (!empty($categories) && !is_wp_error($categories)) {
+							// Add section header with emoji
+							$choices['---' . $type->slug . '---'] = '➡️ ' . sprintf(__('%s Categories', 'listeo_core'), $type->name);
+							foreach ($categories as $category) {
+								$choices[$category->term_id . '_' . $taxonomy_slug] = '   ' . $category->name;
+							}
+						}
+					}
+				}
+			}
+		}
+	} else {
+		// Fallback for default taxonomies when custom types system not available
+		$default_taxonomies = array(
+			'service_category' => __('Service Categories', 'listeo_core'),
+			'rental_category' => __('Rental Categories', 'listeo_core'),
+			'event_category' => __('Event Categories', 'listeo_core'),
+			'classifieds_category' => __('Classifieds Categories', 'listeo_core')
+		);
+		
+		foreach ($default_taxonomies as $taxonomy_slug => $label) {
+			if (taxonomy_exists($taxonomy_slug)) {
+				$categories = get_terms(array(
+					'taxonomy'   => $taxonomy_slug,
+					'hide_empty' => false,
+				));
+				
+				if (!empty($categories) && !is_wp_error($categories)) {
+					// Add section header with emoji
+					$choices['---' . $taxonomy_slug . '---'] = '➡️ ' . $label;
+					foreach ($categories as $category) {
+						$choices[$category->term_id . '_' . $taxonomy_slug] = '   ' . $category->name;
+					}
+				}
+			}
+		}
+	}
+	
+	return $choices;
+}
+
+/**
+ * Get listing types for customizer dropdown
+ * Used for customizer option 'show_only_listing_types'
+ * 
+ * @return array Listing types choices
+ */
+function listeo_get_listing_types_for_slider()
+{
+	$choices = array();
+	
+	if (function_exists('listeo_core_custom_listing_types')) {
+		$custom_types = listeo_core_custom_listing_types();
+		$types = $custom_types->get_listing_types(true); // active only
+		
+		if ($types) {
+			foreach ($types as $type) {
+				$choices[$type->slug] = $type->name;
+			}
+		}
+	} else {
+		// Fallback to default types
+		$choices = array(
+			'service' => __('Service', 'listeo_core'),
+			'rental' => __('Rental', 'listeo_core'),
+			'event' => __('Event', 'listeo_core'),
+			'classifieds' => __('Classifieds', 'listeo_core')
+		);
+	}
+	
+	return $choices;
+}
+
 
 /* Hooks */
 /* Hooks */
@@ -406,13 +608,167 @@ add_action('listeo_before_archive', 'listeo_archive_buttons', 25, 2);
  */
 function listeo_core_get_listing_types()
 {
-	$options = array(
-		'service' => __('Service', 'listeo_core'),
-		'rental' 	 => __('Rental', 'listeo_core'),
-		'event' => __('Event', 'listeo_core'),
-
-	);
+	// Get types from the custom listing types system
+	if (function_exists('listeo_core_custom_listing_types')) {
+		$custom_types = listeo_core_custom_listing_types();
+		$types = $custom_types->get_listing_types(true); // active only
+		
+		$options = array();
+		if ($types) {
+			foreach ($types as $type) {
+				$options[$type->slug] = __($type->name, 'listeo_core');
+			}
+		}
+	} else {
+		// Fallback to hardcoded types if custom system not available
+		$options = array(
+			'service' 		=> __('Service', 'listeo_core'),
+			'rental' 	 	=> __('Rental', 'listeo_core'),
+			'event' 		=> __('Event', 'listeo_core'),
+			'classifieds' 	=> __('Classifieds', 'listeo_core'),
+		);
+	}
+	
 	return apply_filters('listeo_core_get_listing_types', $options);
+}
+
+/**
+ * Get the taxonomy name for a given listing type
+ * This maintains backward compatibility while allowing for future custom taxonomies
+ */
+function listeo_core_get_taxonomy_for_listing_type($listing_type) {
+	// Backward compatibility mapping
+	$taxonomy_mapping = array(
+		'service' => 'service_category',
+		'rental' => 'rental_category', 
+		'event' => 'event_category',
+		'classifieds' => 'classifieds_category',
+		'region' => 'region'
+	);
+	
+	// Return mapped taxonomy if it exists, otherwise construct from type
+	if (isset($taxonomy_mapping[$listing_type])) {
+		return $taxonomy_mapping[$listing_type];
+	}
+	
+	// For custom types, construct taxonomy name (can be customized via filter)
+	$taxonomy = $listing_type . '_category';
+	return apply_filters('listeo_core_listing_type_taxonomy', $taxonomy, $listing_type);
+}
+
+/**
+ * Check if a listing type supports a specific feature
+ */
+function listeo_core_listing_type_supports($listing_type, $feature) {
+	// Use new custom listing types system
+	if (function_exists('listeo_core_custom_listing_types')) {
+		$custom_types = listeo_core_custom_listing_types();
+		$type_obj = $custom_types->get_listing_type_by_slug($listing_type);
+		
+		if ($type_obj) {
+			switch ($feature) {
+				case 'booking':
+					// Check if booking is enabled for this type
+					return ($type_obj->booking_type && $type_obj->booking_type !== 'none');
+				
+				case 'opening_hours':
+					// Check opening hours support directly
+					return (bool) $type_obj->supports_opening_hours;
+				
+				case 'pricing':
+				case 'calendar':  
+				case 'time_slots':
+				case 'guests':
+				case 'services':
+				case 'date_range':
+				case 'hourly_picker':
+				case 'tickets':
+					// Use the unified booking features system
+					return $custom_types->type_supports_feature($listing_type, $feature);
+				
+				default:
+					// For any other feature, check if it exists in booking_features
+					return $custom_types->type_supports_feature($listing_type, $feature);
+			}
+		}
+	}
+	
+	// Backward compatibility fallback for legacy installations
+	switch ($listing_type) {
+		case 'service':
+			$default_features = ['booking', 'pricing', 'calendar', 'time_slots', 'guests', 'services'];
+			break;
+		case 'rental':
+			$default_features = ['booking', 'pricing', 'calendar', 'date_range', 'hourly_picker', 'guests', 'services'];
+			break;
+		case 'event':
+			$default_features = ['booking', 'pricing', 'tickets', 'guests', 'services'];
+			break;
+		case 'classifieds':
+			$default_features = []; // classifieds don't support booking features
+			break;
+		default:
+			$default_features = [];
+			break;
+	}
+	
+	return in_array($feature, $default_features);
+}
+
+/**
+ * Get all supported features for a listing type
+ * 
+ * @param string $listing_type The listing type slug
+ * @return array Array of supported feature names
+ */
+function listeo_core_get_listing_type_features($listing_type) {
+	if (function_exists('listeo_core_custom_listing_types')) {
+		$custom_types = listeo_core_custom_listing_types();
+		return $custom_types->get_type_features($listing_type);
+	}
+	
+	// Fallback for legacy installations
+	switch ($listing_type) {
+		case 'service':
+			return ['time_slots', 'services', 'calendar'];
+		case 'rental':
+			return ['date_range', 'hourly_picker', 'services', 'calendar'];
+		case 'event':
+			return ['tickets', 'services'];
+		case 'classifieds':
+		default:
+			return [];
+	}
+}
+
+/**
+ * Get the booking type for a listing type
+ * 
+ * @param string $listing_type The listing type slug
+ * @return string The booking type (single_day, date_range, tickets, none)
+ */
+function listeo_core_get_listing_type_booking_type($listing_type) {
+	if (function_exists('listeo_core_custom_listing_types')) {
+		$custom_types = listeo_core_custom_listing_types();
+		$type_obj = $custom_types->get_listing_type_by_slug($listing_type);
+		
+		if ($type_obj) {
+			return $type_obj->booking_type ?: 'none';
+		}
+	}
+	
+	// Fallback for legacy installations
+	switch ($listing_type) {
+		case 'service':
+			return 'single_day';
+		case 'rental':
+			return 'date_range';
+		case 'event':
+			return 'tickets';
+		case 'classifieds':
+		default:
+			return 'none';
+	}
 }
 
 
@@ -505,7 +861,7 @@ function listeo_core_get_options_array($type, $data)
 function listeo_core_get_options_array_hierarchical($terms, $selected, $output = '', $parent_id = 0, $level = 0)
 {
 	//Out Template
-	
+
 	$outputTemplate = '<option %SELECED% value="%ID%">%PADDING%%NAME%</option>';
 
 	foreach ($terms as $term) {
@@ -633,7 +989,7 @@ function listeo_core_get_post_options($query_args)
 
 	$args = wp_parse_args($query_args, array(
 		'post_type'   => 'post',
-		'numberposts' => -1,
+		'numberposts' => 399,
 		'update_post_meta_cache' => false,
 		'cache_results' => false,
 		'update_post_term_cache' => false
@@ -642,7 +998,7 @@ function listeo_core_get_post_options($query_args)
 	$posts = get_posts($args);
 
 	$post_options = array();
-	$post_options[0] = esc_html__('--Choose page--', 'listeo_core');
+	$post_options[0] = esc_html__('--Disabled--', 'listeo_core');
 	if ($posts) {
 		foreach ($posts as $post) {
 			$post_options[$post->ID] = $post->post_title;
@@ -652,6 +1008,36 @@ function listeo_core_get_post_options($query_args)
 	return $post_options;
 }
 
+
+function listeo_core_get_product_options($product_type = false ){
+	$args = array(
+		'post_type' => 'product',
+		'posts_per_page' => -1,
+		'update_post_meta_cache' => false,
+		'cache_results' => false,
+		'update_post_term_cache' => false,
+		'tax_query' => array(
+			array(
+				'taxonomy' => 'product_type',
+				'field'    => 'slug',
+				'terms'    => $product_type,
+			),
+		),
+	);
+
+	$posts = get_posts($args);
+
+	$post_options = array();
+	$post_options[0] = esc_html__('--Disabled--', 'listeo_core');
+	if ($posts) {
+		foreach ($posts as $post) {
+			$post_options[$post->ID] = $post->post_title;
+		}
+	}
+
+	return $post_options;
+	
+}
 /**
  * Gets 5 posts for your_post_type and displays them as options
  * @return array An array of options that matches the CMB2 options array
@@ -662,7 +1048,45 @@ function listeo_core_get_pages_options()
 }
 
 
-function listeo_core_get_listing_packages_as_options()
+function listeo_core_get_listing_packages_as_options($include_all = false)
+{
+	if($include_all){
+		$terms = array('listing_package','listing_package_subscription');
+	} else {
+		$terms = array('listing_package');
+	}
+	$args =  array(
+		'post_type'        => 'product',
+		'posts_per_page'   => -1,
+		'order'            => 'asc',
+		'orderby'          => 'date',
+		'suppress_filters' => false,
+		'tax_query'        => array(
+			'relation' => 'AND',
+			array(
+				'taxonomy' => 'product_type',
+				'field'    => 'slug',
+				'terms'    => $terms,
+				'operator' => 'IN',
+			),
+		),
+
+	);
+
+	$posts = get_posts($args);
+
+	$post_options = array();
+	if ($include_all) {
+		$post_options[0] = esc_html__('All', 'listeo_core');
+	}
+	if ($posts) {
+		foreach ($posts as $post) {
+			$post_options[$post->ID] = $post->post_title;
+		}
+	}
+
+	return $post_options;
+}
 {
 
 	$args =  array(
@@ -710,6 +1134,46 @@ function listeo_core_get_listing_taxonomies_as_options()
 
 	return $_options;
 }
+
+function listeo_core_get_related_listing_taxonomies_as_options()
+{
+	$taxonomy_objects = get_object_taxonomies('listing', 'objects');
+
+	$_options = array();
+
+	// Add "From the same listing type" option
+	$_options['listing_type'] = __('From the same listing type', 'listeo_core');
+
+	if ($taxonomy_objects) {
+		foreach ($taxonomy_objects as $tax) {
+			$_options[$tax->name] = $tax->label;
+		}
+	}
+
+	return $_options;
+}
+
+function listeo_core_get_nearby_listing_taxonomies_as_options()
+{
+	$taxonomy_objects = get_object_taxonomies('listing', 'objects');
+
+	$_options = array();
+
+	// Add "Display All" option as default for nearby listings
+	$_options['all'] = __('Display All (no taxonomy filter)', 'listeo_core');
+
+	// Add "From the same listing type" option
+	$_options['listing_type'] = __('From the same listing type', 'listeo_core');
+
+	if ($taxonomy_objects) {
+		foreach ($taxonomy_objects as $tax) {
+			$_options[$tax->name] = $tax->label;
+		}
+	}
+
+	return $_options;
+}
+
 function listeo_core_get_product_taxonomies_as_options()
 {
 	$taxonomy_objects = get_terms(array(
@@ -883,10 +1347,15 @@ function calculate_listing_expiry($id)
 {
 	// Get duration from the product if set...
 	$duration = get_post_meta($id, '_duration', true);
+	$is_from_package = get_post_meta($id, '_package_id',true);
 
 	// ...otherwise use the global option
 	if (!$duration) {
+		if($is_from_package){
+			$duration = 0;
+		} else {
 		$duration = absint(get_option('listeo_default_duration'));
+		}
 	}
 
 	if ($duration > 0) {
@@ -939,7 +1408,7 @@ function listeo_core_get_expiration_date($id)
 			// echo $subscription_obj->get_expiration_date( 'next_payment' ); 
 		}
 	}
-	//var_dump(get_post_meta($id));
+
 
 	if (!empty($expires)) {
 		if (listeo_core_is_timestamp($expires)) {
@@ -1085,125 +1554,6 @@ function listeo_core_sort_by_priority($array = array(), $order = SORT_NUMERIC)
 
 
 
-/**
- * CMB2 Select Multiple Custom Field Type
- * @package CMB2 Select Multiple Field Type
- */
-
-/**
- * Adds a custom field type for select multiples.
- * @param  object $field             The CMB2_Field type object.
- * @param  string $value             The saved (and escaped) value.
- * @param  int    $object_id         The current post ID.
- * @param  string $object_type       The current object type.
- * @param  object $field_type_object The CMB2_Types object.
- * @return void
- */
-if (!function_exists('cmb2_render_select_multiple_field_type')) {
-	function cmb2_render_select_multiple_field_type($field, $escaped_value, $object_id, $object_type, $field_type_object)
-	{
-		$saved_values = get_post_meta($object_id, $field->args['_name']);
-
-		$select_multiple = '<select class="widefat" multiple name="' . $field->args['_name'] . '[]" id="' . $field->args['_id'] . '"';
-		foreach ($field->args['attributes'] as $attribute => $value) {
-			$select_multiple .= " $attribute=\"$value\"";
-		}
-		$select_multiple .= ' />';
-
-		if (is_string($escaped_value)) {
-			$escaped_value = explode(',', $escaped_value);
-		}
-		foreach ($field->options() as $value => $name) {
-			$selected = '';
-			if (is_array($saved_values)) {
-
-				if (in_array($value, $saved_values)) {
-					$selected = 'selected="selected"';
-				}
-			} else {
-				$selected = ($escaped_value && in_array($value, $escaped_value)) ? 'selected="selected"' : '';
-			}
-
-
-			$select_multiple .= '<option class="cmb2-option" value="' . esc_attr($value) . '" ' . $selected . '>' . esc_html($name) . '</option>';
-		}
-
-		$select_multiple .= '</select>';
-		$select_multiple .= $field_type_object->_desc(true);
-
-		echo $select_multiple; // WPCS: XSS ok.
-	}
-	add_action('cmb2_render_select_multiple', 'cmb2_render_select_multiple_field_type', 10, 5);
-
-
-	/**
-	 * Sanitize the selected value.
-	 */
-
-	function cmb2_sanitize_select_multiple_callback($override_value, $value)
-	{
-		if (is_array($value)) {
-			foreach ($value as $key => $saved_value) {
-				$value[$key] = sanitize_text_field($saved_value);
-			}
-			return $value;
-		}
-		return;
-	}
-	add_filter('cmb2_sanitize_select_multiple', 'cmb2_sanitize_select_multiple_callback', 10, 4);
-
-
-
-	function cmb2_save_select_multiple_callback($override, array $args, array  $field_args)
-	{
-		if ($field_args['type'] == 'select_multiple' || $field_args['type'] === 'multicheck_split') {
-			if (is_array($args['value'])) {
-
-				delete_post_meta($args['id'], $args['field_id']);
-				foreach ($args['value'] as $key => $saved_value) {
-					$sanitized_value = sanitize_text_field($saved_value);
-					add_post_meta($args['id'], $args['field_id'], $sanitized_value);
-				}
-			}
-			return true;
-		}
-		return $override;
-	}
-	add_filter('cmb2_override_meta_save', 'cmb2_save_select_multiple_callback', 10, 4);
-}
-function cmb2_render_multicheck_split_field_type($field, $escaped_value, $object_id, $object_type, $field_type_object)
-{
-	$saved_values = get_post_meta($object_id, $field->args['_name']);
-
-	$select_multiple = '
-	<ul class="cmb2-checkbox-list cmb2-list">	';
-
-
-	if (is_string($escaped_value)) {
-		$escaped_value = explode(',', $escaped_value);
-	}
-	$i = 0;
-	foreach ($field->options() as $value => $name) {
-		$selected = '';
-		$i++;
-		if (is_array($saved_values)) {
-			if (in_array($value, $saved_values)) {
-				$selected = 'checked="checked"';
-			}
-		} else {
-			$selected = ($escaped_value && in_array($value, $escaped_value)) ? 'checked="checked"' : '';
-		}
-
-		$select_multiple .= '<li><input type="checkbox" class="cmb2-option" name="' . $field->args['_name'] . '[]" id="' . $field->args['_id'] . $i . '" value="' . esc_attr($value) . '" ' . $selected . '><label for="' . $field->args['_id'] . $i . '">' . esc_html($name) . '</label></li>';
-	}
-	$select_multiple .= "</ul>";
-
-	$select_multiple .= $field_type_object->_desc(true);
-
-	echo $select_multiple; // WPCS: XSS ok.
-}
-add_action('cmb2_render_multicheck_split', 'cmb2_render_multicheck_split_field_type', 5, 5);
-
 function listeo_core_array_sort_by_column(&$arr, $col, $dir = SORT_ASC)
 {
 	$sort_col = array();
@@ -1254,27 +1604,50 @@ function listeo_core_get_nearby_listings($lat, $lng, $distance, $radius_type)
 	return $post_ids;
 }
 
-
-// function to geocode address, it will return false if unable to geocode address
 function listeo_core_geocode($address)
 {
-
+	// error_log('=== GEOCODING DEBUG ===');
+	// error_log('Original address: ' . $address);
+	
 	// url encode the address
 	$address = urlencode($address);
+	// error_log('Encoded address: ' . $address);
+
+	// Check if we have cached results for this address
+	$cache_key = 'geocode_' . md5($address);
+	$cached_results = get_transient($cache_key);
+	// error_log('Cache key: ' . $cache_key);
+	// error_log('Cached result: ' . var_export($cached_results, true));
+	
+	// TEMPORARY: Clear cache to debug the issue
+	delete_transient($cache_key);
+	// error_log('Cache cleared for debugging');
+	
+	// if ($cached_results !== false) {
+	// 	error_log('Returning cached result');
+	// 	return $cached_results;
+	// }
+
 	$geocoding_provider = get_option('listeo_geocoding_provider', 'google');
 	if ($geocoding_provider == 'google') {
 		$api_key = get_option('listeo_maps_api_server');
 		// google map geocode api url
 		$url = "https://maps.google.com/maps/api/geocode/json?address={$address}&key={$api_key}";
+		// error_log('Geocoding URL: ' . $url);
 
 		// get the json response
 		$resp_json = wp_remote_get($url);
 
+		if (is_wp_error($resp_json)) {
+			// error_log('wp_remote_get error: ' . $resp_json->get_error_message());
+			return false;
+		}
+
 		$resp = json_decode(wp_remote_retrieve_body($resp_json), true);
+		// error_log('API Response: ' . print_r($resp, true));
 
 		// response status will be 'OK', if able to geocode given address 
 		if ($resp['status'] == 'OK') {
-
 			// get the important data
 			$lati = $resp['results'][0]['geometry']['location']['lat'];
 			$longi = $resp['results'][0]['geometry']['location']['lng'];
@@ -1282,24 +1655,25 @@ function listeo_core_geocode($address)
 
 			// verify if data is complete
 			if ($lati && $longi && $formatted_address) {
-
 				// put the data in the array
-				$data_arr = array();
-
-				array_push(
-					$data_arr,
+				$data_arr = array(
 					$lati,
 					$longi,
 					$formatted_address
 				);
 
+				// Cache the results
+				set_transient('geocode_' . md5($address), $data_arr, 7 * DAY_IN_SECONDS);
+
 				return $data_arr;
 			} else {
-				return false;
+				// error_log('Data incomplete - lat: ' . $lati . ', lng: ' . $longi . ', formatted_address: ' . $formatted_address);
 			}
 		} else {
-			return false;
+			// error_log('API Status not OK: ' . $resp['status']);
 		}
+		// error_log('Geocoding failed - returning false');
+		return false;
 	} else {
 		$api_key = get_option('listeo_geoapify_maps_api_server');
 		$url = "https://api.geoapify.com/v1/geocode/search?text={$address}&apiKey={$api_key}";
@@ -1307,11 +1681,14 @@ function listeo_core_geocode($address)
 		// get the json response
 		$resp_json = wp_remote_get($url);
 
+		if (is_wp_error($resp_json)) {
+			return false;
+		}
+
 		$resp = json_decode(wp_remote_retrieve_body($resp_json), true);
 
 		// response status will be 'OK', if able to geocode given address 
-		if ($resp) {
-
+		if ($resp && isset($resp['features']) && !empty($resp['features'])) {
 			// get the important data
 			$lati = $resp['features'][0]['geometry']['coordinates'][1];
 			$longi = $resp['features'][0]['geometry']['coordinates'][0];
@@ -1319,25 +1696,261 @@ function listeo_core_geocode($address)
 
 			// verify if data is complete
 			if ($lati && $longi && $formatted_address) {
-
 				// put the data in the array
-				$data_arr = array();
-
-				array_push(
-					$data_arr,
+				$data_arr = array(
 					$lati,
 					$longi,
 					$formatted_address
 				);
 
+				// Cache the results
+				set_transient('geocode_' . md5($address), $data_arr, 7 * DAY_IN_SECONDS);
+
 				return $data_arr;
-			} else {
-				return false;
 			}
-		} else {
-			return false;
+		}
+		return false;
+	}
+}
+
+/**
+ * Smart location search function - used across all search implementations
+ * Handles progressive search with country skipping and combination matching
+ * 
+ * @param string $location The location string to search for (e.g., "Reduta, Kraków, Poland")
+ * @param boolean $search_only_address Whether to restrict search to address fields only
+ * @return array Array of post IDs that match the location search
+ */
+function listeo_core_search_location_smart($location, $search_only_address = null) {
+	if (empty($location)) {
+		return array(0);
+	}
+	
+	// Check the location search method setting
+	$location_search_method = get_option('listeo_location_search_method', 'basic');
+	
+	// If basic method is selected, use the basic function
+	if ($location_search_method === 'basic') {
+		return listeo_core_search_location_basic($location, $search_only_address);
+	}
+	
+	// Continue with the broad/smart method below
+	global $wpdb;
+	
+	// Get the search restriction setting if not provided
+	if ($search_only_address === null) {
+		$search_only_address = (get_option('listeo_search_only_address', 'off') == 'on');
+	}
+	
+	// Smart combination search - try combinations before individual fallback
+	$locations = array_map('trim', explode(',', $location));
+	$num_parts = count($locations);
+	
+	// Skip last part (country) if 3+ parts exist
+	$search_attempts = array();
+	
+	if ($num_parts >= 3) {
+		// Try without country first (most specific)
+		$without_country = implode(', ', array_slice($locations, 0, -1));
+		$search_attempts[] = array('type' => 'exact', 'term' => $without_country);
+		
+		// Try first two parts with AND condition (both must be present)
+		if (count($locations) >= 2) {
+			$search_attempts[] = array('type' => 'and', 'terms' => array($locations[0], $locations[1]));
+		}
+		
+		// Individual part fallbacks (skip country)
+		foreach (array_slice($locations, 0, -1) as $part) {
+			$search_attempts[] = array('type' => 'single', 'term' => $part);
+		}
+	} else {
+		// 2 or fewer parts - try each individually
+		foreach ($locations as $part) {
+			$search_attempts[] = array('type' => 'single', 'term' => $part);
 		}
 	}
+	
+	// Execute search attempts in order until results found
+	foreach ($search_attempts as $attempt) {
+		$current_location_post_ids = array();
+		
+		if ($attempt['type'] == 'exact') {
+			// Search for exact phrase
+			$escaped_part = '%' . $wpdb->esc_like($attempt['term']) . '%';
+			
+			if ($search_only_address) {
+				$current_location_post_ids = $wpdb->get_col($wpdb->prepare(
+					"SELECT DISTINCT post_id FROM {$wpdb->postmeta} 
+					 WHERE (meta_key = '_address' AND meta_value LIKE %s)
+						OR (meta_key = '_friendly_address' AND meta_value LIKE %s)",
+					$escaped_part,
+					$escaped_part
+				));
+			} else {
+				$post_ids = $wpdb->get_col($wpdb->prepare(
+					"SELECT DISTINCT post_id FROM {$wpdb->postmeta} 
+					 WHERE meta_value LIKE %s",
+					$escaped_part
+				));
+				
+				$content_post_ids = $wpdb->get_col($wpdb->prepare(
+					"SELECT ID FROM {$wpdb->posts}
+					 WHERE (post_title LIKE %s OR post_content LIKE %s)
+						AND post_type = 'listing' 
+						AND post_status = 'publish'",
+					$escaped_part,
+					$escaped_part
+				));
+				
+				$current_location_post_ids = array_merge($post_ids, $content_post_ids);
+			}
+		} 
+		elseif ($attempt['type'] == 'and') {
+			// Search for listings that contain ALL terms (simplified approach)
+			$terms = $attempt['terms'];
+			$all_post_ids = array();
+			
+			// Get posts for each term, then find intersection
+			foreach ($terms as $term) {
+				$escaped_term = '%' . $wpdb->esc_like($term) . '%';
+				
+				if ($search_only_address) {
+					$term_post_ids = $wpdb->get_col($wpdb->prepare(
+						"SELECT DISTINCT post_id FROM {$wpdb->postmeta} 
+						 WHERE (meta_key = '_address' AND meta_value LIKE %s)
+							OR (meta_key = '_friendly_address' AND meta_value LIKE %s)",
+						$escaped_term,
+						$escaped_term
+					));
+				} else {
+					$meta_post_ids = $wpdb->get_col($wpdb->prepare(
+						"SELECT DISTINCT post_id FROM {$wpdb->postmeta} 
+						 WHERE meta_value LIKE %s",
+						$escaped_term
+					));
+					
+					$content_post_ids = $wpdb->get_col($wpdb->prepare(
+						"SELECT ID FROM {$wpdb->posts}
+						 WHERE (post_title LIKE %s OR post_content LIKE %s)
+							AND post_type = 'listing' 
+							AND post_status = 'publish'",
+						$escaped_term,
+						$escaped_term
+					));
+					
+					$term_post_ids = array_merge($meta_post_ids, $content_post_ids);
+				}
+				
+				if (empty($all_post_ids)) {
+					$all_post_ids = $term_post_ids;
+				} else {
+					// Find intersection - posts that have ALL terms
+					$all_post_ids = array_intersect($all_post_ids, $term_post_ids);
+				}
+				
+				// If no posts have all terms so far, break early
+				if (empty($all_post_ids)) {
+					break;
+				}
+			}
+			
+			$current_location_post_ids = $all_post_ids;
+		}
+		elseif ($attempt['type'] == 'single') {
+			// Search for single term
+			$escaped_part = '%' . $wpdb->esc_like($attempt['term']) . '%';
+			
+			if ($search_only_address) {
+				$current_location_post_ids = $wpdb->get_col($wpdb->prepare(
+					"SELECT DISTINCT post_id FROM {$wpdb->postmeta} 
+					 WHERE (meta_key = '_address' AND meta_value LIKE %s)
+						OR (meta_key = '_friendly_address' AND meta_value LIKE %s)",
+					$escaped_part,
+					$escaped_part
+				));
+			} else {
+				$post_ids = $wpdb->get_col($wpdb->prepare(
+					"SELECT DISTINCT post_id FROM {$wpdb->postmeta} 
+					 WHERE meta_value LIKE %s",
+					$escaped_part
+				));
+				
+				$content_post_ids = $wpdb->get_col($wpdb->prepare(
+					"SELECT ID FROM {$wpdb->posts}
+					 WHERE (post_title LIKE %s OR post_content LIKE %s)
+						AND post_type = 'listing' 
+						AND post_status = 'publish'",
+					$escaped_part,
+					$escaped_part
+				));
+				
+				$current_location_post_ids = array_merge($post_ids, $content_post_ids);
+			}
+		}
+		
+		// If we found results with this attempt, use them and stop searching
+		if (!empty($current_location_post_ids)) {
+			return $current_location_post_ids;
+		}
+	}
+	
+	// No results found - return array with 0 for WordPress query compatibility
+	return array(0);
+}
+
+/**
+ * Basic location search function - original simple approach
+ * 
+ * @param string $location The location string to search for
+ * @param boolean $search_only_address Whether to restrict search to address fields only
+ * @return array Array of post IDs that match the location search
+ */
+function listeo_core_search_location_basic($location, $search_only_address = null) {
+	if (empty($location)) {
+		return array(0);
+	}
+	
+	global $wpdb;
+	
+	// Get the search restriction setting if not provided
+	if ($search_only_address === null) {
+		$search_only_address = (get_option('listeo_search_only_address', 'off') == 'on');
+	}
+	
+	$locations = array_map('trim', explode(',', $location));
+
+	// Setup SQL
+	$posts_locations_sql    = array();
+	$postmeta_locations_sql = array();
+
+	if ($search_only_address) {
+		$postmeta_locations_sql[] = " meta_value LIKE '%" . esc_sql($locations[0]) . "%'  AND meta_key = '_address'";
+		$postmeta_locations_sql[] = " meta_value LIKE '%" . esc_sql($locations[0]) . "%'  AND meta_key = '_friendly_address'";
+	} else {
+		$postmeta_locations_sql[] = " meta_value LIKE '%" . esc_sql($locations[0]) . "%' ";
+		// Create post title and content SQL
+		$posts_locations_sql[]    = " post_title LIKE '%" . esc_sql($locations[0]) . "%' OR post_content LIKE '%" . esc_sql($locations[0]) . "%' ";
+	}
+
+	// Get post IDs from post meta search
+	$post_ids = $wpdb->get_col("
+		SELECT DISTINCT post_id FROM {$wpdb->postmeta}
+		WHERE " . implode(' OR ', $postmeta_locations_sql) . "
+	");
+
+	// Merge with post IDs from post title and content search
+	if ($search_only_address) {
+		$location_post_ids = array_merge($post_ids, array(0));
+	} else {
+		$location_post_ids = array_merge($post_ids, $wpdb->get_col("
+			SELECT ID FROM {$wpdb->posts}
+			WHERE ( " . implode(' OR ', $posts_locations_sql) . " )
+			AND post_type = 'listing'
+			AND post_status = 'publish'
+		"), array(0));
+	}
+	
+	return array_unique($location_post_ids);
 }
 
 function listeo_core_get_place_id($post)
@@ -1372,34 +1985,284 @@ function listeo_core_get_place_id($post)
 	}
 }
 
+
+function check_comment_hash_part($comment, $status = 'approved')
+{
+	$name = isset($comment->comment_author) ? $comment->comment_author : '';
+	$email = isset($comment->comment_author_email) ? $comment->comment_author_email : '';
+	$date = isset($comment->comment_date_gmt) ? $comment->comment_date_gmt : '';
+
+	return wp_hash(
+		implode(
+			'|',
+			array_filter(
+				array($name, $email, $date, $status)
+			)
+		)
+	);
+}
+
 function listeo_get_google_reviews($post)
 {
 	$reviews = false;
+
+	// Debug: Allow cache clearing via URL parameter
+	if (isset($_GET['clear_google_cache']) && current_user_can('manage_options')) {
+		delete_transient('listeo_reviews_' . $post->ID);
+	}
+
 	if (get_option('listeo_google_reviews')) {
 
+		$place_id = get_post_meta($post->ID, '_place_id', true);
 
-		if (get_transient('listeo_reviews_' . $post->ID)) {
-			$reviews =  get_transient('listeo_reviews_' . $post->ID);
+
+		// Check for stale Google data - if no place ID but Google data exists, clean it up
+		if (empty($place_id)) {
+			// Check if we have stale Google review data
+			$google_rating = get_post_meta($post->ID, '_google_rating', true);
+			$google_count = get_post_meta($post->ID, '_google_review_count', true);
+
+			if (!empty($google_rating) || !empty($google_count)) {
+				// Clean up stale Google data
+				delete_post_meta($post->ID, '_google_rating');
+				delete_post_meta($post->ID, '_google_review_count');
+				delete_post_meta($post->ID, '_google_last_updated');
+				delete_transient('listeo_reviews_' . $post->ID);
+
+				// Force recalculate combined rating without Google data
+				// Clear existing combined rating to ensure fresh calculation
+				delete_post_meta($post->ID, '_combined_rating');
+				delete_post_meta($post->ID, '_combined_review_count');
+
+				$reviews_instance = Listeo_Core_Reviews::instance();
+				if (method_exists($reviews_instance, 'get_combined_rating')) {
+					$new_combined_rating = $reviews_instance->get_combined_rating($post->ID);
+				}
+
+
+			}
+
+			return false;
+		}
+
+		// Initialize gateway if available
+		$gateway = null;
+		if (class_exists('Listeo_Core_Google_Reviews_Gateway')) {
+			$gateway = listeo_google_reviews_gateway();
+		}
+
+		// Check transient cache first
+		$cached_reviews = get_transient('listeo_reviews_' . $post->ID);
+		if ($cached_reviews) {
+			$reviews = $cached_reviews;
+
+
+			// Log cache hit if gateway is enabled
+			if ($gateway && $gateway->is_enabled()) {
+				$gateway->log_api_call($post->ID, $place_id, true, 'cache_hit');
+			}
+
+			// Ensure permanent storage is updated even when using cached data
+			if (isset($reviews['result']['rating'])) {
+				$current_google_rating = get_post_meta($post->ID, '_google_rating', true);
+				$current_google_count = get_post_meta($post->ID, '_google_review_count', true);
+
+				// Update permanent storage if it's missing or different
+				if (empty($current_google_rating) || $current_google_rating != $reviews['result']['rating']) {
+					update_post_meta($post->ID, '_google_rating', $reviews['result']['rating']);
+				}
+				if (isset($reviews['result']['user_ratings_total']) &&
+					(empty($current_google_count) || $current_google_count != $reviews['result']['user_ratings_total'])) {
+					update_post_meta($post->ID, '_google_review_count', $reviews['result']['user_ratings_total']);
+				}
+
+				// Trigger combined rating recalculation if needed
+				$combined_rating = get_post_meta($post->ID, '_combined_rating', true);
+				if (empty($combined_rating)) {
+					$reviews_instance = Listeo_Core_Reviews::instance();
+					if (method_exists($reviews_instance, 'get_combined_rating')) {
+						$reviews_instance->get_combined_rating($post->ID);
+					}
+				}
+			}
 		} else {
+			// Check rate limiting gateway if enabled
+			if ($gateway && $gateway->is_enabled()) {
+				if (!$gateway->should_allow_api_call($post->ID, $place_id)) {
 
-			$api_key = get_option('listeo_maps_api_server');
-			$place_id = get_post_meta($post->ID, '_place_id', true);
+					// Rate limited - try to return cached/stored data
+					$google_rating = get_post_meta($post->ID, '_google_rating', true);
+					$google_count = get_post_meta($post->ID, '_google_review_count', true);
+
+					if ($google_rating) {
+
+						// Return stored data in expected format
+						$reviews = array(
+							'result' => array(
+								'rating' => $google_rating,
+								'user_ratings_total' => $google_count,
+								'from_cache' => true,
+								'rate_limited' => true,
+							),
+							'status' => 'OK',
+						);
+
+						// Extend cache time when rate limited
+						$extended_cache = 12; // Cache for 12 hours when rate limited
+						set_transient('listeo_reviews_' . $post->ID, $reviews, $extended_cache * HOUR_IN_SECONDS);
+
+						return $reviews;
+					}
+
+					return false; // No cached data available
+				}
+			}
+
+			// Proceed with API call
+			// Use dedicated Google Reviews API key if available, fallback to geocoding API key
+			$api_key = get_option('listeo_google_reviews_api_key');
+			if (empty($api_key)) {
+				$api_key = get_option('listeo_maps_api_server');
+			}
 			$language = get_option('listeo_google_reviews_lang', 'en');
-			//$url = "https://maps.googleapis.com/maps/api/place/details/json?key={$api_key}&placeid={$place_id}&language={$language}";
-			$url = "https://maps.googleapis.com/maps/api/place/details/json?placeid={$place_id}&fields=name%2Crating%2Creviews%2Cbusiness_status%2Cformatted_phone_number%2Copening_hours/periods%2Cuser_ratings_total&key={$api_key}&language={$language}";
+
+			// Build URL with proper review parameters
+			$url = "https://maps.googleapis.com/maps/api/place/details/json?placeid={$place_id}&fields=name%2Crating%2Creviews%2Cbusiness_status%2Cformatted_phone_number%2Copening_hours/periods%2Cuser_ratings_total&key={$api_key}&language={$language}&reviews_sort=newest&reviews_no_translations=false";
+
 			$resp_json = wp_remote_get($url);
 
-			$reviews = wp_remote_retrieve_body($resp_json);
-			
-			$reviews = preg_replace('/[\x{1F600}-\x{1F64F}]/u', '', $reviews);  //remove emojis 
-			$reviews = json_decode($reviews, true);
+			$reviews_raw = wp_remote_retrieve_body($resp_json);
 
-			$cache_time  = get_option('listeo_google_reviews_cache_days', 1);
-			set_transient('listeo_reviews_' . $post->ID, $reviews, $cache_time * 24 * HOUR_IN_SECONDS);
+			$reviews_clean = preg_replace('/[\x{1F600}-\x{1F64F}]/u', '', $reviews_raw);  //remove emojis
+			$reviews = json_decode($reviews_clean, true);
+
+			// Log successful API call if gateway is enabled
+			if ($gateway && $gateway->is_enabled()) {
+				$status = (isset($reviews['status']) && $reviews['status'] === 'OK') ? 'success' : 'error';
+				$gateway->log_api_call($post->ID, $place_id, false, $status);
+			}
+
+			// Get cache duration - use smart caching if gateway is enabled
+			if ($gateway && $gateway->is_enabled()) {
+				$cache_time = $gateway->get_smart_cache_duration($post->ID);
+			} else {
+				$cache_time = get_option('listeo_google_reviews_cache_days', 1);
+			}
+
+
+			set_transient('listeo_reviews_' . $post->ID, $reviews, (int) $cache_time * 24 * HOUR_IN_SECONDS);
+
+			// Always store permanent meta data when fetching fresh data
+			if (isset($reviews['result']['rating'])) {
+				update_post_meta($post->ID, '_google_rating', $reviews['result']['rating']);
+				// Store Google review count
+				if (isset($reviews['result']['user_ratings_total'])) {
+					update_post_meta($post->ID, '_google_review_count', $reviews['result']['user_ratings_total']);
+				}
+				// Store timestamp of last update
+				update_post_meta($post->ID, '_google_last_updated', current_time('mysql'));
+
+				// Trigger combined rating recalculation
+				$reviews_instance = Listeo_Core_Reviews::instance();
+				if (method_exists($reviews_instance, 'get_combined_rating')) {
+					$reviews_instance->get_combined_rating($post->ID);
+				}
+			}
 		}
 	}
 
+
 	return $reviews;
+}
+
+/**
+ * Get combined rating display data for a listing
+ * Returns combined rating from Google and Listeo reviews, with fallback to existing logic
+ * 
+ * @param int $post_id The post ID
+ * @return array Array with 'rating' and 'count' keys
+ */
+function listeo_get_rating_display($post_id) {
+	// Check for stale Google data and clean up if needed (max once per 24h per listing)
+	$stale_check_key = 'stale_check_' . $post_id;
+	$last_stale_check = get_transient($stale_check_key);
+	
+	if (!$last_stale_check) {
+		$place_id = get_post_meta($post_id, '_place_id', true);
+		if (empty($place_id)) {
+			// Check if we have stale Google review data
+			$google_rating = get_post_meta($post_id, '_google_rating', true);
+			$google_count = get_post_meta($post_id, '_google_review_count', true);
+			
+			if (!empty($google_rating) || !empty($google_count)) {
+				// Clean up stale Google data
+				delete_post_meta($post_id, '_google_rating');
+				delete_post_meta($post_id, '_google_review_count');
+				delete_post_meta($post_id, '_google_last_updated');
+				delete_transient('listeo_reviews_' . $post_id);
+				
+				// Force recalculate combined rating without Google data
+				// Clear existing combined rating to ensure fresh calculation
+				delete_post_meta($post_id, '_combined_rating');
+				delete_post_meta($post_id, '_combined_review_count');
+				
+				$reviews_instance = Listeo_Core_Reviews::instance();
+				if (method_exists($reviews_instance, 'get_combined_rating')) {
+					$new_combined_rating = $reviews_instance->get_combined_rating($post_id);
+				}
+				
+				// Log the cleanup for debugging
+				
+			}
+		}
+		
+		// Set 24h transient to prevent frequent stale data checks
+		set_transient($stale_check_key, time(), 24 * HOUR_IN_SECONDS);
+	}
+	
+	// Try to get cached combined rating first
+	$combined_rating = get_post_meta($post_id, '_combined_rating', true);
+	$combined_count = get_post_meta($post_id, '_combined_review_count', true);
+	
+	// If combined rating exists (even if 0), use it
+	if ($combined_rating !== '' && $combined_count !== '') {
+		return array(
+			'rating' => floatval($combined_rating),
+			'count' => intval($combined_count)
+		);
+	}
+	
+	// Fallback: Calculate combined rating on the fly
+	$reviews_instance = Listeo_Core_Reviews::instance();
+	if (method_exists($reviews_instance, 'get_combined_rating')) {
+		$rating = $reviews_instance->get_combined_rating($post_id);
+		$count = intval(get_post_meta($post_id, '_combined_review_count', true));
+		
+		return array(
+			'rating' => $rating,
+			'count' => $count
+		);
+	}
+	
+	// Final fallback: Use existing Listeo rating logic
+	$rating = get_post_meta($post_id, 'listeo-avg-rating', true);
+	$comments_count = wp_count_comments($post_id);
+	$count = intval($comments_count->approved);
+	
+	// If no local reviews but Google reviews are enabled, try Google rating
+	if (empty($rating) && get_option('listeo_google_reviews_instead')) {
+		$google_rating = get_post_meta($post_id, '_google_rating', true);
+		$google_count = get_post_meta($post_id, '_google_review_count', true);
+		if (!empty($google_rating)) {
+			$rating = $google_rating;
+			$count = intval($google_count);
+		}
+	}
+	
+	return array(
+		'rating' => floatval($rating),
+		'count' => $count
+	);
 }
 
 /**
@@ -1458,34 +2321,6 @@ function listeo_is_rated()
 
 
 
-function listeo_post_view_count()
-{
-	if (is_single()) {
-
-		global $post;
-		$count_post 	= get_post_meta($post->ID, '_listing_views_count', true);
-		$author_id 		= get_post_field('post_author', $post->ID);
-
-		$total_views 	= get_user_meta($author_id, 'listeo_total_listing_views', true);
-
-		if ($count_post == '') {
-
-			$count_post = 1;
-			add_post_meta($post->ID, '_listing_views_count', $count_post);
-
-			$total_views = (int) $total_views + 1;
-			update_user_meta($author_id, 'listeo_total_listing_views', $total_views);
-		} else {
-
-			$total_views = (int) $total_views + 1;
-			update_user_meta($author_id, 'listeo_total_listing_views', $total_views);
-
-			$count_post = (int)$count_post + 1;
-			update_post_meta($post->ID, '_listing_views_count', $count_post);
-		}
-	}
-}
-add_action('wp_head', 'listeo_post_view_count');
 
 function listeo_count_user_comments($args = array())
 {
@@ -1516,7 +2351,7 @@ function listeo_count_user_comments($args = array())
 
 
 
-if (!function_exists('listeo_comment_review')) :
+
 	/**
 	 * Template for comments and pingbacks.
 	 *
@@ -1547,7 +2382,7 @@ if (!function_exists('listeo_comment_review')) :
 						<div class="arrow-comment"></div>
 
 						<div class="comment-by">
-
+						
 							<?php if ($comment->user_id === $post->post_author) { ?>
 								<h5><?php esc_html_e('Owner', 'listeo_core') ?></h5>
 							<?php } else {
@@ -1585,7 +2420,7 @@ if (!function_exists('listeo_comment_review')) :
 				break;
 		endswitch;
 	}
-endif; // ends check for listeo_comment()
+
 
 function listeo_get_days()
 {
@@ -1646,6 +2481,10 @@ function listeo_check_if_open($post = '')
 		global $post;
 	}
 
+
+
+	
+
 	$days = listeo_get_days();
 	$storeSchedule = array();
 	foreach ($days as $d_key => $value) {
@@ -1676,7 +2515,7 @@ function listeo_check_if_open($post = '')
 
 	if (empty($meta_timezone)) {
 
-		$timeObject = new DateTime(null, listeo_get_timezone());
+		$timeObject = new DateTime('now', listeo_get_timezone());
 		$timestamp 		= $timeObject->getTimeStamp();
 		$currentTime 	= $timeObject->setTimestamp($timestamp)->format('Hi');
 	} else {
@@ -1694,7 +2533,7 @@ function listeo_check_if_open($post = '')
 
 
 		date_default_timezone_set($meta_timezone);
-		$timeObject = new DateTime(null);
+		$timeObject = new DateTime();
 		$timestamp 		= $timeObject->getTimeStamp();
 		$currentTime 	= $timeObject->setTimestamp($timestamp)->format('Hi');
 		// echo $currentTime;
@@ -1814,18 +2653,32 @@ function listeo_check_if_open($post = '')
 					$end_time = $endTime[$key];
 					//backward
 					if (!empty($start_time) && is_numeric(substr($start_time, 0, 1))) {
+						
 						if (substr($start_time, -1) == 'M') {
-							$start_time = DateTime::createFromFormat('h:i A', $start_time)->format('Hi');
+							$start_time = DateTime::createFromFormat('h:i A', $start_time);
+							if ($start_time) {
+								$start_time = $start_time->format('Hi');
+							}
 						} else {
-							$start_time = DateTime::createFromFormat('H:i', $start_time)->format('Hi');
+							$start_time = DateTime::createFromFormat('H:i', $start_time);
+
+							if ($start_time) {
+								$start_time = $start_time->format('Hi');
+							}
 						}
 					}
 					//create time objects from start/end times and format as string (24hr AM/PM)
 					if (!empty($end_time)  && is_numeric(substr($end_time, 0, 1))) {
 						if (substr($end_time, -1) == 'M') {
-							$end_time = DateTime::createFromFormat('h:i A', $end_time)->format('Hi');
+							$end_time = DateTime::createFromFormat('h:i A', $end_time);
+							if ($end_time) {
+								$end_time = $end_time->format('Hi');
+							}
 						} else {
-							$end_time = DateTime::createFromFormat('H:i', $end_time)->format('Hi');
+							$end_time = DateTime::createFromFormat('H:i', $end_time);
+							if ($end_time) {
+								$end_time = $end_time->format('Hi');
+							}
 						}
 					}
 
@@ -1837,7 +2690,7 @@ function listeo_check_if_open($post = '')
 			} else {
 
 				//backward
-				if (!empty($startTime) && is_numeric(substr($startTime, 0, 1))) {
+				if (!empty($startTime) && !is_array($startTime) && is_numeric(substr($startTime, 0, 1))) {
 					if (substr($startTime, -1) == 'M') {
 						$startTime = DateTime::createFromFormat('h:i A', $startTime)->format('Hi');
 					} else {
@@ -1845,7 +2698,7 @@ function listeo_check_if_open($post = '')
 					}
 				}
 				//create time objects from start/end times and format as string (24hr AM/PM)
-				if (!empty($endTime)  && is_numeric(substr($endTime, 0, 1))) {
+				if (!empty($endTime) && !is_array($endTime) && is_numeric(substr($endTime, 0, 1))) {
 					if (substr($endTime, -1) == 'M') {
 						$endTime = DateTime::createFromFormat('h:i A', $endTime)->format('Hi');
 					} else {
@@ -2034,27 +2887,27 @@ function listeo_get_geo_data($post)
 	$longitude = get_post_meta($post->ID, '_geolocation_long', true);
 	if (!empty($latitude) && $disable_address) {
 		$dither = 0.001;
-		$latitude = $latitude + (rand(5, 15) - 0.5) * $dither;
+		$latitude = (float) $latitude + (rand(5, 15) - 0.5) * $dither;
 	}
 
-	$rating = esc_attr(get_post_meta($post->ID, 'listeo-avg-rating', true));
-	$reviews = listeo_get_reviews_number($post->ID);
-	if (!$rating) {
-		$reviews = listeo_get_google_reviews($post);
-		if (!empty($reviews['result']['reviews'])) {
-			$rating = number_format_i18n($reviews['result']['rating'], 1);
-
-			$rating = str_replace(',', '.', $rating);
-			$reviews = $reviews['result']['user_ratings_total'];
-		} else {
-			$reviews  = listeo_get_reviews_number($post->ID);
-		}
-	}
+	// Use the new combined rating display function
+	$rating_data = listeo_get_rating_display($post->ID);
+	$rating = esc_attr($rating_data['rating']);
+	$reviews = $rating_data['count'];
+	
+		$currency_abbr = get_option('listeo_currency');
+		$currency_postion = get_option('listeo_currency_postion');
+		$currency_symbol = Listeo_Core_Listing::get_currency_symbol($currency_abbr);
 	ob_start(); ?>
 
 		data-title="<?php the_title(); ?>"
 		data-listing-type="<?php echo esc_attr($listing_type); ?>"
-		data-classifieds-price="$<?php echo esc_attr(get_post_meta($post->ID, '_classifieds_price', true)); ?>"
+		data-classifieds-price="<?php if ($currency_postion == "before") {
+									echo $currency_symbol;
+								} echo esc_attr(get_post_meta($post->ID, '_classifieds_price', true));
+								if ($currency_postion == "after") {
+									echo $currency_symbol;
+								} ?>"
 		data-friendly-address="<?php echo esc_attr(get_post_meta($post->ID, '_friendly_address', true)); ?>"
 		data-address="<?php the_listing_address(); ?>"
 		data-image="<?php echo listeo_core_get_listing_image($post->ID); ?>"
@@ -2151,32 +3004,58 @@ function listeo_count_bookings($user_id, $status, $bookings_author = '')
 	} else if ($status == 'waiting') {
 		$status_sql = "AND status IN ('waiting','pay_to_confirm')";
 	} else {
-		$status_sql = "AND status='$status'";
+		$status_sql = $wpdb->prepare("AND status = %s", sanitize_text_field($status));
 	}
 	if (!empty($bookings_author)) {
-		$status_sql .= "AND bookings_author='$bookings_author'";
+		$status_sql .= $wpdb->prepare("AND bookings_author = %s", sanitize_text_field($bookings_author));
 	}
+	$sql = "
+		SELECT * FROM `{$wpdb->prefix}bookings_calendar`
+		WHERE owner_id = %d
+		{$status_sql}
+	";
 
-	$result  = $wpdb->get_results("SELECT * FROM `" . $wpdb->prefix . "bookings_calendar` WHERE owner_id=$user_id $status_sql", "ARRAY_A");
+	$result = $wpdb->get_results(
+		$wpdb->prepare($sql, $user_id),
+		"ARRAY_A"
+	);
 	return $wpdb->num_rows;
 }
 
 function listeo_count_my_bookings($user_id)
 {
 	global $wpdb;
-	$result  = $wpdb->get_results("SELECT * FROM `" . $wpdb->prefix . "bookings_calendar` WHERE NOT comment = 'owner reservations' AND (`bookings_author` = '$user_id') AND (`type` = 'reservation')", "ARRAY_A");
+	$user_id = (int) $user_id;
+	$sql = "
+    SELECT * FROM `{$wpdb->prefix}bookings_calendar`
+    WHERE NOT comment = 'owner reservations'
+    AND bookings_author = %d
+    AND type = 'reservation'
+";
 
+	$result = $wpdb->get_results(
+		$wpdb->prepare($sql, $user_id),
+		"ARRAY_A"
+	);
 	return $wpdb->num_rows;
 }
 
 function listeo_get_bookings_author($user_id)
 {
 	global $wpdb;
-	$result  = $wpdb->get_results("SELECT DISTINCT `bookings_author` FROM `" . $wpdb->prefix . "bookings_calendar` WHERE `owner_id` = '$user_id'", "ARRAY_N");
+
+	$sql = $wpdb->prepare(
+		"SELECT DISTINCT `bookings_author` 
+		 FROM `{$wpdb->prefix}bookings_calendar` 
+		 WHERE `owner_id` = %d",
+		(int) $user_id
+	);
+
+	$result = $wpdb->get_results($sql, "ARRAY_N");
 	return $result;
 }
 
-if (!function_exists('listeo_write_log')) {
+
 	function listeo_write_log($log)
 	{
 		if (is_array($log) || is_object($log)) {
@@ -2185,165 +3064,9 @@ if (!function_exists('listeo_write_log')) {
 			error_log($log);
 		}
 	}
-}
 
 
 
-//cmb2 slots field
-function cmb2_render_callback_for_slots($field, $escaped_value, $object_id, $object_type, $field_type_object)
-{
-	$clock_format = get_option('listeo_clock_format', '12') ?>
-
-		<div class="availability-slots" data-clock-type="<?php echo esc_attr($clock_format); ?>hr">
-
-			<?php
-			$days = array(
-				'monday'	=> __('Monday', 'listeo_core'),
-				'tuesday' 	=> __('Tuesday', 'listeo_core'),
-				'wednesday' => __('Wednesday', 'listeo_core'),
-				'thursday' 	=> __('Thursday', 'listeo_core'),
-				'friday' 	=> __('Friday', 'listeo_core'),
-				'saturday' 	=> __('Saturday', 'listeo_core'),
-				'sunday' 	=> __('Sunday', 'listeo_core'),
-			);
-
-			if (!is_array($field->value)) {
-				$field = json_decode($field->value);
-			} else {
-				$field = $field->value;
-			}
-
-			$int = 0;
-			?>
-
-			<?php foreach ($days as $id => $dayname) {
-			?>
-
-				<!-- Single Day Slots -->
-				<div class="day-slots">
-					<div class="day-slot-headline">
-						<?php echo esc_html($dayname); ?>
-					</div>
-
-
-					<!-- Slot For Cloning / Do NOT Remove-->
-					<div class="single-slot cloned">
-						<div class="single-slot-left">
-							<div class="single-slot-time"><?php echo esc_html($dayname); ?></div>
-							<button class="remove-slot"><i class="fa fa-close"></i></button>
-						</div>
-
-						<div class="single-slot-right">
-							<strong><?php esc_html_e('Slots', 'listeo_core'); ?></strong>
-							<div class="plusminus horiz">
-								<button></button>
-								<input type="number" name="slot-qty" id="slot-qty" value="1" min="1" max="99">
-								<button></button>
-							</div>
-						</div>
-					</div>
-					<!-- Slot For Cloning / Do NOT Remove-->
-
-					<?php if (!isset($field[$int][0])) { ?>
-						<!-- No slots -->
-						<div class="no-slots"><?php esc_html_e('No slots added', 'listeo_core'); ?></div>
-					<?php } ?>
-					<!-- Slots Container -->
-					<div class="slots-container">
-
-
-						<!-- Slots from database loop -->
-						<?php if (isset($field) && is_array($field[$int])) foreach ($field[$int] as $slot) { // slots loop
-							$slot = explode('|', $slot); ?>
-							<div class="single-slot ui-sortable-handle">
-								<div class="single-slot-left">
-									<div class="single-slot-time"><?php echo esc_html($slot[0]); ?></div>
-									<button class="remove-slot"><i class="fa fa-close"></i></button>
-								</div>
-
-								<div class="single-slot-right">
-									<strong><?php esc_html_e('Slots', 'listeo_core'); ?></strong>
-									<div class="plusminus horiz">
-										<button disabled=""></button>
-										<input type="number" name="slot-qty" id="slot-qty" value="<?php echo esc_html($slot[1]); ?>" min="1" max="99">
-										<button></button>
-									</div>
-								</div>
-							</div>
-						<?php } ?>
-						<!-- Slots from database / End -->
-
-					</div>
-					<!-- Slots Container / End -->
-					<!-- Add Slot -->
-					<div class="add-slot">
-						<div class="add-slot-inputs">
-							<input type="time" class="time-slot-start" min="00:00" max="12:59" />
-							<?php if ($clock_format == '12') { ?>
-								<select class="time-slot-start twelve-hr" id="">
-									<option><?php esc_html_e('am', 'listeo_core'); ?></option>
-									<option><?php esc_html_e('pm', 'listeo_core'); ?></option>
-								</select>
-							<?php } ?>
-
-							<span>-</span>
-
-							<input type="time" class="time-slot-end" min="00:00" max="12:59" />
-							<?php if ($clock_format == '12') { ?>
-								<select class="time-slot-end twelve-hr" id="">
-									<option><?php esc_html_e('am'); ?></option>
-									<option><?php esc_html_e('pm'); ?></option>
-								</select>
-							<?php } ?>
-
-						</div>
-						<div class="add-slot-btn">
-							<button><?php esc_html_e('Add', 'listeo_core'); ?></button>
-						</div>
-					</div>
-				</div>
-			<?php
-				$int++;
-			} ?>
-
-		</div>
-
-	<?php
-	echo $field_type_object->input(array('type' => 'hidden'));
-}
-add_action('cmb2_render_slots', 'cmb2_render_callback_for_slots', 10, 5);
-
-function cmb2_render_callback_for_listeo_calendar($field, $escaped_value, $object_id, $object_type, $field_type)
-{
-
-	$calendar = new Listeo_Core_Calendar;
-
-	echo $calendar->getCalendarHTML();
-	// make sure we specify each part of the value we need.
-	$value = wp_parse_args($field->value, array(
-
-		'dates'     => '',
-		'price'       => '',
-	));
-
-	echo $field_type->input(array(
-		'name'  => $field_type->_name('[dates]'),
-		'id'    => $field_type->_id('dates'),
-		'class'    => 'listeo-calendar-avail',
-		'value' => esc_attr($value['dates']),
-		'type'  => 'hidden',
-	));
-	echo $field_type->input(array(
-		'name'  => $field_type->_name('[price]'),
-		'id'    => $field_type->_id('price'),
-		'class'    => 'listeo-calendar-price',
-		'value' => esc_attr($value['price']),
-		'type'  => 'hidden',
-	)); ?>
-
-		<?php
-	}
-	add_action('cmb2_render_listeo_calendar', 'cmb2_render_callback_for_listeo_calendar', 10, 5);
 
 	function listeo_get_bookable_services($post_id)
 	{
@@ -2402,7 +3125,6 @@ function cmb2_render_callback_for_listeo_calendar($field, $escaped_value, $objec
 
 		return apply_filters('listeo_prepare_uploaded_files', $files_to_upload);
 	}
-
 
 
 	/**
@@ -2496,7 +3218,11 @@ function cmb2_render_callback_for_listeo_calendar($field, $escaped_value, $objec
 			'pdf'          => 'application/pdf',
 			'doc'          => 'application/msword',
 			'docx'         => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+			'mp4'          => 'video/mp4',
+			'avi'          => 'video/avi',
+			'mov'          => 'video/quicktime',
 		);
+
 
 		/**
 		 * Mime types to accept in uploaded files.
@@ -2518,37 +3244,41 @@ function cmb2_render_callback_for_listeo_calendar($field, $escaped_value, $objec
 	//listeo_fields_for_cmb2
 
 
-	if (!function_exists('listeo_date_to_cal')) {
+	
 		function listeo_date_to_cal($timestamp)
 		{
 			return date('Ymd\THis\Z', $timestamp);
 		}
-	}
+	
 
-	if (!function_exists('listeo_escape_string')) {
+	
 		function listeo_escape_string($string)
 		{
 			return preg_replace('/([\,;])/', '\\\$1', $string);
 		}
-	}
+	
 
-	function listeo_calculate_service_price($service, $guests, $days, $countable)
+	function listeo_calculate_service_price($service, $adults, $children,  $children_discount, $days, $countable)
 	{
-
+	
 		if (isset($service['bookable_options'])) {
 			switch ($service['bookable_options']) {
 				case 'onetime':
 					$price = $service['price'];
 					break;
 				case 'byguest':
-					$price = $service['price'] * (int) $guests;
+					$price_adults = $service['price'] * (int) $adults;
+					$price_children =  $service['price'] * (1 - ((int)$children_discount/100));
 
+					$price = $price_adults + ($price_children * (int) $children);
 					break;
 				case 'bydays':
 					$price = $service['price'] * (int) $days;
 					break;
 				case 'byguestanddays':
-					$price = $service['price'] * (int) $days * (int) $guests;
+					$price_adults = $service['price'] * (int) $days * (int) $adults;
+					$price_children =  $service['price'] * (1 - ((int)$children_discount/100));
+					$price = $price_adults + ($price_children * (int) $days * (int) $children);
 					break;
 				default:
 					$price = $service['price'];
@@ -2557,7 +3287,7 @@ function cmb2_render_callback_for_listeo_calendar($field, $escaped_value, $objec
 
 			return (float) $price * (int)$countable;
 		} else {
-			return $service['price'] * (int)$countable;
+			return (float) $service['price'] * (int)$countable;
 		}
 	}
 
@@ -2593,7 +3323,7 @@ function cmb2_render_callback_for_listeo_calendar($field, $escaped_value, $objec
 					$output .= 	' <em>(*' . $booked_service->countable . ')</em>';
 				}
 
-				$output .=  '<span class="services-list-price-tag">' . $price . '</span></li>';
+				$output .=  ' <span class="services-list-price-tag">' . $price . '</span></li>';
 
 				# code...
 			}
@@ -2608,7 +3338,9 @@ function cmb2_render_callback_for_listeo_calendar($field, $escaped_value, $objec
 	{
 
 		$user_info = $user_id ? new WP_User($user_id) : wp_get_current_user();
-
+		if (!empty($user_info->display_name)) {
+			return $user_info->display_name;
+		}
 		if ($user_info->first_name) {
 
 			if ($user_info->last_name) {
@@ -2759,7 +3491,14 @@ function cmb2_render_callback_for_listeo_calendar($field, $escaped_value, $objec
 						<div class="<?php echo $width . ' ' . $css_class; ?>">
 							<?php if ($has_icon) { ?><div class="input-with-icon medium-icons"><?php } ?>
 								<label class="listeo-booking-custom-<?php echo esc_attr($field['type']); ?>" id="listeo-booking-custom-<?php echo esc_attr($key); ?>" for="<?php echo esc_attr($key); ?>">
-									<?php echo $field['label'];
+									<?php
+									// remove slash before appostrophe
+									echo stripslashes($field['label']);
+									
+									if(isset($field['required']) &&  !empty($field['required']))  {
+										echo '<i class="fas fa-asterisk"></i>';
+									}
+									
 									?></label><?php
 												$template_loader->set_template_data(array('key' => $key, 'field' => $field,))->get_template_part('form-fields/' . $field['type']);
 												if ($has_icon) { ?>
@@ -2810,7 +3549,7 @@ function cmb2_render_callback_for_listeo_calendar($field, $escaped_value, $objec
 
 			$show_message = false;
 
-			if (class_exists("ListeoBase") && empty($licenseKey) && ListeoBase::CheckWPPlugin($licenseKey, $liceEmail, $licenseMessage, $responseObj, $templateDir . "/style.css")) {
+			if (class_exists("b472b0Base") && empty($licenseKey) && b472b0Base::CheckWPPlugin($licenseKey, $liceEmail, $licenseMessage, $responseObj, $templateDir . "/style.css")) {
 
 				ob_start();
 
@@ -2825,7 +3564,7 @@ function cmb2_render_callback_for_listeo_calendar($field, $escaped_value, $objec
 						<li>No Support. You won't get support from us if you run in any problems with your site. And <a class="link" href="https://themeforest.net/item/listeo-directory-listings-wordpress-theme/reviews/23239259?utf8=%E2%9C%93&reviews_controls%5Bsort%5D=ratings_descending">our Support is awesome</a>.</li>
 						<li>Legal issues. Nulled plugins may involve the distribtuion of illegal material or data theft, leading to legal proceedings</li>
 					</ul>
-					<a style="zoom:1.3" href="https://bit.ly/listeo-nulled" class="nav-tab">Buy Legal License (One time Payment) &#8594;</a><br>
+					<a style="zoom:1.3" href="https://bit.ly/3LyA4cp" class="nav-tab">Buy Legal License (One time Payment) &#8594;</a><br>
 					<small>Buy legal version and get clean and tested code directly from the developer, your purchase will support ongoing improvements of Listeo</small>
 				</div>
 
@@ -2834,7 +3573,7 @@ function cmb2_render_callback_for_listeo_calendar($field, $escaped_value, $objec
 			}
 		}
 	}
-	add_action('admin_notices', 'workscout_b472b0_admin_notice');
+	//add_action('admin_notices', 'workscout_b472b0_admin_notice');
 
 
 
@@ -3162,6 +3901,7 @@ function cmb2_render_callback_for_listeo_calendar($field, $escaped_value, $objec
 		return $meta;
 	}
 
+
 	/**
 	 * Check if WooCommerce is activated
 	 */
@@ -3176,17 +3916,18 @@ function cmb2_render_callback_for_listeo_calendar($field, $escaped_value, $objec
 		}
 	}
 
-	function listeo_get_default_search_forms(){
+	function listeo_get_default_search_forms()
+	{
 		return array(
 			'search_on_home_page' => array(
-					'id' => 'search_on_home_page',
-					'type' => 'fullwidth',
-					'title' => 'Home Search Form Default'
+				'id' => 'search_on_home_page',
+				'type' => 'fullwidth',
+				'title' => 'Home Search Form Default'
 			),
-			'search_on_homebox_page' =>array(
-					'id' => 'search_on_homebox_page',
-					'type' => 'boxed',
-					'title' => 'Home Search Form Boxed'
+			'search_on_homebox_page' => array(
+				'id' => 'search_on_homebox_page',
+				'type' => 'boxed',
+				'title' => 'Home Search Form Boxed'
 			),
 			'sidebar_search' => array(
 				'id' => 'sidebar_search',
@@ -3198,28 +3939,1715 @@ function cmb2_render_callback_for_listeo_calendar($field, $escaped_value, $objec
 				'type' => 'split',
 				'title' => 'Search on Half Map Layout'
 			),
+			'search_in_header' => array(
+				'id' => 'search_in_header',
+				'type' => 'fullwidth',
+				'title' => 'Search in Header'
+			),
 		);
 	}
-function listeo_get_search_forms(){
+	function listeo_get_search_forms()
+	{
 		$default_search_forms = listeo_get_default_search_forms();
 		$forms = get_option('listeo_search_forms', array());
-	
-		return array_merge($default_search_forms, $forms);
-}
-function listeo_get_search_forms_dropdown( $type = 'all')
-{
-	$forms = listeo_get_search_forms();
-	$dropdown = array();
 
-	foreach ($forms as $key => $value) {
-		if($type=='all'){
-			$dropdown[$key] = $value['title'];
-		} else {
-			if($type == $value['type']){
+		return array_merge($default_search_forms, $forms);
+	}
+	function listeo_get_search_forms_dropdown($type = 'all')
+	{
+		$forms = listeo_get_search_forms();
+		
+		$dropdown = array();
+
+		foreach ($forms as $key => $value) {
+			if ($type == 'all') {
 				$dropdown[$key] = $value['title'];
+			} else {
+				if ($type == $value['type']) {
+					$dropdown[$key] = $value['title'];
+				}
+			}
+		}
+		return $dropdown;
+	}
+
+function listeo_get_search_form_metabox_cb($field){
+	// get term layout setting
+	$layout = get_term_meta($field->object_id, 'listeo_taxonomy_top_layout', true);
+	$forms = listeo_get_search_forms();
+	
+	switch ($layout) {
+		case 'search':
+		case 'map_searchform':
+			$search_forms = listeo_get_search_forms_dropdown('fullwidth');
+			break;
+
+		case 'halfsidebar':
+		case 'half':
+		case 'split':
+			$search_forms = listeo_get_search_forms_dropdown('split');
+			break;
+
+		default:
+			$search_forms = listeo_get_search_forms_dropdown('all');
+			break;
+	}
+	
+	
+	return $search_forms;
+}
+
+
+	function listeo_get_compatible_search_form_for_layout($search_form_key, $layout) {
+		if (empty($layout)) {
+			return $search_form_key;
+		}
+		
+		$forms = listeo_get_search_forms();
+		
+		// If the current form exists and is compatible, return it
+		if (!empty($search_form_key) && isset($forms[$search_form_key])) {
+			$form_type = $forms[$search_form_key]['type'];
+	
+			$is_compatible = false;
+			switch ($layout) {
+				case 'search':
+				case 'map_searchform':
+				
+					$is_compatible = ($form_type === 'fullwidth');
+		
+					break;
+				case 'half':
+				case 'split':
+			
+					$is_compatible = ($form_type === 'split');
+				
+					break;
+				
+				case 'halfsidebar':
+				
+					$is_compatible = ($form_type === 'sidebar');
+				
+					break;
+				default:
+				
+					$is_compatible = true;
+					break;
+			}
+		
+			if ($is_compatible) {
+				return $search_form_key;
+			}
+		}
+
+	
+		
+		// Current form is not compatible, find first available compatible form
+		$required_type = '';
+		switch ($layout) {
+			case 'search':
+			case 'map_searchform':
+				$required_type = 'fullwidth';
+				break;
+				
+			
+			case 'half':
+			case 'split':
+				$required_type = 'split';
+				break;
+				
+			case 'halfsidebar':
+				$required_type = 'sidebar';
+			break;	
+			default:
+				// For other layouts, return the original form or first available
+				return !empty($search_form_key) ? $search_form_key : key($forms);
+		}
+		
+		// Find first form of the required type
+		foreach ($forms as $form_key => $form_data) {
+			if (isset($form_data['type']) && $form_data['type'] === $required_type) {
+				return $form_key;
+			}
+		}
+		
+		// If no compatible form found, return original or first available
+		return !empty($search_form_key) ? $search_form_key : key($forms);
+	}
+
+
+function listeo_create_product($listing_id){
+
+	$listing = get_post($listing_id);
+	$post_title = $listing->post_title;
+	$post_content = $listing->post_content;
+	$product = array(
+		'post_author' => get_current_user_id(),
+		'post_content' => $post_content,
+		'post_status' => 'publish',
+		'post_title' => $post_title,
+		'post_parent' => '',
+		'post_type' => 'product',
+	);
+
+	// set product as virtual
+	
+	// add product if not exist
+	
+
+	// insert listing as WooCommerce product
+	$product_id = wp_insert_post($product);
+	wp_set_object_terms($product_id, 'listing_booking', 'product_type');
+
+	wp_set_object_terms($product_id, 'exclude-from-catalog', 'product_visibility');
+	wp_set_object_terms($product_id, 'exclude-from-search', 'product_visibility');
+
+	// Set as virtual product
+	update_post_meta($product_id, '_virtual', 'yes');
+	update_post_meta($product_id, '_stock_status', 'instock');
+	update_post_meta($product_id, '_manage_stock', 'no');
+	update_post_meta($product_id, '_sold_individually', 'yes');
+	// set product category
+	$term = get_term_by('name', apply_filters('listeo_default_product_category', 'Listeo booking'), 'product_cat', ARRAY_A);
+
+	if (!$term) $term = wp_insert_term(
+		apply_filters('listeo_default_product_category', 'Listeo booking'),
+		'product_cat',
+		array(
+			'description' => __('Listings category', 'listeo-core'),
+			'slug' => str_replace(' ', '-', apply_filters('listeo_default_product_category', 'Listeo booking'))
+		)
+	);
+	update_post_meta($listing_id, 'product_id', $product_id);
+	wp_set_object_terms($product_id, $term['term_id'], 'product_cat');
+
+	return $product_id;
+}
+
+
+function searchForPostedValue($id, $array)
+{
+	foreach ($array as $key => $val) {
+		if ($key === $id) {
+			return $val;
+		}
+
+		if (is_array($val)) {
+			$result = searchForPostedValue($id, $val);
+			if ($result !== false) {
+				return $result;
+			}
+		}
+	}
+	return false;
+}
+
+function listeo_custom_posts_orderby($orderby, $query)
+{
+	// Only apply custom ordering if our flag is set
+	if ($query->get('listeo_custom_event_order')) {
+		global $wpdb;
+
+		$current_timestamp = current_time('timestamp');
+
+		// Modify the ORDER BY clause
+		$orderby = $wpdb->prepare("
+            MAX(CASE 
+                WHEN {$wpdb->postmeta}.meta_key = '_event_date_timestamp' 
+                THEN ABS(CAST({$wpdb->postmeta}.meta_value AS SIGNED) - %d)
+                ELSE 9999999999 
+            END) ASC,
+            {$wpdb->posts}.post_date DESC
+        ", $current_timestamp);
+
+		// Ensure GROUP BY is set
+		add_filter('posts_groupby', function ($groupby) use ($wpdb) {
+			if (empty($groupby)) {
+				return "{$wpdb->posts}.ID";
+			}
+			return $groupby;
+		});
+
+		// Remove the filters after use to prevent affecting other queries
+		add_action('posts_selection', function () {
+			remove_all_filters('posts_groupby');
+			remove_filter('posts_orderby', 'listeo_custom_posts_orderby', 10);
+		});
+	}
+	return $orderby;
+}
+
+
+function listeo_get_ids_listings_for_ads($ad_placement,$ad_filters = array()){
+
+	// get filters 
+	$listing_category = isset($ad_filters['listing_category']) ? $ad_filters['listing_category'] : '';
+	// if is array, convert to string
+	if(is_array($listing_category)){
+		$listing_category = implode(',', $listing_category);
+	}
+	$region = isset($ad_filters['region']) ? $ad_filters['region'] : '';
+	// if is array, convert to string
+	if(is_array($region)){
+		$region = implode(',', $region);
+	}
+	$address = isset($ad_filters['address']) ? $ad_filters['address'] : '';
+	// instead of listings, query all "ad" post type that match the filters and take the listing_id meta field from each ad 
+	// then query the listings with the listing_id in the meta field
+	
+	$args = array(
+		'post_type' => 'listeoad',
+		'posts_per_page' => -1,
+		'fields' => 'ids',
+		'meta_query' => array(
+			'relation' => 'AND',
+			array(
+				'key' => 'ad_status',
+				'value' => 'active',
+				'compare' => '='
+			),
+			array(
+				'key' => 'placement',
+				'value' => array($ad_placement), // You can adjust this array as needed
+				'compare' => 'IN'
+			)
+		)
+	);
+
+	
+	// how would that above like in SQL query
+	$logged_status = is_user_logged_in();
+	//if ad has meta field 'only_loggedin' set to 1 show it only to logged in users
+	if($ad_placement == 'search'){
+
+		
+		// search by address
+		if($address){
+			
+				
+				global $wpdb;
+				
+				$radius =  get_option('listeo_maps_default_radius');
+				
+				$radius_type = get_option('listeo_radius_unit', 'km');
+				$radius_api_key = get_option('listeo_maps_api_server');
+				$geocoding_provider = get_option('listeo_geocoding_provider', 'google');
+				if ($geocoding_provider == 'google') {
+					$radius_api_key = get_option('listeo_maps_api_server');
+				} else {
+					$radius_api_key = get_option('listeo_geoapify_maps_api_server');
+				}
+
+				if (!empty($address) && !empty($radius) && !empty($radius_api_key)) {
+					//search by google
+
+					$latlng = listeo_core_geocode($address);
+
+					$nearbyposts = listeo_core_get_nearby_listings($latlng[0], $latlng[1], $radius, $radius_type);
+
+					listeo_core_array_sort_by_column($nearbyposts, 'distance');
+					$location_post_ids = array_unique(array_column($nearbyposts, 'post_id'));
+
+					if (empty($location_post_ids)) {
+						$location_post_ids = array(0);
+					}
+				} else {
+
+					// Smart location search - use centralized helper function
+					$location_post_ids = listeo_core_search_location_smart($address);
+				}
+				if (sizeof($location_post_ids) != 0) {
+					$args['post__in'] = $location_post_ids;
+				}
+			
+		}
+
+
+
+		// // add filters
+		if($listing_category){
+			// $args['meta_query'][] = array(
+			// 	'key' => 'taxonomy-listing_category',
+			// 	'value' => $listing_category,
+			// 	'compare' => 'LIKE'
+			// );
+
+			$args['meta_query'][] = array(
+				'relation' => 'OR',
+				array(
+					'key' => 'taxonomy-listing_category',
+					'value' => $listing_category,
+					'compare' => 'LIKE'
+				),
+				array(
+					'key' => 'taxonomy-listing_category',
+					'compare' => 'NOT EXISTS'
+				)
+			);
+			
+		}
+		// if $listing_category is empty, show ads that don't have listing_category meta field
+		else {
+			// $args['meta_query'][] = array(
+			// 	'key' => 'taxonomy-listing_category',
+			// 	'compare' => 'NOT EXISTS'
+			// );
+			$args['meta_query'][] = array(
+				'relation' => 'OR',
+				array(
+					'key' => 'taxonomy-listing_category',
+					'value' => $region,
+					'compare' => 'LIKE'
+				),
+				array(
+					'key' => 'taxonomy-listing_category',
+					'value' => '0',
+					'compare' => '='
+				),
+				array(
+					'key' => 'taxonomy-listing_category',
+					'compare' => 'NOT EXISTS'
+				)
+			);
+		}
+
+		if($region){
+		
+			$args['meta_query'][] = array(
+				'relation' => 'OR',
+				array(
+					'key' => 'taxonomy-region',
+					'value' => $region,
+					'compare' => 'LIKE'
+				),
+				array(
+					'key' => 'taxonomy-region',
+					'compare' => 'NOT EXISTS'
+				)
+			);
+			
+		}
+		// if $region is empty, show ads that are not filtered by region
+		else{
+			$args['meta_query'][] = array(
+				'relation' => 'OR',
+				array(
+					'key' => 'taxonomy-region',
+					'value' => $region,
+					'compare' => 'LIKE'
+				),
+				array(
+					'key' => 'taxonomy-region',
+					'value' => '0',
+					'compare' => '='
+				),
+				array(
+					'key' => 'taxonomy-region',
+					'compare' => 'NOT EXISTS'
+				)
+			);
+		}
+	}
+	
+	$query = new WP_Query($args);
+	
+	// if there are no ads, return empty array
+	if(!$query->have_posts()){
+		return array();
+	}
+	
+
+	$listing_ids = array();
+	
+	if ($query->have_posts()) {
+		
+		foreach ($query->posts as $ad_id) {
+			$listing_id = get_post_meta($ad_id, 'listing_id', true);
+			// if ad has only_loggedin set to 1 and user is not logged in, skip this ad
+			if(get_post_meta($ad_id, 'only_loggedin', true) == 1 && !$logged_status){
+				continue;
+			}
+			// if ad has address set, and there's no address in the search query, skip this ad
+			if(get_post_meta($ad_id, '_address', true) && !$address){
+				continue;
+			}
+			if ($listing_id) {
+				$listing_ids[] = $listing_id;
+			}
+		}
+	}
+	// if there are no listing ids, return empty array
+	if(empty($listing_ids)){
+		return array();
+	}
+	
+	wp_reset_postdata();
+	return $listing_ids;
+
+
+
+
+	// $args = array(
+	// 	'post_type' => 'listing',
+	// 	'posts_per_page' => -1,
+	// 	'fields' => 'ids',
+	// 	'meta_query' => array(
+	// 		'relation' => 'AND',
+	// 		array(
+	// 			'key' => 'ad_status',
+	// 			'value' => 'active',
+	// 			'compare' => '='
+	// 		),
+	// 		array(
+	// 			'key' => 'ad_placement',
+	// 			'value' => $ad_type,
+	// 			'compare' => 'LIKE'
+	// 		)
+	// 	)
+	// );
+
+	// $query = new WP_Query($args);
+	// wp_reset_postdata();
+	// return $query->posts;
+}
+
+
+
+    function listeo_get_category_drilldown_data($taxonomy = 'category', $args = []) {
+        // Default arguments
+        $default_args = array(
+            'taxonomy' => $taxonomy,
+            'hide_empty' => false,
+            'parent' => 0
+        );
+        $args = wp_parse_args($args, $default_args);
+        
+        // Get top level terms
+        $terms = get_terms($args);
+        
+        if (is_wp_error($terms)) {
+            return [];
+        }
+        
+        $categories = array();
+        
+        foreach ($terms as $term) {
+            $category = array(
+                'label' => $term->name,
+                'id' => $term->term_id,
+                'slug' => $term->slug
+            );
+            
+            // Check for children
+            $children = get_terms(array(
+                'taxonomy' => $taxonomy,
+                'hide_empty' => false,
+                'parent' => $term->term_id
+            ));
+            
+            if (!is_wp_error($children) && !empty($children)) {
+                $category['children'] = array();
+                foreach ($children as $child) {
+                    $category['children'][] = array(
+                        'label' => $child->name,
+                        'id' => $child->term_id,
+                        'slug' => $child->slug
+                    );
+                }
+            }
+            
+            $categories[] = $category;
+        }
+        
+        return $categories;
+    }
+
+
+// Function to render the drilldown menu
+
+    function listeo_render_category_drilldown($taxonomy = 'category', $args = [], $button_text = 'Select Category') {
+        $categories = listeo_get_category_drilldown_data($taxonomy, $args);
+        ?>
+        <div class="drilldown-menu" data-categories='<?php echo esc_attr(json_encode($categories)); ?>'>
+            <div class="menu-toggle">
+                <span class="menu-label"><?php echo esc_html($button_text); ?></span>
+                <span class="reset-button" style="display:none;">&times;</span>
+	</div>
+            <div class="menu-panel">
+                <div class="menu-search-wrapper">
+                    <input type="text" class="menu-search" placeholder="Search...">
+                </div>
+                <div class="menu-levels-container"></div>
+            </div>
+        </div>
+        <?php
+    }
+
+
+function listeo_get_nested_categories($taxonomy = 'listing_category')
+{
+	// Get all music genre terms
+	$terms = get_terms(array(
+		'taxonomy' => $taxonomy, // Replace with your taxonomy name
+		'hide_empty' => false,
+		'parent' => 0 // Get top level terms first
+	));
+
+	$nested_categories = array();
+
+	foreach ($terms as $term) {
+		$category = array(
+			'label' => $term->name,
+			'id' => $term->term_id,
+			'value' => $term->slug // Adding the value field
+		);
+
+		// Check for children
+		$children = get_child_terms($term->term_id, $taxonomy, $term);
+
+		// Only add children if they are different from the parent
+		if (is_array($children) && !empty($children)) {
+			$has_different_children = false;
+			foreach ($children as $child) {
+				// Check if child is different from parent
+				if ($child['value'] !== $category['value']) {
+					$has_different_children = true;
+					break;
+				}
+			}
+
+			if ($has_different_children) {
+				$category['children'] = $children;
 			}
 		}
 	
+		$nested_categories[] = $category;
 	}
-	return $dropdown;
+	
+	return $nested_categories;
 }
+
+function get_child_terms($parent_id,$taxonomy = 'listing_category', $parent_term = null)
+{
+	$terms = get_terms(array(
+		'taxonomy' => $taxonomy, // Replace with your taxonomy name
+		'hide_empty' => false,
+		'parent' => $parent_id
+	));
+
+	$children = array();
+	// Add parent as first item in children array
+	if ($parent_term) {
+		$children[] = array(
+			'label' => esc_html__('All in ','listeo_core'). $parent_term->name,
+			'value' => $taxonomy . ':' . $parent_term->slug, // Include taxonomy name
+			'id' => $parent_term->term_id
+		);
+	}
+	foreach ($terms as $term) {
+		$child = array(
+			'label' => $term->name,
+			'value' => $taxonomy . ':' . $term->slug, // Include taxonomy name to avoid conflicts
+			'id' => $term->term_id
+		);
+
+		// Recursively check for grandchildren
+		$grandchildren = get_child_terms($term->term_id, $taxonomy, $term);
+		if (!empty($grandchildren)) {
+			$child['children'] = $grandchildren;
+		}
+
+		$children[] = $child;
+	}
+
+	return $children;
+}
+
+/**
+ * Get the correct taxonomy for a listing based on its type
+ * Handles both default listing types and custom listing types
+ *
+ * @param int|WP_Post $listing Listing ID or post object
+ * @return string The taxonomy name to use for categories
+ */
+function listeo_get_listing_taxonomy($listing = null) {
+	// Get the listing post
+	if (is_numeric($listing)) {
+		$listing = get_post($listing);
+	} elseif (is_null($listing)) {
+		$listing = get_post();
+	}
+
+	if (!$listing) {
+		return 'listing_category'; // Default fallback
+	}
+
+	// Get the listing type
+	$listing_type = get_post_meta($listing->ID, '_listing_type', true);
+
+	if (empty($listing_type)) {
+		return 'listing_category'; // Default if no type is set
+	}
+
+	// Check if this is a custom listing type
+	if (function_exists('listeo_core_custom_listing_types')) {
+		$custom_types_manager = listeo_core_custom_listing_types();
+		$type_config = $custom_types_manager->get_listing_type_by_slug($listing_type);
+
+		if ($type_config && $type_config->register_taxonomy) {
+			// Custom types use {slug}_category pattern
+			return $listing_type . '_category';
+		}
+	}
+
+	// Handle default listing types
+	switch ($listing_type) {
+		case 'service':
+			return 'service_category';
+		case 'rental':
+			return 'rental_category';
+		case 'event':
+			return 'event_category';
+		case 'classifieds':
+			return 'classifieds_category';
+		default:
+			// For any other type, assume it might be custom
+			// Check if the taxonomy exists
+			$taxonomy_name = $listing_type . '_category';
+			if (taxonomy_exists($taxonomy_name)) {
+				return $taxonomy_name;
+			}
+			// Final fallback
+			return 'listing_category';
+	}
+}
+
+/**
+ * Get listing types with their associated taxonomies for drilldown menu
+ *
+ * @return array Hierarchical data structure for drilldown menu
+ */
+function listeo_get_listing_types_with_taxonomies() {
+	$listing_types_data = array();
+	
+	// Get all active listing types
+	if (function_exists('listeo_core_custom_listing_types')) {
+		$custom_types_manager = listeo_core_custom_listing_types();
+		$listing_types = $custom_types_manager->get_listing_types(true);
+	} else {
+		// Fallback to default types if custom types system not available
+		$listing_types = array(
+			(object) array('slug' => 'service', 'name' => __('Services', 'listeo_core')),
+			(object) array('slug' => 'rental', 'name' => __('Rentals', 'listeo_core')),
+			(object) array('slug' => 'event', 'name' => __('Events', 'listeo_core')),
+			(object) array('slug' => 'classifieds', 'name' => __('Classifieds', 'listeo_core'))
+		);
+	}
+	
+	foreach ($listing_types as $listing_type) {
+		$type_data = array(
+			'label' => $listing_type->name,
+			'value' => 'listing_type_' . $listing_type->slug, // Prefix to distinguish from taxonomy terms
+			'id' => 'type_' . $listing_type->slug,
+			'children' => array()
+		);
+		
+		// Get associated taxonomies for this listing type
+		$taxonomy_name = $listing_type->slug . '_category';
+		
+		// Check if this taxonomy exists
+		if (taxonomy_exists($taxonomy_name)) {
+			// Add "All in [Type]" option first
+			$type_data['children'][] = array(
+				'label' => sprintf(__('All in %s', 'listeo_core'), $listing_type->name),
+				'value' => 'listing_type_' . $listing_type->slug,
+				'id' => 'all_' . $listing_type->slug
+			);
+			
+			// Get taxonomy terms
+			$terms = get_terms(array(
+				'taxonomy' => $taxonomy_name,
+				'hide_empty' => false,
+				'parent' => 0 // Get top level terms
+			));
+			
+			foreach ($terms as $term) {
+				$term_data = array(
+					'label' => $term->name,
+					'value' => $taxonomy_name . ':' . $term->slug, // Include taxonomy name to avoid conflicts
+					'id' => $term->term_id
+				);
+				
+				// Get child terms recursively
+				$children = get_child_terms($term->term_id, $taxonomy_name, $term);
+				if (!empty($children)) {
+					$term_data['children'] = $children;
+				}
+				
+				$type_data['children'][] = $term_data;
+			}
+		} else {
+			// If no specific taxonomy, add just the "All [Type]" option
+			$type_data['children'][] = array(
+				'label' => sprintf(__('All %s', 'listeo_core'), $listing_type->name),
+				'value' => 'listing_type_' . $listing_type->slug,
+				'id' => 'all_' . $listing_type->slug
+			);
+		}
+		
+		$listing_types_data[] = $type_data;
+	}
+	
+	return $listing_types_data;
+}
+
+function listeo_get_slider_split_categories_json($current_term)
+{
+	$slider_status = get_option('pp_listings_split-categories-slider-options', 'show_all');
+	$categories = [];
+
+	// Add "All" item if no current term
+	if(empty($current_term)){
+		$categories[] = [
+			'name' => esc_html__('All', 'listeo_core'),
+			'icon' => '<i class="sl sl-icon-grid"></i>',
+			'id' => '0',
+			'slug' => 'all',
+		];
+	}
+
+	// Handle new "Show only Listing Types" option
+	if ($slider_status == 'show_listing_types') {
+		$selected_types = get_option('pp_listings_split-listing-types-slider', []);
+		
+		if (empty($selected_types)) {
+			// If no types selected, show all available types
+			$selected_types = array_keys(listeo_get_listing_types_for_slider());
+		}
+
+		// Get listing types and create slider items
+		if (function_exists('listeo_core_custom_listing_types')) {
+			$custom_types = listeo_core_custom_listing_types();
+			$all_types = $custom_types->get_listing_types(true);
+			
+			foreach ($all_types as $type) {
+				if (in_array($type->slug, $selected_types)) {
+					// Get icon for listing type
+					$icon = '<i class="fa fa-folder"></i>'; // Default icon for listing types
+					
+					if (!empty($type->icon_id)) {
+						// Get SVG icon from media library
+						$_icon_svg_image = wp_get_attachment_image_src($type->icon_id, 'medium');
+						if (!empty($_icon_svg_image)) {
+							$icon = '<i class="listeo-svg-icon-box-grid">'. listeo_render_svg_icon($type->icon_id).'</i>';
+						}
+					}
+					
+					$categories[] = [
+						'name' => $type->name,
+						'icon' => $icon,
+						'id' => $type->slug, // Use slug as ID for listing types
+						'slug' => $type->slug,
+						'type' => 'listing_type', // Mark as listing type
+					];
+				}
+			}
+		} else {
+			// Fallback to default types with old option system icons
+			$default_types = array(
+				'service' => array(
+					'name' => __('Service', 'listeo_core'),
+					'icon_option' => 'listeo_service_type_icon'
+				),
+				'rental' => array(
+					'name' => __('Rental', 'listeo_core'),
+					'icon_option' => 'listeo_rental_type_icon'
+				),
+				'event' => array(
+					'name' => __('Event', 'listeo_core'),
+					'icon_option' => 'listeo_event_type_icon'
+				),
+				'classifieds' => array(
+					'name' => __('Classifieds', 'listeo_core'),
+					'icon_option' => 'listeo_classifieds_type_icon'
+				)
+			);
+			
+			foreach ($default_types as $slug => $type_data) {
+				if (in_array($slug, $selected_types)) {
+					// Get icon from old option system
+					$icon = '<i class="fa fa-folder"></i>'; // Default
+					$icon_id = get_option($type_data['icon_option'], '');
+					
+					if (!empty($icon_id)) {
+						$_icon_svg_image = wp_get_attachment_image_src($icon_id, 'medium');
+						if (!empty($_icon_svg_image)) {
+							$icon = '<i class="listeo-svg-icon-box-grid">'. listeo_render_svg_icon($icon_id).'</i>';
+						}
+					}
+					
+					$categories[] = [
+						'name' => $type_data['name'],
+						'icon' => $icon,
+						'id' => $slug,
+						'slug' => $slug,
+						'type' => 'listing_type',
+					];
+				}
+			}
+		}
+		
+		return wp_json_encode($categories);
+	}
+
+	// Handle categories (existing logic with new filtering)
+	$taxonomy = 'listing_category';
+	$hide_empty = ($slider_status == 'show_nonempty');
+	
+	// Handle "Show preselected categories" with new grouped selection
+	if ($slider_status == 'show_preselected') {
+		// Check for new grouped selection setting first
+		$selected_categories = get_option('pp_listings_split-categories-grouped-selection', []);
+		
+		if (!empty($selected_categories)) {
+			// Process selected category IDs from grouped selection
+			foreach ($selected_categories as $category_key) {
+				// Parse the category key (format: term_id or term_id_taxonomy)
+				if (strpos($category_key, '_') !== false && !is_numeric($category_key)) {
+					// New format: term_id_taxonomy
+					$parts = explode('_', $category_key);
+					$term_id = intval($parts[0]);
+					$tax = str_replace($term_id . '_', '', $category_key);
+				} else {
+					// Simple term ID (global categories)
+					$term_id = intval($category_key);
+					$tax = 'listing_category';
+				}
+				
+				$term_obj = get_term($term_id, $tax);
+				
+				if ($term_obj && !is_wp_error($term_obj)) {
+					// Get icon
+					$icon = get_term_meta($term_id, 'icon', true);
+					$_icon_svg = get_term_meta($term_id, '_icon_svg', true);
+					$_icon_svg_image = wp_get_attachment_image_src($_icon_svg, 'medium');
+					
+					if (empty($icon)) {
+						$icon = 'fa fa-globe';
+					}
+
+					if (!empty($_icon_svg_image)) {
+						$icon = '<i class="listeo-svg-icon-box-grid">'. listeo_render_svg_icon($_icon_svg).'</i>';
+					} else {
+						if ($icon != 'emtpy') {
+							$check_if_im = substr($icon, 0, 3);
+							if ($check_if_im == 'im ') {
+								$icon = ' <i class="' . esc_attr($icon) . '"></i>';
+							} else {
+								$icon =  ' <i class="fa ' . esc_attr($icon) . '"></i>';
+							}
+						}
+					}
+					
+					$categories[] = [
+						'name' => $term_obj->name,
+						'icon' => $icon,
+						'id' => $term_obj->term_id,
+						'slug' => $term_obj->slug,
+						'taxonomy' => $tax,
+					];
+				}
+			}
+		} else {
+			// Fallback to old preselected terms system for backward compatibility
+			$old_preselected = get_option('pp_listings_split-categories-slider', []);
+			if (!empty($old_preselected)) {
+				$args = array(
+					'taxonomy' => 'listing_category',
+					'hide_empty' => $hide_empty,
+					'include' => $old_preselected,
+					'parent' => 0,
+				);
+				
+				$terms = get_terms($args);
+				
+				if (!empty($terms) && !is_wp_error($terms)) {
+					foreach ($terms as $term_obj) {
+						$t_id = $term_obj->term_id;
+						
+						// Get icon
+						$icon = get_term_meta($t_id, 'icon', true);
+						$_icon_svg = get_term_meta($t_id, '_icon_svg', true);
+						$_icon_svg_image = wp_get_attachment_image_src($_icon_svg, 'medium');
+						
+						if (empty($icon)) {
+							$icon = 'fa fa-globe';
+						}
+
+						if (!empty($_icon_svg_image)) {
+							$icon = '<i class="listeo-svg-icon-box-grid">'. listeo_render_svg_icon($_icon_svg).'</i>';
+						} else {
+							if ($icon != 'emtpy') {
+								$check_if_im = substr($icon, 0, 3);
+								if ($check_if_im == 'im ') {
+									$icon = ' <i class="' . esc_attr($icon) . '"></i>';
+								} else {
+									$icon =  ' <i class="fa ' . esc_attr($icon) . '"></i>';
+								}
+							}
+						}
+						
+						$categories[] = [
+							'name' => $term_obj->name,
+							'icon' => $icon,
+							'id' => $term_obj->term_id,
+							'slug' => $term_obj->slug,
+							'taxonomy' => 'listing_category',
+						];
+					}
+				}
+			}
+		}
+	} else {
+		// Handle other statuses (show_all, show_nonempty)
+		$args = array(
+			'taxonomy' => $taxonomy,
+			'hide_empty' => $hide_empty,
+			'parent' => 0,
+		);
+
+		$terms = get_terms($args);
+		
+		if (!empty($terms) && !is_wp_error($terms)) {
+			foreach ($terms as $term_obj) {
+				$t_id = $term_obj->term_id;
+				
+				// Get icon
+				$icon = get_term_meta($t_id, 'icon', true);
+				$_icon_svg = get_term_meta($t_id, '_icon_svg', true);
+				$_icon_svg_image = wp_get_attachment_image_src($_icon_svg, 'medium');
+				
+				if (empty($icon)) {
+					$icon = 'fa fa-globe';
+				}
+
+				if (!empty($_icon_svg_image)) {
+					$icon = '<i class="listeo-svg-icon-box-grid">'. listeo_render_svg_icon($_icon_svg).'</i>';
+				} else {
+					if ($icon != 'emtpy') {
+						$check_if_im = substr($icon, 0, 3);
+						if ($check_if_im == 'im ') {
+							$icon = ' <i class="' . esc_attr($icon) . '"></i>';
+						} else {
+							$icon =  ' <i class="fa ' . esc_attr($icon) . '"></i>';
+						}
+					}
+				}
+				
+				$categories[] = [
+					'name' => $term_obj->name,
+					'icon' => $icon,
+					'id' => $term_obj->term_id,
+					'slug' => $term_obj->slug,
+					'taxonomy' => $taxonomy,
+				];
+			}
+		}
+	}
+
+	return wp_json_encode($categories);
+}
+
+function get_custom_fields_for_list($post, $with_labels = true) {
+
+	// limit to only 3 fields
+	$details = listeo_get_listing_details($post);
+	
+	$class = (isset($data->class)) ? $data->class : 'listing-details';
+
+	if (!empty($details)) : ?>
+		<div class="listing-features-nl">
+			<?php $count = 0;
+	foreach ($details as $detail) :
+		
+		if(!isset($detail['display_type']) || $detail['display_type'] === 'header') {
+			continue; // Skip headers
+		}
+		
+		if (isset($detail['config']['is_taxonomy_field']) && $detail['config']['is_taxonomy_field']) {
+			if( isset($detail['config']['showonfront']) && $detail['config']['showonfront']) {
+				// Show taxonomy fields that are set to show on front
+			} else {
+				continue; // Skip taxonomy fields that are not set to show on front
+			}
+		}
+		$count++; ?>
+				<?php if ($detail['display_type'] === 'checkbox') : ?>
+					<!-- Checkbox Field Template -->
+					<div class="feature-tag-nl <?php echo esc_attr(implode(' ', $detail['css_classes'])); ?>">
+						<div class="single-property-detail-label-<?php echo esc_attr($detail['config']['id']); ?>">
+							<?php echo esc_html($detail['config']['name']); ?>: <?php echo listeo_render_detail_value($detail); ?>
+						</div>
+						<div class="tooltip-nl"><?php echo esc_html($detail['config']['name']); ?></div>
+					</div>
+	
+				<?php elseif ($detail['display_type'] === 'area') : ?>
+					<!-- Area Field Template -->
+					<?php $area_data = $detail['processed_value']; ?>
+					<div class="feature-tag-nl" <?php echo esc_attr(implode(' ', $detail['css_classes'])); ?>">
+						<i class="<?php echo esc_attr($detail['icon']); ?>"></i>
+						<?php if ($detail['is_inverted']) : ?>
+							<?php echo esc_html($area_data['scale']); ?>
+							<span><?php echo listeo_render_detail_value($detail); ?></span>
+						<?php else : ?>
+							<span><?php echo listeo_render_detail_value($detail); ?></span>
+							<?php echo esc_html($area_data['scale']); ?>
+						<?php endif; ?>
+					</div>
+	
+				<?php elseif ($detail['display_type'] === 'file') : ?>
+					<!-- File Field Template -->
+					<div class="feature-tag-nl <?php echo esc_attr(implode(' ', $detail['css_classes'])); ?>">
+						<i class="<?php echo esc_attr($detail['icon']); ?>"></i>
+						<?php echo listeo_render_detail_value($detail); ?>
+					</div>
+	
+				<?php else : ?>
+					<!-- Regular Field Template -->
+					<div class="feature-tag-nl <?php echo esc_attr(implode(' ', $detail['css_classes'])); ?>">
+						<i class="<?php echo esc_attr($detail['icon']); ?>"></i>
+						<?php if ($detail['is_inverted']) : ?>
+							<span><?php echo listeo_render_detail_value($detail); ?></span>
+							<?php if ($with_labels) : ?>
+								<div class="single-property-detail-label-<?php echo esc_attr($detail['config']['id']); ?>">
+									<?php echo esc_html($detail['config']['name']); ?>
+								</div>
+							<?php endif; ?>
+
+						<?php else : ?>
+							<?php if ($with_labels) : ?>
+								<div class="single-property-detail-label-<?php echo esc_attr($detail['config']['id']); ?>">
+									<?php echo esc_html($detail['config']['name']); ?>
+								</div>
+							<?php endif; ?>
+							<span><?php echo listeo_render_detail_value($detail); ?></span>
+						<?php endif; ?>
+						<div class="tooltip-nl"><?php echo esc_html($detail['config']['name']); ?></div>
+					</div>
+				<?php endif; ?>
+			<?php endforeach; ?>
+			</div>
+<?php 
+	endif; // End of details check
+	// Return the class for further use if needed
+}
+
+function has_visible_fields_after($details, $start_index, $current_taxonomy = null)
+{
+	for ($i = $start_index + 1; $i < count($details); $i++) {
+		$next = $details[$i];
+
+		if (!isset($next['display_type'])) continue;
+		if ($next['display_type'] === 'header') break; // Stop at next header
+
+		if ($current_taxonomy) {
+			if (!empty($next['config']['taxonomy']) && $next['config']['taxonomy'] === $current_taxonomy) {
+				return true;
+			}
+		} else {
+			if (empty($next['config']['is_taxonomy_field'])) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+/**
+ * Calculate distance between two coordinates using Haversine formula
+ *
+ * @param float $lat1 Latitude of first point
+ * @param float $lng1 Longitude of first point  
+ * @param float $lat2 Latitude of second point
+ * @param float $lng2 Longitude of second point
+ * @param string $unit Unit of measurement ('km' or 'miles')
+ * @return float Distance in the specified unit
+ */
+function listeo_calculate_distance($lat1, $lng1, $lat2, $lng2, $unit = 'km') {
+    if (($lat1 == $lat2) && ($lng1 == $lng2)) {
+        return 0;
+    }
+    
+    $theta = $lng1 - $lng2;
+    $dist = sin(deg2rad($lat1)) * sin(deg2rad($lat2)) + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * cos(deg2rad($theta));
+    $dist = acos($dist);
+    $dist = rad2deg($dist);
+    $miles = $dist * 60 * 1.1515;
+    
+    switch($unit) {
+        case 'miles':
+            return round($miles, 2);
+        case 'km':
+        default:
+            return round($miles * 1.609344, 2);
+    }
+}
+
+/**
+ * Format distance for display
+ *
+ * @param float $distance Distance value
+ * @param string $unit Unit ('km' or 'miles')
+ * @return string Formatted distance string
+ */
+function listeo_format_distance($distance, $unit = 'km') {
+    $unit_label = ($unit === 'miles') ? __('mi', 'listeo_core') : __('km', 'listeo_core');
+    return sprintf('%.1f %s', $distance, $unit_label);
+}
+
+/**
+ * Get nearby listings based on geolocation
+ *
+ * @param int $listing_id ID of the current listing
+ * @param float $radius Search radius
+ * @param string $unit Distance unit
+ * @param array $args Additional WP_Query arguments
+ * @return array Array of nearby listings with distances
+ */
+function listeo_get_nearby_listings_with_distance($listing_id, $radius = 50, $unit = 'km', $args = array()) {
+    // Get current listing coordinates
+    $current_lat = get_post_meta($listing_id, '_geolocation_lat', true);
+    $current_lng = get_post_meta($listing_id, '_geolocation_long', true);
+    
+    if (empty($current_lat) || empty($current_lng)) {
+        return array();
+    }
+    
+    // Performance optimization: Use database-level spatial filtering for large datasets
+    $total_listings = wp_count_posts('listing')->publish;
+    
+    if ($total_listings > 5000) {
+        // For large datasets, use optimized database query
+        return listeo_get_nearby_listings_optimized($listing_id, $current_lat, $current_lng, $radius, $unit, $args);
+    }
+    
+    // Original method for smaller datasets
+    return listeo_get_nearby_listings_standard($listing_id, $current_lat, $current_lng, $radius, $unit, $args);
+}
+
+/**
+ * Standard method for smaller datasets (< 5000 listings)
+ */
+function listeo_get_nearby_listings_standard($listing_id, $current_lat, $current_lng, $radius, $unit, $args) {
+    // Base query arguments
+    $default_args = array(
+        'post_type' => 'listing',
+        'post_status' => 'publish',
+        'posts_per_page' => 100, // Increased limit for better results
+        'post__not_in' => array($listing_id),
+        'meta_query' => array(
+            'relation' => 'AND',
+            array(
+                'key' => '_geolocation_lat',
+                'value' => '',
+                'compare' => '!='
+            ),
+            array(
+                'key' => '_geolocation_long',
+                'value' => '',
+                'compare' => '!='
+            )
+        )
+    );
+    
+    $query_args = wp_parse_args($args, $default_args);
+    $listings = get_posts($query_args);
+    
+    $nearby_listings = array();
+    
+    foreach ($listings as $listing) {
+        $listing_lat = get_post_meta($listing->ID, '_geolocation_lat', true);
+        $listing_lng = get_post_meta($listing->ID, '_geolocation_long', true);
+        
+        if (empty($listing_lat) || empty($listing_lng)) {
+            continue;
+        }
+        
+        $distance = listeo_calculate_distance($current_lat, $current_lng, $listing_lat, $listing_lng, $unit);
+        
+        if ($distance <= $radius) {
+            $nearby_listings[] = array(
+                'post' => $listing,
+                'distance' => $distance
+            );
+        }
+    }
+    
+    // Sort by distance and limit results
+    usort($nearby_listings, function($a, $b) {
+        return $a['distance'] <=> $b['distance'];
+    });
+    
+    return array_slice($nearby_listings, 0, 20); // Return top 20 nearest
+}
+
+/**
+ * Optimized method for large datasets (5000+ listings)
+ * Uses database-level spatial calculations and bounding box filtering
+ */
+function listeo_get_nearby_listings_optimized($listing_id, $current_lat, $current_lng, $radius, $unit, $args) {
+    global $wpdb;
+    
+    // Calculate bounding box to pre-filter results
+    $earth_radius = ($unit === 'miles') ? 3959 : 6371; // Earth radius in km or miles
+    $lat_range = $radius / $earth_radius * (180 / M_PI);
+    $lng_range = $radius / $earth_radius * (180 / M_PI) / cos($current_lat * M_PI / 180);
+    
+    $min_lat = $current_lat - $lat_range;
+    $max_lat = $current_lat + $lat_range;
+    $min_lng = $current_lng - $lng_range;
+    $max_lng = $current_lng + $lng_range;
+    
+    // Build additional WHERE conditions from args
+    $additional_where = '';
+    $additional_joins = '';
+    
+    // Handle taxonomy filtering if present in args
+    if (isset($args['tax_query']) && !empty($args['tax_query'])) {
+        $tax_query = $args['tax_query'];
+        if (isset($tax_query[0]) && is_array($tax_query[0])) {
+            $taxonomy = $tax_query[0]['taxonomy'];
+            $terms = $tax_query[0]['terms'];
+            $operator = isset($tax_query[0]['operator']) ? $tax_query[0]['operator'] : 'IN';
+            
+            if (!empty($terms)) {
+                $terms_placeholders = implode(',', array_fill(0, count($terms), '%d'));
+                $additional_joins .= "
+                    INNER JOIN {$wpdb->term_relationships} tr ON p.ID = tr.object_id
+                    INNER JOIN {$wpdb->term_taxonomy} tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
+                ";
+                
+                if ($operator === 'IN') {
+                    $additional_where .= $wpdb->prepare(" AND tt.taxonomy = %s AND tt.term_id IN ($terms_placeholders)", 
+                        array_merge(array($taxonomy), $terms));
+                }
+            }
+        }
+    }
+    
+    // Handle author filtering
+    if (isset($args['author']) && !empty($args['author'])) {
+        $additional_where .= $wpdb->prepare(" AND p.post_author = %d", $args['author']);
+    }
+    
+    // Optimized query with spatial filtering
+    $sql = $wpdb->prepare("
+        SELECT DISTINCT
+            p.ID,
+            lat_meta.meta_value as latitude,
+            lng_meta.meta_value as longitude,
+            (%f * ACOS(
+                COS(RADIANS(%f)) * 
+                COS(RADIANS(lat_meta.meta_value)) * 
+                COS(RADIANS(lng_meta.meta_value) - RADIANS(%f)) + 
+                SIN(RADIANS(%f)) * 
+                SIN(RADIANS(lat_meta.meta_value))
+            )) as distance
+        FROM {$wpdb->posts} p
+        INNER JOIN {$wpdb->postmeta} lat_meta ON p.ID = lat_meta.post_id 
+            AND lat_meta.meta_key = '_geolocation_lat'
+        INNER JOIN {$wpdb->postmeta} lng_meta ON p.ID = lng_meta.post_id 
+            AND lng_meta.meta_key = '_geolocation_long'
+        $additional_joins
+        WHERE p.post_type = 'listing'
+            AND p.post_status = 'publish'
+            AND p.ID != %d
+            AND lat_meta.meta_value BETWEEN %f AND %f
+            AND lng_meta.meta_value BETWEEN %f AND %f
+            AND lat_meta.meta_value IS NOT NULL
+            AND lng_meta.meta_value IS NOT NULL
+            AND lat_meta.meta_value != ''
+            AND lng_meta.meta_value != ''
+            $additional_where
+        HAVING distance <= %f
+        ORDER BY distance ASC
+        LIMIT 20
+    ", 
+        $earth_radius, $current_lat, $current_lng, $current_lat,
+        $listing_id, $min_lat, $max_lat, $min_lng, $max_lng,
+        $radius
+    );
+    
+    $results = $wpdb->get_results($sql);
+    
+    $nearby_listings = array();
+    
+    foreach ($results as $result) {
+        $post = get_post($result->ID);
+        if ($post) {
+            $nearby_listings[] = array(
+                'post' => $post,
+                'distance' => round((float)$result->distance, 2)
+            );
+        }
+    }
+    
+    return $nearby_listings;
+}
+
+/**
+ * Get cached nearby listings
+ *
+ * @param int $listing_id ID of the current listing
+ * @param float $radius Search radius
+ * @param string $unit Distance unit
+ * @param array $args Additional WP_Query arguments
+ * @return array Array of nearby listings with distances
+ */
+function listeo_get_cached_nearby_listings($listing_id, $radius = 50, $unit = 'km', $args = array()) {
+    $start_time = microtime(true);
+    
+    // Generate cache key
+    $cache_key = 'listeo_nearby_listings_' . $listing_id . '_' . $radius . '_' . $unit . '_' . md5(serialize($args));
+    
+    // Try to get from cache
+    $cached_results = get_transient($cache_key);
+    if ($cached_results !== false) {
+        // Track cache hit
+        listeo_track_cache_usage(true);
+        
+        // Log performance if debug enabled
+        listeo_log_performance_metric('nearby_listings_cached', $start_time, array(
+            'listing_id' => $listing_id,
+            'radius' => $radius,
+            'unit' => $unit,
+            'result_count' => count($cached_results)
+        ));
+        
+        return $cached_results;
+    }
+    
+    // Track cache miss
+    listeo_track_cache_usage(false);
+    
+    // Get fresh results
+    $nearby_listings = listeo_get_nearby_listings_with_distance($listing_id, $radius, $unit, $args);
+    
+    // Cache the results
+    $cache_days = get_option('listeo_nearby_listings_cache_days', 30); // Default 30 days
+    set_transient($cache_key, $nearby_listings, $cache_days * DAY_IN_SECONDS);
+    
+    // Log performance if debug enabled
+    listeo_log_performance_metric('nearby_listings_fresh', $start_time, array(
+        'listing_id' => $listing_id,
+        'radius' => $radius,
+        'unit' => $unit,
+        'result_count' => count($nearby_listings)
+    ));
+    
+    return $nearby_listings;
+}
+
+/**
+ * Clear nearby listings cache for a specific listing
+ *
+ * @param int $listing_id ID of the listing
+ */
+function listeo_clear_nearby_listings_cache($listing_id) {
+    global $wpdb;
+    
+    // Delete all transients that contain this listing ID
+    $cache_prefix = 'listeo_nearby_listings_' . $listing_id . '_';
+    $wpdb->query(
+        $wpdb->prepare(
+            "DELETE FROM {$wpdb->options} 
+            WHERE option_name LIKE %s 
+            OR option_name LIKE %s",
+            '_transient_' . $cache_prefix . '%',
+            '_transient_timeout_' . $cache_prefix . '%'
+        )
+    );
+}
+
+/**
+ * Clear all nearby listings cache
+ */
+function listeo_clear_all_nearby_listings_cache() {
+    global $wpdb;
+    
+    // Delete all nearby listings transients
+    $wpdb->query(
+        "DELETE FROM {$wpdb->options} 
+        WHERE option_name LIKE '_transient_listeo_nearby_listings_%' 
+        OR option_name LIKE '_transient_timeout_listeo_nearby_listings_%'"
+    );
+}
+
+// Hook to selectively clear nearby listings cache when a listing is updated
+add_action('save_post', 'listeo_clear_cache_on_listing_save', 10, 3);
+function listeo_clear_cache_on_listing_save($post_id, $post, $update) {
+    // Only process listing post type
+    if ($post->post_type !== 'listing') {
+        return;
+    }
+    
+    // For new listings, don't clear any cache
+    if (!$update) {
+        return;
+    }
+    
+    // Get old and new geolocation data to check if location changed
+    static $old_locations = array();
+    
+    // Store old location on first call (before save)
+    if (!isset($old_locations[$post_id])) {
+        $old_locations[$post_id] = array(
+            'lat' => get_post_meta($post_id, '_geolocation_lat', true),
+            'lng' => get_post_meta($post_id, '_geolocation_long', true)
+        );
+    }
+    
+    $new_lat = get_post_meta($post_id, '_geolocation_lat', true);
+    $new_lng = get_post_meta($post_id, '_geolocation_long', true);
+    
+    $old_lat = $old_locations[$post_id]['lat'] ?? '';
+    $old_lng = $old_locations[$post_id]['lng'] ?? '';
+    
+    // Only clear cache if geolocation actually changed significantly (>100m difference)
+    $location_changed = false;
+    if (!empty($new_lat) && !empty($new_lng) && !empty($old_lat) && !empty($old_lng)) {
+        $distance_moved = listeo_calculate_distance($old_lat, $old_lng, $new_lat, $new_lng, 'km');
+        $location_changed = $distance_moved > 0.1; // 100 meters threshold
+    } elseif ((!empty($new_lat) && !empty($new_lng)) && (empty($old_lat) || empty($old_lng))) {
+        // Location was added
+        $location_changed = true;
+    } elseif ((empty($new_lat) || empty($new_lng)) && (!empty($old_lat) && !empty($old_lng))) {
+        // Location was removed
+        $location_changed = true;
+    }
+    
+    // Only clear cache if location actually changed or listing status changed
+    if ($location_changed || $post->post_status !== get_post_status($post_id)) {
+        // Clear cache for this specific listing only
+        listeo_clear_nearby_listings_cache($post_id);
+        
+        // Clean up the stored old location
+        unset($old_locations[$post_id]);
+    }
+}
+
+// Hook to clear cache when listing is deleted
+add_action('delete_post', 'listeo_clear_cache_on_listing_delete');
+function listeo_clear_cache_on_listing_delete($post_id) {
+    $post = get_post($post_id);
+    if ($post && $post->post_type === 'listing') {
+        // Only clear cache for the deleted listing itself
+        // Other listings' nearby cache will naturally expire and refresh
+        listeo_clear_nearby_listings_cache($post_id);
+    }
+}
+
+/**
+ * Add database indexes for geolocation fields to improve query performance
+ * 
+ * @return bool True if indexes were added successfully
+ */
+function listeo_add_geolocation_indexes() {
+    global $wpdb;
+    
+    // Check if indexes already exist
+    $existing_indexes = $wpdb->get_results("SHOW INDEX FROM {$wpdb->postmeta} WHERE Key_name LIKE 'idx_geolocation%'");
+    if (!empty($existing_indexes)) {
+        return true; // Indexes already exist
+    }
+    
+    $success = true;
+    
+    // Add composite index for latitude
+    $result = $wpdb->query("ALTER TABLE {$wpdb->postmeta} ADD INDEX idx_geolocation_lat (meta_key, meta_value) WHERE meta_key = '_geolocation_lat'");
+    if ($result === false) {
+        error_log('Listeo: Failed to add latitude index');
+        $success = false;
+    }
+    
+    // Add composite index for longitude  
+    $result = $wpdb->query("ALTER TABLE {$wpdb->postmeta} ADD INDEX idx_geolocation_lng (meta_key, meta_value) WHERE meta_key = '_geolocation_long'");
+    if ($result === false) {
+        error_log('Listeo: Failed to add longitude index');
+        $success = false;
+    }
+    
+    // Add composite index for post_id and geolocation fields
+    $result = $wpdb->query("ALTER TABLE {$wpdb->postmeta} ADD INDEX idx_post_geolocation (post_id, meta_key, meta_value) WHERE meta_key IN ('_geolocation_lat', '_geolocation_long')");
+    if ($result === false) {
+        error_log('Listeo: Failed to add post geolocation index');
+        $success = false;
+    }
+    
+    if ($success) {
+        // Mark indexes as created
+        update_option('listeo_geolocation_indexes_created', true);
+        error_log('Listeo: Geolocation database indexes created successfully');
+    }
+    
+    return $success;
+}
+
+/**
+ * Check and create geolocation indexes if needed
+ * Called during plugin activation or when needed
+ *
+ * @return void
+ */
+function listeo_maybe_add_geolocation_indexes() {
+    $indexes_created = get_option('listeo_geolocation_indexes_created', false);
+    
+    if (!$indexes_created) {
+        // Only attempt if we have a reasonable number of listings
+        $listing_count = wp_count_posts('listing')->publish;
+        
+        if ($listing_count > 1000) {
+            listeo_add_geolocation_indexes();
+        }
+    }
+}
+
+// Hook to automatically check and add indexes when needed
+add_action('init', 'listeo_maybe_add_geolocation_indexes');
+
+/**
+ * Background cache warming for nearby listings
+ * Scheduled via wp-cron to pre-populate cache for popular listings
+ *
+ * @return void
+ */
+function listeo_warm_nearby_listings_cache() {
+    // Get popular listings (most viewed in last 30 days)
+    $popular_listings = get_posts(array(
+        'post_type' => 'listing',
+        'post_status' => 'publish',
+        'posts_per_page' => 50,
+        'meta_key' => '_listing_views_count',
+        'orderby' => 'meta_value_num',
+        'order' => 'DESC',
+        'date_query' => array(
+            array(
+                'after' => '30 days ago'
+            )
+        )
+    ));
+    
+    $default_radius = get_option('listeo_nearby_listings_radius', 50);
+    $default_unit = get_option('listeo_nearby_listings_unit', 'km');
+    
+    foreach ($popular_listings as $listing) {
+        // Check if listing has geolocation data
+        $lat = get_post_meta($listing->ID, '_geolocation_lat', true);
+        $lng = get_post_meta($listing->ID, '_geolocation_long', true);
+        
+        if (!empty($lat) && !empty($lng)) {
+            // Pre-warm cache by calling the function
+            listeo_get_cached_nearby_listings($listing->ID, $default_radius, $default_unit);
+            
+            // Small delay to prevent overwhelming the server
+            usleep(100000); // 0.1 second delay
+        }
+    }
+    
+    error_log('Listeo: Background cache warming completed for ' . count($popular_listings) . ' listings');
+}
+
+// Schedule background cache warming
+add_action('wp', 'listeo_schedule_cache_warming');
+function listeo_schedule_cache_warming() {
+    if (!wp_next_scheduled('listeo_warm_nearby_cache')) {
+        wp_schedule_event(time(), 'daily', 'listeo_warm_nearby_cache');
+    }
+}
+add_action('listeo_warm_nearby_cache', 'listeo_warm_nearby_listings_cache');
+
+/**
+ * Performance monitoring for nearby listings feature
+ *
+ * @param string $operation Operation name
+ * @param float $start_time Operation start time
+ * @param array $context Additional context data
+ * @return void
+ */
+function listeo_log_performance_metric($operation, $start_time, $context = array()) {
+    if (!defined('LISTEO_DEBUG') || !LISTEO_DEBUG) {
+        return;
+    }
+    
+    $execution_time = microtime(true) - $start_time;
+    
+    $log_entry = array(
+        'timestamp' => current_time('mysql'),
+        'operation' => $operation,
+        'execution_time' => round($execution_time, 4),
+        'context' => $context
+    );
+    
+    error_log('Listeo Performance: ' . wp_json_encode($log_entry));
+    
+    // Store in transient for admin dashboard (keep last 100 entries)
+    $performance_log = get_transient('listeo_performance_log') ?: array();
+    array_unshift($performance_log, $log_entry);
+    $performance_log = array_slice($performance_log, 0, 100);
+    set_transient('listeo_performance_log', $performance_log, WEEK_IN_SECONDS);
+}
+
+/**
+ * Get performance metrics for admin dashboard
+ *
+ * @return array Performance metrics
+ */
+function listeo_get_performance_metrics() {
+    global $wpdb;
+    
+    $metrics = array();
+    
+    // Get cache hit rate
+    $cache_stats = get_transient('listeo_nearby_cache_stats') ?: array('hits' => 0, 'misses' => 0);
+    $total_requests = $cache_stats['hits'] + $cache_stats['misses'];
+    $metrics['cache_hit_rate'] = $total_requests > 0 ? round(($cache_stats['hits'] / $total_requests) * 100, 2) : 0;
+    
+    // Get database performance indicators
+    $listing_count = wp_count_posts('listing')->publish;
+    $metrics['total_listings'] = $listing_count;
+    
+    // Check if indexes exist
+    $indexes = $wpdb->get_results("SHOW INDEX FROM {$wpdb->postmeta} WHERE Key_name LIKE 'idx_geolocation%'");
+    $metrics['geolocation_indexes'] = count($indexes);
+    
+    // Get cache size estimate
+    $cache_entries = $wpdb->get_var(
+        "SELECT COUNT(*) FROM {$wpdb->options} 
+        WHERE option_name LIKE '_transient_listeo_nearby_listings_%'"
+    );
+    $metrics['cached_entries'] = $cache_entries;
+    
+    // Performance log
+    $metrics['recent_performance'] = get_transient('listeo_performance_log') ?: array();
+    
+    return $metrics;
+}
+
+/**
+ * Track cache usage statistics
+ *
+ * @param bool $is_hit Whether this was a cache hit
+ * @return void
+ */
+function listeo_track_cache_usage($is_hit) {
+    $stats = get_transient('listeo_nearby_cache_stats') ?: array('hits' => 0, 'misses' => 0);
+    
+    if ($is_hit) {
+        $stats['hits']++;
+    } else {
+        $stats['misses']++;
+    }
+    
+    set_transient('listeo_nearby_cache_stats', $stats, DAY_IN_SECONDS);
+}
+

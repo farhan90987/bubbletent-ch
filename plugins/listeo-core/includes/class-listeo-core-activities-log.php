@@ -213,7 +213,10 @@ class Listeo_Core_Activities_Log {
 					$post_url	= get_permalink( $item->post_id );
 					$start = '<li>';
 					$nonce = wp_create_nonce( 'delete_activity-' . $item->post_id  );
-					$end = '<span class="activity-time">'.human_time_diff( $item->log_time, current_time('timestamp') ) . esc_html__(' ago','listeo_core').'</span>';
+					$end = '<span class="activity-time">' . sprintf(
+						esc_html__( '%s ago', 'listeo_core' ),
+						human_time_diff( $item->log_time, current_time('timestamp') )
+					) . '</span>';
 					$end .= '<a href="#" data-nonce="'.$nonce.'" data-id="'.$item->id.'" class="close-list-item"><i class="fa fa-close"></i></a></li>';
 					
 					switch ($item->action) {
@@ -267,6 +270,7 @@ class Listeo_Core_Activities_Log {
 							case 'reviewed':
 								//$item->user_id in this case it's comment ID
 								$rating = get_comment_meta( $item->user_id , 'listeo-rating', true ); 
+								if(!$rating) break;
 								$comment_author = get_comment_author( $item->user_id ); 
 								$rating_value = esc_attr(round($rating,1)); 
 								

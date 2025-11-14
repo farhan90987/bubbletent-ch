@@ -212,9 +212,7 @@ class Listeo_Core_Widget extends WP_Widget
 	 *
 	 * @return void
 	 */
-	public function widget($args, $instance)
-	{
-	}
+	public function widget($args, $instance) {}
 }
 
 
@@ -234,7 +232,7 @@ class Listeo_Core_Featured_Properties extends Listeo_Core_Widget
 		$this->widget_cssclass    = 'listeo_core widget_featured_listings';
 		$this->widget_description = __('Display a list of featured listings on your site.', 'listeo_core');
 		$this->widget_id          = 'widget_featured_listings';
-		$this->widget_name        =  __('Featured Properties', 'listeo_core');
+		$this->widget_name        =  __('Listeo Featured Listings', 'listeo_core');
 		$this->settings           = array(
 			'title' => array(
 				'type'  => 'text',
@@ -299,7 +297,7 @@ class Listeo_Core_Featured_Properties extends Listeo_Core_Widget
 					<div class="fw-carousel-item">
 						<?php
 						//     $template_loader->get_template_part( 'content-listing-compact' );  
-						$template_loader->get_template_part('content-listing-grid');
+						$template_loader->get_template_part('content-listing');
 						?>
 					</div>
 				<?php endwhile; ?>
@@ -372,7 +370,7 @@ class Listeo_Core_Bookmarks_Share_Widget extends Listeo_Core_Widget
 			return;
 		}
 
-		
+
 
 		extract($args);
 
@@ -419,7 +417,7 @@ class Listeo_Core_Bookmarks_Share_Widget extends Listeo_Core_Widget
 					if ($count < 0) {
 						$count = 0;
 					} ?>
-					<span id="bookmarks-counter"><?php printf(_n('%s person bookmarked this place', '%s people bookmarked this place', $count, 'listeo_core'), number_format_i18n($count)); ?> </span>
+					<span id="bookmarks-counter"><?php printf(_n('%s person bookmarked this listing', '%s people bookmarked this listing', $count, 'listeo_core'), number_format_i18n($count)); ?> </span>
 				<?php endif; ?>
 			<?php
 			endif;
@@ -438,7 +436,7 @@ class Listeo_Core_Bookmarks_Share_Widget extends Listeo_Core_Widget
 			?>
 				<ul class="share-buttons margin-bottom-0">
 					<li><?php echo '<a target="_blank" class="fb-share" href="https://www.facebook.com/sharer/sharer.php?u=' . $url . '"><i class="fa fa-facebook"></i> ' . esc_html__('Share', 'listeo_core') . '</a>'; ?></li>
-					<li><?php echo '<a target="_blank" class="twitter-share" href="https://twitter.com/share?url=' . $url . '&amp;text=' . esc_attr($summary) . '" title="' . __('Twitter', 'listeo_core') . '"><i class="fa fa-twitter"></i> Tweet</a>'; ?></li>
+					<li><?php echo '<a target="_blank" class="twitter-share" href="https://twitter.com/share?url=' . $url . '&amp;text=' . esc_attr($summary) . '" title="' . __('Share', 'listeo_core') . '"><i class="fa-brands fa-x-twitter"></i> ' . __('Share', 'listeo_core') . '</a>'; ?></li>
 					<li><?php echo '<a target="_blank"  class="pinterest-share" href="http://pinterest.com/pin/create/button/?url=' . $url . '&amp;description=' . esc_attr($summary) . '&media=' . esc_attr($imageurl) . '" onclick="window.open(this.href); return false;"><i class="fa fa-pinterest-p"></i> Pin It</a>'; ?></li>
 				</ul>
 
@@ -521,12 +519,13 @@ class Listeo_Core_Contact_Vendor_Widget extends Listeo_Core_Widget
 			return;
 		}
 		$contact_enabled = get_post_meta($post_id, '_email_contact_widget', true);
-
+		// apply filter to enable contact form
+		$contact_enabled = apply_filters('listeo_core_contact_widget_enabled', $contact_enabled, $post_id);
 		if (!$contact_enabled) {
 			return;
 		}
 
-		if (isset($instance['only_verified'])) {
+		if (isset($instance['only_verified']) && $instance['only_verified'] == 'on') {
 			$verified = get_post_meta($post_id, '_verified', true);
 			if (!$verified) {
 				return;
@@ -606,7 +605,12 @@ class Listeo_Core_Search_Widget extends Listeo_Core_Widget
 		$this->widget_description = __('Display a Advanced Search Form.', 'listeo_core');
 		$this->widget_id          = 'widget_search_form_listings';
 		$this->widget_name        =  __('Listeo Search Form', 'listeo_core');
-		$search_forms = listeo_get_search_forms_dropdown('sidebar');
+		if (function_exists('listeo_get_search_forms_dropdown')) {
+			$search_forms = listeo_get_search_forms_dropdown('sidebar');
+		} else {
+			$search_forms = array();
+		}
+
 		$this->settings           = array(
 			'title' => array(
 				'type'  => 'text',
@@ -670,6 +674,20 @@ class Listeo_Core_Search_Widget extends Listeo_Core_Widget
 			$source = 'sidebar_search';
 		}
 
+		if (is_tax()) {
+			// check if it has a search form
+			$search_form = get_term_meta(get_queried_object_id(), 'listeo_taxonomy_search_form', true);
+			$top_layout = get_term_meta(get_queried_object_id(), 'listeo_taxonomy_top_layout', true);
+
+
+			if (!empty($search_form)) {
+				// Get compatible search form for the layout (auto-switch if incompatible)
+
+				$source = listeo_get_compatible_search_form_for_layout($search_form, $top_layout);
+			}
+			///
+		}
+
 		if (isset($action) && $action == 'archive') {
 			echo do_shortcode('[listeo_search_form  source="' . $source . '" dynamic_filters="' . $dynamic . '" 	more_text_open="' . esc_html__('More Filters', 'listeo_core') . '" more_text_close="' . esc_html__('Close Filters', 'listeo_core') . '" ajax_browsing="false" action=' . get_post_type_archive_link('listing') . ']');
 		} else {
@@ -719,7 +737,7 @@ class Listeo_Core_External_Booking_Widget extends Listeo_Core_Widget
 
 
 
-		
+
 
 		extract($args);
 		$title  = apply_filters('widget_title', $instance['title'], $instance, $this->id_base);
@@ -755,702 +773,6 @@ class Listeo_Core_External_Booking_Widget extends Listeo_Core_Widget
 			</form>
 		</div>
 		<?php
-
-		echo $after_widget;
-
-		$content = ob_get_clean();
-
-		echo $content;
-
-		$this->cache_widget($args, $content);
-	}
-}
-
-
-
-/**
- * Booking Widget
- */
-class Listeo_Core_Booking_Widget extends Listeo_Core_Widget
-{
-
-	/**
-	 * Constructor
-	 */
-	public function __construct()
-	{
-
-		// create object responsible for bookings
-		$this->bookings = new Listeo_Core_Bookings_Calendar;
-
-		$this->widget_cssclass    = 'listeo_core boxed-widget booking-widget margin-bottom-35';
-		$this->widget_description = __('Shows Booking Form.', 'listeo_core');
-		$this->widget_id          = 'widget_booking_listings';
-		$this->widget_name        =  __('Listeo Booking Form', 'listeo_core');
-		$this->settings           = array(
-			'title' => array(
-				'type'  => 'text',
-				'std'   => __('Booking', 'listeo_core'),
-				'label' => __('Title', 'listeo_core')
-			),
-
-
-		);
-		$this->register();
-	}
-
-	/**
-	 * widget function.
-	 *
-	 * @see WP_Widget
-	 * @access public
-	 * @param array $args
-	 * @param array $instance
-	 * @return void
-	 */
-	public function widget($args, $instance)
-	{
-
-
-
-		
-		extract($args);
-		$title  = apply_filters('widget_title', $instance['title'], $instance, $this->id_base);
-		$queried_object = get_queried_object();
-		$packages_disabled_modules = get_option('listeo_listing_packages_options', array());
-		if (empty($packages_disabled_modules)) {
-			$packages_disabled_modules = array();
-		}
-		if ($queried_object) {
-			$post_id = $queried_object->ID;
-
-
-
-			if (empty($packages_disabled_modules)) {
-				$packages_disabled_modules = array();
-			}
-
-			$user_package = get_post_meta($post_id, '_user_package_id', true);
-			if ($user_package) {
-				$package = listeo_core_get_user_package($user_package);
-			}
-
-			$offer_type = get_post_meta($post_id, '_listing_type', true);
-		}
-
-		if (in_array('option_booking', $packages_disabled_modules)) {
-
-			if (isset($package) && $package->has_listing_booking() != 1) {
-				return;
-			}
-		}
-
-		if ($queried_object) {
-			$post_id = $queried_object->ID;
-			$_booking_status = get_post_meta($post_id, '_booking_status', true); {
-				if (!$_booking_status) {
-					return;
-				}
-			}
-		}
-		ob_start();
-
-		echo $before_widget;
-		if ($title) {
-			echo $before_title . '<i class="fa fa-calendar-check"></i> ' . $title . $after_title;
-		}
-
-		$days_list = array(
-			0	=> __('Monday', 'listeo_core'),
-			1 	=> __('Tuesday', 'listeo_core'),
-			2	=> __('Wednesday', 'listeo_core'),
-			3 	=> __('Thursday', 'listeo_core'),
-			4 	=> __('Friday', 'listeo_core'),
-			5 	=> __('Saturday', 'listeo_core'),
-			6 	=> __('Sunday', 'listeo_core'),
-		);
-
-		// get post meta and save slots to var
-		$post_info = get_queried_object();
-		if ($post_info) {
-			$post_meta = get_post_meta($post_info->ID);
-		} else {
-			$content = ob_get_clean();
-			return false;
-		}
-		// get slots and check if not empty
-
-		if (isset($post_meta['_slots_status'][0]) && !empty($post_meta['_slots_status'][0])) {
-			if (isset($post_meta['_slots'][0])) {
-				$slots = json_decode($post_meta['_slots'][0]);
-				if (strpos($post_meta['_slots'][0], '-') == false) $slots = false;
-			} else {
-				$slots = false;
-			}
-		} else {
-			$slots = false;
-		}
-		// get opening hours
-		if (isset($post_meta['_opening_hours'][0])) {
-			$opening_hours = json_decode($post_meta['_opening_hours'][0], true);
-		}
-
-		if ($post_meta['_listing_type'][0] == 'rental' || $post_meta['_listing_type'][0] == 'service') {
-
-			// get reservations for next 10 years to make unable to set it in datapicker
-			if ($post_meta['_listing_type'][0] == 'rental') {
-				$records = $this->bookings->get_bookings(
-					date('Y-m-d H:i:s'),
-					date('Y-m-d H:i:s', strtotime('+3 years')),
-					array('listing_id' => $post_info->ID, 'type' => 'reservation'),
-					$by = 'booking_date',
-					$limit = '',
-					$offset = '',
-					$all = '',
-					$listing_type = 'rental'
-				);
-			} else {
-
-				$records = $this->bookings->get_bookings(
-					date('Y-m-d H:i:s'),
-					date('Y-m-d H:i:s', strtotime('+3 years')),
-					array('listing_id' => $post_info->ID, 'type' => 'reservation'),
-					'booking_date',
-					$limit = '',
-					$offset = '',
-					'owner'
-				);
-			}
-
-
-			// store start and end dates to display it in the widget
-			$wpk_start_dates = array();
-			$wpk_end_dates = array();
-			if (!empty($records)) {
-				foreach ($records as $record) {
-
-					if ($post_meta['_listing_type'][0] == 'rental') {
-						// when we have one day reservation
-						if ($record['date_start'] == $record['date_end']) {
-							$wpk_start_dates[] = date('Y-m-d', strtotime($record['date_start']));
-							$wpk_end_dates[] = date('Y-m-d', strtotime($record['date_start'] . ' + 1 day'));
-						} else {
-							/**
-							 * Set the date_start and date_end dates and fill days in between as disabled
-							 */
-							$wpk_start_dates[] = date('Y-m-d', strtotime($record['date_start']));
-							$wpk_end_dates[] = date('Y-m-d', strtotime($record['date_end']));
-
-							$period = new DatePeriod(
-								new DateTime(date('Y-m-d', strtotime($record['date_start'] . ' + 1 day'))),
-								new DateInterval('P1D'),
-								new DateTime(date('Y-m-d', strtotime($record['date_end']))) //. ' +1 day') ) )
-							);
-
-							foreach ($period as $day_number => $value) {
-								$disabled_dates[] = $value->format('Y-m-d');
-							}
-						}
-					} else {
-						// when we have one day reservation
-						if ($record['date_start'] == $record['date_end']) {
-							$disabled_dates[] = date('Y-m-d', strtotime($record['date_start']));
-						} else {
-
-							// if we have many dats reservations we have to add every date between this days
-							$period = new DatePeriod(
-								new DateTime(date('Y-m-d', strtotime($record['date_start']))),
-								new DateInterval('P1D'),
-								new DateTime(date('Y-m-d', strtotime($record['date_end'] . ' +1 day')))
-							);
-
-							foreach ($period as $day_number => $value) {
-								$disabled_dates[] = $value->format('Y-m-d');
-							}
-						}
-					}
-				}
-			}
-
-			if (isset($wpk_start_dates)) {
-		?>
-				<script>
-					var wpkStartDates = <?php echo json_encode($wpk_start_dates); ?>;
-					var wpkEndDates = <?php echo json_encode($wpk_end_dates); ?>;
-				</script>
-			<?php
-			}
-			if (isset($disabled_dates)) {
-			?>
-				<script>
-					var disabledDates = <?php echo json_encode($disabled_dates); ?>;
-				</script>
-			<?php
-			}
-		} // end if rental/service
-
-
-		if ($post_meta['_listing_type'][0] == 'event') {
-			$max_tickets = (int) get_post_meta($post_info->ID, "_event_tickets", true);
-			$sold_tickets = (int) get_post_meta($post_info->ID, "_event_tickets_sold", true);
-			$av_tickets = $max_tickets - $sold_tickets;
-
-			$event_date = get_post_meta($post_info->ID, "_event_date", true);
-			$event_date = strtotime($event_date);
-			$current_date = strtotime(date('Y-m-d') . ' +1 day');
-			if ($event_date < $current_date) {
-			?>
-				<p id="sold-out"><?php esc_html_e('The event has passed', 'listeo_core') ?></p>
-				</div>
-			<?php
-				$content = ob_get_clean();
-				echo $content;
-				return;
-			}
-			if ($av_tickets <= 0) { ?>
-				<p id="sold-out"><?php esc_html_e('The tickets have sold out', 'listeo_core') ?></p>
-				</div>
-		<?php
-				$content = ob_get_clean();
-				echo $content;
-				return;
-			}
-		}
-		?>
-
-		<div class="row with-forms  margin-top-0" id="booking-widget-anchor">
-			<form ​ autocomplete="off" id="form-booking" data-post_id="<?php echo $post_info->ID; ?>" class="form-booking-<?php echo $post_meta['_listing_type'][0]; ?>" action="<?php echo esc_url(get_permalink(get_option('listeo_booking_confirmation_page'))); ?>" method="post">
-
-
-				<?php if ($post_meta['_listing_type'][0] != 'event') {
-					$minspan = get_post_meta($post_info->ID, '_min_days', true);
-					//WP Kraken
-					// If minimub booking days are not set, set to 2 by default
-					if (!$minspan && $post_meta['_listing_type'][0] == 'rental') {
-						$minspan = 2;
-					}
-				?>
-					<!-- Date Range Picker - docs: http://www.daterangepicker.com/ -->
-					<div class="col-lg-12">
-						<input type="text" data-minspan="<?php echo ($minspan) ? $minspan : '0'; ?>" id="date-picker" readonly="readonly" class="date-picker-listing-<?php echo esc_attr($post_meta['_listing_type'][0]); ?>" autocomplete="off" placeholder="<?php esc_attr_e('Date', 'listeo_core'); ?>" value="" data-listing_type="<?php echo $post_meta['_listing_type'][0]; ?>" />
-					</div>
-
-
-					<!-- Panel Dropdown -->
-					<?php if ($post_meta['_listing_type'][0] == 'service' &&   is_array($slots)) {
-						$slot_days_array = array();
-						foreach ($slots as $day => $day_slots) {
-							if (empty($day_slots)) continue;
-							// pon wt srod czwartek piatek sobota niedzial
-							// 0   1   2   3         4      5      6
-							// 1   2   3   4         5      6      0
-							$day++;
-							if ($day == 7) {
-								$day = 0;
-							}
-
-							$slot_days_array[] = $day;
-						}
-					?>
-						<div class="col-lg-12">
-							<div class="panel-dropdown time-slots-dropdown" data-slots-days=<?php echo implode(',', $slot_days_array); ?>>
-								<a href="#" placeholder="<?php esc_html_e('Time Slots', 'listeo_core') ?>"><?php esc_html_e('Time Slots', 'listeo_core') ?></a>
-
-								<div class="panel-dropdown-content timeslot-panel padding-reset">
-									<div class="no-slots-information"><?php esc_html_e('No slots for this day', 'listeo_core') ?></div>
-									<div class="panel-dropdown-scrollable">
-										<input id="slot" type="hidden" name="slot" value="" />
-										<input id="listing_id" type="hidden" name="listing_id" value="<?php echo $post_info->ID; ?>" />
-										<?php foreach ($slots as $day => $day_slots) {
-											if (empty($day_slots)) continue;
-
-
-											foreach ($day_slots as $number => $slot) {
-												$slot = explode('|', $slot); ?>
-												<!-- Time Slot -->
-												<div class="time-slot" day="<?php echo $day; ?>">
-													<input type="radio" name="time-slot" id="<?php echo $day . '|' . $number; ?>" value="<?php echo $day . '|' . $number; ?>">
-													<label for="<?php echo $day . '|' . $number; ?>">
-														<p class="day"><?php echo $days_list[$day]; ?></p>
-														<strong><?php echo $slot[0]; ?></strong>
-														<span><?php echo $slot[1];
-																esc_html_e(' slots available', 'listeo_core') ?></span>
-													</label>
-												</div>
-											<?php } ?>
-
-										<?php } ?>
-									</div>
-								</div>
-							</div>
-						</div>
-					<?php } else if ($post_meta['_listing_type'][0] == 'service') { ?>
-						<div class="col-lg-12">
-							<input type="text" class="time-picker flatpickr-input active" placeholder="<?php esc_html_e('Time', 'listeo_core') ?>" id="_hour" name="_hour" readonly="readonly">
-						</div>
-						<?php if (get_post_meta($post_id, '_end_hour', true)) : ?>
-							<div class="col-lg-12">
-								<input type="text" class="time-picker time-picker-end-hour flatpickr-input active" placeholder="<?php esc_html_e('End Time', 'listeo_core') ?>" id="_hour_end" name="_hour_end" readonly="readonly">
-							</div>
-						<?php
-						endif;
-						$_opening_hours_status = get_post_meta($post_id, '_opening_hours_status', true);
-						$_opening_hours_status = '';
-						?>
-						<script>
-							var availableDays = <?php if ($_opening_hours_status) {
-													echo json_encode($opening_hours, true);
-												} else {
-													echo json_encode('', true);
-												} ?>;
-						</script>
-
-					<?php } ?>
-
-					<?php $bookable_services = listeo_get_bookable_services($post_info->ID);
-
-					if (!empty($bookable_services)) : ?>
-
-						<!-- Panel Dropdown -->
-						<div class="col-lg-12">
-							<div class="panel-dropdown booking-services">
-								<a href="#"><?php esc_html_e('Extra Services', 'listeo_core'); ?> <span class="services-counter">0</span></a>
-								<div class="panel-dropdown-content padding-reset">
-									<div class="panel-dropdown-scrollable">
-
-										<!-- Bookable Services -->
-										<div class="bookable-services">
-											<?php
-											$i = 0;
-											$currency_abbr = get_option('listeo_currency');
-											$currency_postion = get_option('listeo_currency_postion');
-											$currency_symbol = Listeo_Core_Listing::get_currency_symbol($currency_abbr);
-											foreach ($bookable_services as $key => $service) {
-												$i++; ?>
-												<div class="single-service <?php if (isset($service['bookable_quantity'])) : ?>with-qty-btns<?php endif; ?>">
-
-													<input type="checkbox" autocomplete="off" class="bookable-service-checkbox" name="_service[<?php echo sanitize_title($service['name']); ?>]" value="<?php echo sanitize_title($service['name']); ?>" id="tag<?php echo esc_attr($i); ?>" />
-
-													<label for="tag<?php echo esc_attr($i); ?>">
-														<h5><?php echo esc_html($service['name']); ?></h5>
-														<span class="single-service-price"> <?php
-																							if (empty($service['price']) || $service['price'] == 0) {
-																								esc_html_e('Free', 'listeo_core');
-																							} else {
-																								if ($currency_postion == 'before') {
-																									echo $currency_symbol . ' ';
-																								}
-																								$price = $service['price'];
-																								if (is_numeric($price)) {
-																									$decimals = get_option('listeo_number_decimals', 2);
-																									echo number_format_i18n($price, $decimals);
-																								} else {
-																									echo esc_html($price);
-																								}
-																								if ($currency_postion == 'after') {
-																									echo ' ' . $currency_symbol;
-																								}
-																							}
-																							?></span>
-													</label>
-
-													<?php if (isset($service['bookable_quantity'])) : ?>
-														<div class="qtyButtons">
-															<input type="text" data-min="1" <?php if (isset($service['bookable_quantity_max']) && !empty($service['bookable_quantity_max'])) {
-																								echo 'data-max="' . $service['bookable_quantity_max'] . '"';
-																							} ?> class="bookable-service-quantity" name="_service_qty[<?php echo sanitize_title($service['name']); ?>]" value="1">
-														</div>
-													<?php else : ?>
-														<input type="hidden" class="bookable-service-quantity" name="_service_qty[<?php echo sanitize_title($service['name']); ?>]" value="1">
-													<?php endif; ?>
-
-												</div>
-											<?php } ?>
-										</div>
-										<div class="clearfix"></div>
-										<!-- Bookable Services -->
-
-
-									</div>
-								</div>
-							</div>
-						</div>
-						<!-- Panel Dropdown / End -->
-					<?php
-					endif;
-					$max_guests = get_post_meta($post_info->ID, "_max_guests", true);
-					$min_guests = get_post_meta($post_info->ID, "_min_guests", true);
-					if (empty($min_guests)) {
-						$min_guests = 1;
-					}
-					$count_per_guest = get_post_meta($post_info->ID, "_count_per_guest", true);
-					if (get_option('listeo_remove_guests')) {
-						$max_guests = 1;
-					}
-					?>
-					<!-- Panel Dropdown -->
-					<div class="col-lg-12" <?php if ($max_guests == 1) {
-												echo 'style="display:none;"';
-											} ?>>
-						<div class="panel-dropdown">
-							<a href="#"><?php esc_html_e('Guests', 'listeo_core') ?> <span class="qtyTotal" name="qtyTotal">1</span></a>
-							<div class="panel-dropdown-content" style="width: 269px;">
-								<!-- Quantity Buttons -->
-								<div class="qtyButtons">
-									<div class="qtyTitle"><?php esc_html_e('Guests', 'listeo_core') ?></div>
-									<input type="text" name="qtyInput" data-max="<?php echo esc_attr($max_guests); ?>" data-min="<?php echo esc_attr($min_guests); ?>" class="adults <?php if ($count_per_guest) echo 'count_per_guest'; ?>" value="<?php echo $min_guests; ?>">
-								</div>
-
-							</div>
-						</div>
-					</div>
-					<!-- Panel Dropdown / End -->
-
-				<?php } //eof !if event 
-				?>
-
-				<?php if ($post_meta['_listing_type'][0] == 'event') {
-					$max_guests 	= (int) get_post_meta($post_info->ID, "_max_guests", true);
-					$max_tickets 	= (int) get_post_meta($post_info->ID, "_event_tickets", true);
-					$sold_tickets 	= (int) get_post_meta($post_info->ID, "_event_tickets_sold", true);
-					$av_tickets 	= $max_tickets - $sold_tickets;
-					if ($av_tickets > $max_guests && $max_guests > 0) {
-						$av_tickets = $max_guests;
-					}
-
-				?><input type="hidden" id="date-picker" readonly="readonly" class="date-picker-listing-<?php echo esc_attr($post_meta['_listing_type'][0]); ?>" autocomplete="off" placeholder="<?php esc_attr_e('Date', 'listeo_core'); ?>" value="<?php echo $post_meta['_event_date'][0]; ?>" listing_type="<?php echo $post_meta['_listing_type'][0]; ?>" />
-					<div class="col-lg-12 tickets-panel-dropdown">
-						<div class="panel-dropdown">
-							<a href="#"><?php esc_html_e('Tickets', 'listeo_core') ?> <span class="qtyTotal" name="qtyTotal">1</span></a>
-							<div class="panel-dropdown-content" style="width: 269px;">
-								<!-- Quantity Buttons -->
-								<div class="qtyButtons">
-									<div class="qtyTitle"><?php esc_html_e('Tickets', 'listeo_core') ?></div>
-									<input type="text" name="qtyInput" <?php if ($max_tickets > 0) { ?>data-max="<?php echo esc_attr($av_tickets); ?>" <?php } ?> id="tickets" value="1">
-								</div>
-
-							</div>
-						</div>
-					</div>
-					<?php $bookable_services = listeo_get_bookable_services($post_info->ID);
-
-					if (!empty($bookable_services)) : ?>
-
-						<!-- Panel Dropdown -->
-						<div class="col-lg-12">
-							<div class="panel-dropdown booking-services">
-								<a href="#"><?php esc_html_e('Extra Services', 'listeo_core'); ?> <span class="services-counter">0</span></a>
-								<div class="panel-dropdown-content padding-reset">
-									<div class="panel-dropdown-scrollable">
-
-										<!-- Bookable Services -->
-										<div class="bookable-services">
-											<?php
-											$i = 0;
-											$currency_abbr = get_option('listeo_currency');
-											$currency_postion = get_option('listeo_currency_postion');
-											$currency_symbol = Listeo_Core_Listing::get_currency_symbol($currency_abbr);
-											foreach ($bookable_services as $key => $service) {
-												$i++; ?>
-												<div class="single-service">
-													<input type="checkbox" class="bookable-service-checkbox" name="_service[<?php echo sanitize_title($service['name']); ?>]" value="<?php echo sanitize_title($service['name']); ?>" id="tag<?php echo esc_attr($i); ?>" />
-
-													<label for="tag<?php echo esc_attr($i); ?>">
-														<h5><?php echo esc_html($service['name']); ?></h5>
-														<span class="single-service-price"> <?php
-																							if (empty($service['price']) || $service['price'] == 0) {
-																								esc_html_e('Free', 'listeo_core');
-																							} else {
-																								if ($currency_postion == 'before') {
-																									echo $currency_symbol . ' ';
-																								}
-																								echo esc_html($service['price']);
-																								if ($currency_postion == 'after') {
-																									echo ' ' . $currency_symbol;
-																								}
-																							}
-																							?></span>
-													</label>
-
-													<?php if (isset($service['bookable_quantity'])) : ?>
-														<div class="qtyButtons">
-															<input type="text" class="bookable-service-quantity" name="_service_qty[<?php echo sanitize_title($service['name']); ?>]" data-max="" class="" value="1">
-														</div>
-													<?php else : ?>
-														<input type="hidden" class="bookable-service-quantity" name="_service_qty[<?php echo sanitize_title($service['name']); ?>]" data-max="" class="" value="1">
-													<?php endif; ?>
-												</div>
-											<?php } ?>
-										</div>
-										<div class="clearfix"></div>
-										<!-- Bookable Services -->
-
-
-									</div>
-								</div>
-							</div>
-						</div>
-						<!-- Panel Dropdown / End -->
-					<?php
-					endif; ?>
-					<!-- Panel Dropdown / End -->
-				<?php } ?>
-
-				<?php if (!get_option('listeo_remove_coupons')) : ?>
-					<div class="col-lg-12 coupon-widget-wrapper">
-						<a id="listeo-coupon-link" href="#"><?php esc_html_e('Have a coupon?', 'listeo_core'); ?></a>
-						<div class="coupon-form">
-
-							<input type="text" name="apply_new_coupon" class="input-text" id="apply_new_coupon" value="" placeholder="<?php esc_html_e('Coupon code', 'listeo_core'); ?>">
-							<a href="#" class="button listeo-booking-widget-apply_new_coupon">
-								<div class="loadingspinner"></div><span class="apply-coupon-text"><?php esc_html_e('Apply', 'listeo_core'); ?></span>
-							</a>
-
-						</div>
-						<div id="coupon-widget-wrapper-output">
-							<div class="notification error closeable"></div>
-							<div class="notification success closeable" id="coupon_added"><?php esc_html_e('This coupon was added', 'listeo_core'); ?></div>
-						</div>
-						<div id="coupon-widget-wrapper-applied-coupons">
-
-						</div>
-					</div>
-
-					<input type="hidden" name="coupon_code" class="input-text" id="coupon_code" value="" placeholder="<?php esc_html_e('Coupon code', 'listeo_core'); ?>">
-				<?php endif; ?>
-		</div>
-
-		<!-- Book Now -->
-		<input type="hidden" id="listing_type" value="<?php echo $post_meta['_listing_type'][0]; ?>" />
-		<input type="hidden" id="listing_id" value="<?php echo $post_info->ID; ?>" />
-		<input id="booking" type="hidden" name="value" value="booking_form" />
-		<div class="hash-custom-book-error" style="color:red;font-weight:600;"></div>
-		<?php if (is_user_logged_in()) :
-
-			if ($post_meta['_listing_type'][0] == 'event') {
-				$book_btn = esc_html__('Make a Reservation', 'listeo_core');
-			} else {
-				if (get_post_meta($post_info->ID, '_instant_booking', true)) {
-					$book_btn = esc_html__('Book Now', 'listeo_core');
-				} else {
-					$book_btn = esc_html__('Request Booking', 'listeo_core');
-				}
-			}
-
-			$post_id = $queried_object->ID;
-			$author_id = get_post_field('post_author', $post_id);
-			$current_user = wp_get_current_user();
-			$user_id = get_current_user_id();
-			$roles = $current_user->roles;
-			$role = array_shift($roles);
-			if (get_option('listeo_owners_can_book') != 'on' && in_array($role, array('owner', 'seller'))) { ?>
-				<a href="#" class="button fullwidth white margin-top-5"><span class="book-now-text"><?php echo esc_html__("Please use guest account.", 'listeo_core');  ?></span></a>
-			<?php } else {  ?>
-				<a href="#" class="button book-now fullwidth margin-top-5 hash-custom-book-id">
-				<div class="loadingspinner"></div><span class="book-now-text"><?php echo $book_btn; ?></span>
-				</a>
-
-			<?php } ?>
-
-
-
-
-			<?php else :
-			 if ($post_meta['_listing_type'][0] == 'event') {
-				$book_btn = esc_html__('Make a Reservation', 'listeo_core');
-			} else {
-				if (get_post_meta($post_info->ID, '_instant_booking', true)) {
-					$book_btn = esc_html__('Book Now', 'listeo_core');
-				} else {
-					$book_btn = esc_html__('Request Booking', 'listeo_core');
-				}
-			}
-			$popup_login = get_option('listeo_popup_login', 'ajax');
-			if ($popup_login == 'ajax') { ?>
-
-				<!--<a href="#sign-in-dialog" class="button fullwidth margin-top-5 popup-with-zoom-anim book-now-notloggedin">
-					<div class="loadingspinner"></div><span class="book-now-text"><?php esc_html_e('Login to Book', 'listeo_core') ?></span>
-				</a> -->
-				 <a href="#" class="button book-now fullwidth margin-top-5  hash-custom-book-id">
-					<div class="loadingspinner"></div><span class="book-now-text"><?php echo $book_btn; ?></span>
-				</a>
-
-
-			<?php } else {
-
-				$login_page = get_option('listeo_profile_page'); ?>
-				<a href="<?php echo esc_url(get_permalink($login_page)); ?>" class="button fullwidth margin-top-5 book-now-notloggedin hash-custom-book-id">
-					<div class="loadingspinner"></div><span class="book-now-text"><?php esc_html_e('Login To Book', 'listeo_core') ?></span>
-				</a>
-			<?php } ?>
-
-		<?php endif; ?>
-
-		<?php if ($post_meta['_listing_type'][0] == 'event' && isset($post_meta['_event_date'][0])) { ?>
-			<div class="booking-event-date">
-				<strong><?php esc_html_e('Event date', 'listeo_core'); ?></strong>
-				<span><?php
-
-						$_event_datetime = $post_meta['_event_date'][0];
-						$_event_date = list($_event_datetime) = explode(' -', $_event_datetime);
-
-						echo $_event_date[0]; ?></span>
-			</div>
-		<?php } ?>
-
-		<?php
-		$currency_abbr = get_option('listeo_currency');
-		$currency_postion = get_option('listeo_currency_postion');
-		$currency_symbol = Listeo_Core_Listing::get_currency_symbol($currency_abbr, false);
-		?>
-		<div class="booking-estimated-cost" <?php if ($post_meta['_listing_type'][0] != 'event') { ?>style="display: none;" <?php } ?>>
-			<?php if ($post_meta['_listing_type'][0] == 'event') {
-				$reservation_fee = (float) get_post_meta($post_info->ID, '_reservation_price', true);
-				$normal_price = (float) get_post_meta($post_info->ID, '_normal_price', true);
-
-				$event_default_price = $reservation_fee + $normal_price;
-			}  ?>
-			<strong><?php esc_html_e('Total Cost', 'listeo_core'); ?></strong>
-			<span data-price="<?php if (isset($event_default_price)) {
-									echo esc_attr($event_default_price);
-								} ?>">
-				<?php if ($currency_postion == 'before') {
-					echo $currency_symbol;
-				} ?>
-				<?php
-				if ($post_meta['_listing_type'][0] == 'event') {
-
-					echo $event_default_price;
-				} else echo '0'; ?>
-				<?php if ($currency_postion == 'after') {
-					echo $currency_symbol;
-				} ?>
-			</span>
-		</div>
-
-		<div class="booking-estimated-discount-cost" style="display: none;">
-
-			<strong><?php esc_html_e('Final Cost', 'listeo_core'); ?></strong>
-			<span>
-				<?php if ($currency_postion == 'before') {
-					echo $currency_symbol;
-				} ?>
-
-				<?php if ($currency_postion == 'after') {
-					echo $currency_symbol;
-				} ?>
-			</span>
-		</div>
-		<div class="booking-error-message" style="display: none;">
-			<?php if ($post_meta['_listing_type'][0] == 'service' && !$slots) {
-				esc_html_e('Unfortunately we are closed at selected hours. Try different please.', 'listeo_core');
-			} else {
-				esc_html_e('Unfortunately this request can\'t be processed. Try different dates please.', 'listeo_core');
-			} ?>
-		</div>
-		</form>
-		<?php
-
 
 		echo $after_widget;
 
@@ -1503,7 +825,7 @@ class Listeo_Core_Opening_Widget extends Listeo_Core_Widget
 	{
 
 
-		
+
 
 		extract($args);
 		$title  = apply_filters('widget_title', $instance['title'], $instance, $this->id_base);
@@ -1527,8 +849,12 @@ class Listeo_Core_Opening_Widget extends Listeo_Core_Widget
 			return;
 		}
 
-		if (!$listing_type  == 'service') {
-			return;
+		// Check if listing type supports opening hours
+		if (!empty($listing_type)) {
+			$custom_types = new Listeo_Core_Custom_Listing_Types();
+			if (!$custom_types->type_supports_opening_hours($listing_type)) {
+				return;
+			}
 		}
 
 		if (in_array('option_opening_hours', $packages_disabled_modules)) {
@@ -1690,7 +1016,9 @@ class Listeo_Core_Opening_Widget extends Listeo_Core_Widget
 	}
 }
 
-
+/**
+ * Classified Owner Widget
+ */
 class Listeo_Core_Classified_Owner_Widget extends Listeo_Core_Widget
 {
 
@@ -1734,7 +1062,7 @@ class Listeo_Core_Classified_Owner_Widget extends Listeo_Core_Widget
 		// 	return;
 		// }
 
-		
+
 
 		extract($args);
 
@@ -1819,6 +1147,9 @@ class Listeo_Core_Classified_Owner_Widget extends Listeo_Core_Widget
 					<a class="call-btn sign-in popup-with-zoom-anim" href="#sign-in-dialog"><?php esc_html_e('Login to Call', 'listeo_core'); ?></a>
 					<?php }
 				if (is_user_logged_in()) {
+
+
+
 					if ((isset($instance['contact']) && !empty($instance['contact']))) : ?>
 						<!-- Reply to review popup -->
 						<div id="small-dialog" class="zoom-anim-dialog mfp-hide">
@@ -1889,6 +1220,7 @@ class Listeo_Core_Owner_Widget extends Listeo_Core_Widget
 		$this->widget_id          = 'widget_listing_owner';
 		$this->widget_name        =  __('Listeo Owner Widget', 'listeo_core');
 		$this->settings           = array(
+
 			'title' => array(
 				'type'  => 'text',
 				'std'   => __('Hosted By', 'listeo_core'),
@@ -1919,9 +1251,67 @@ class Listeo_Core_Owner_Widget extends Listeo_Core_Widget
 				'std'   => 'on',
 				'label' => __('Show Send message button', 'listeo_core')
 			),
+			'only_verified' => array(
+				'type'  => 'checkbox',
+				'std'   => 'off',
+				'label' => __('Show Send message button only on verified listings', 'listeo_core')
+			),
+			'use_in_classified' => array(
+				'type'  => 'checkbox',
+				'std'   => 'on',
+				'label' => __('Use this widget also in Classified listing type', 'listeo_core')
+			),
+			'chat_via_whatsapp' => array(
+				'type'  => 'checkbox',
+				'std'   => 'on',
+				'label' => __('Chat via WhatsApp', 'listeo_core')
+			),
 
 
 		);
+
+		// Add dynamic custom user fields to widget settings
+		$custom_fields = get_option('listeo_owner_fields', array());
+		if (!empty($custom_fields) && is_array($custom_fields)) {
+			// Define default/built-in fields that are already handled by the widget
+			$excluded_fields = array(
+				'phone',           // Already handled by widget phone setting
+				'email',           // Already handled by widget email setting
+				'description',     // Bio/description already handled
+				'user_description', // Bio/description already handled
+				'bio',            // Bio/description already handled
+				'twitter',        // Social profiles already handled with icons
+				'facebook',       // Social profiles already handled with icons
+				'instagram',      // Social profiles already handled with icons
+				'linkedin',       // Social profiles already handled with icons
+				'youtube',        // Social profiles already handled with icons
+				'whatsapp',       // Social profiles already handled with icons
+				'skype',          // Social profiles already handled with icons
+				'tiktok',         // Social profiles already handled with icons
+			);
+
+			foreach ($custom_fields as $field_key => $field_data) {
+				// Skip header/section fields that aren't actual data fields
+				if (isset($field_data['type']) && $field_data['type'] !== 'header') {
+					$field_id = isset($field_data['id']) ? $field_data['id'] : $field_key;
+
+					// Skip fields that are already handled by the widget
+					if (in_array($field_id, $excluded_fields)) {
+						continue;
+					}
+
+					$field_name = isset($field_data['name']) ? $field_data['name'] : ucfirst(str_replace('_', ' ', $field_id));
+
+					// Add custom field setting with "custom_" prefix to avoid conflicts
+					$this->settings['custom_' . $field_id] = array(
+						'type'  => 'checkbox',
+						'std'   => 'off',
+						'label' => sprintf(__('Show %s', 'listeo_core'), strip_tags($field_name))
+					);
+				}
+			}
+		}
+
 		$this->register();
 	}
 
@@ -1940,7 +1330,7 @@ class Listeo_Core_Owner_Widget extends Listeo_Core_Widget
 		// 	return;
 		// }
 
-		
+
 
 		extract($args);
 		$title  = apply_filters('widget_title', $instance['title'], $instance, $this->id_base);
@@ -1957,13 +1347,24 @@ class Listeo_Core_Owner_Widget extends Listeo_Core_Widget
 		if ($queried_object) {
 			$post_id = $queried_object->ID;
 			$listing_type = get_post_meta($post_id, '_listing_type', true);
+			if (get_post_status($post_id) == 'expired') {
+				return;
+			}
 		}
 
-		if ($listing_type == 'classifieds') {
+		// Option 3: Set default if not exists, then check
+		if (!isset($instance['use_in_classified'])) {
+			$instance['use_in_classified'] = null;
+		}
+		if ($instance['use_in_classified'] === '') {
+			$instance['use_in_classified'] = false;
+		}
+		// if listing is set to type classifieds and widget is not set to show in classifieds, return
+		if ($listing_type == 'classifieds' && $instance['use_in_classified'] != 'on') {
 			return;
 		}
 		ob_start();
-		
+
 		echo $before_widget;
 
 		if ($title) {	?>
@@ -1971,6 +1372,7 @@ class Listeo_Core_Owner_Widget extends Listeo_Core_Widget
 				<h4><span><?php echo $title; ?></span> <a href="<?php echo esc_url(get_author_posts_url($owner_id)); ?>">
 						<?php echo listeo_get_users_name($owner_id); ?></a></h4>
 				<a href="<?php echo esc_url(get_author_posts_url($owner_id)); ?>" class="hosted-by-avatar"><?php echo get_avatar($owner_id, 56);  ?></a>
+				<a class="hosted-by-link" href="<?php echo esc_url(get_author_posts_url($owner_id)); ?>"><?php esc_html_e('View Profile', 'listeo_core'); ?></a>
 			</div>
 
 		<?php }
@@ -2005,6 +1407,13 @@ class Listeo_Core_Owner_Widget extends Listeo_Core_Widget
 				$show_details = false;
 			}
 		}
+
+		// Display custom user fields
+		if ($show_details) {
+			$this->render_custom_fields($owner_id, $instance);
+		}
+
+
 		if ($show_details) {
 			if ($show_email || $show_phone) {  ?>
 				<ul class="listing-details-sidebar">
@@ -2023,12 +1432,21 @@ class Listeo_Core_Owner_Widget extends Listeo_Core_Widget
 			<?php }
 		} else {
 			if ($visibility_setting != 'hide_all') { ?>
-				<p id="owner-widget-not-logged-in"><?php printf(esc_html__('Please %s sign %s in to see contact details.', 'listeo_core'), '<a href="#sign-in-dialog" class="sign-in popup-with-zoom-anim">', '</a>') ?></p>
+				<p id="owner-widget-not-logged-in"><?php if (get_option('listeo_popup_login', true) != 'ajax') {
+														printf(
+															esc_html__('Please %s sign %s in to see contact details.', 'listeo_core'),
+															sprintf('<a href="%s" class="sign-in">', wp_login_url(apply_filters('the_permalink', get_permalink($post_id), $post_id))),
+															'</a>'
+														);
+													} else {
+														printf(esc_html__('Please %s sign %s in to see contact details.', 'listeo_core'), '<a href="#sign-in-dialog" class="sign-in popup-with-zoom-anim">', '</a>');
+													}
+													?></p>
 		<?php }
 		} ?>
 		<?php if ($show_details && $show_social) { ?>
 			<ul class="listing-details-sidebar social-profiles">
-				<?php if (isset($owner_data->twitter) && !empty($owner_data->twitter)) : ?><li><a href="<?php echo esc_url($owner_data->twitter) ?>" class="twitter-profile"><i class="fa fa-twitter"></i> Twitter</a></li><?php endif; ?>
+				<?php if (isset($owner_data->twitter) && !empty($owner_data->twitter)) : ?><li><a href="<?php echo esc_url($owner_data->twitter) ?>" class="twitter-profile"><i class="fa-brands fa-x-twitter"></i> X.com</a></li><?php endif; ?>
 				<?php if (isset($owner_data->facebook) && !empty($owner_data->facebook)) : ?><li><a href="<?php echo esc_url($owner_data->facebook) ?>" class="facebook-profile"><i class="fa fa-facebook-square"></i> Facebook</a></li><?php endif; ?>
 				<?php if (isset($owner_data->instagram) && !empty($owner_data->instagram)) : ?><li><a href="<?php echo esc_url($owner_data->instagram) ?>" class="instagram-profile"><i class="fa fa-instagram"></i> Instagram</a></li><?php endif; ?>
 				<?php if (isset($owner_data->linkedin) && !empty($owner_data->linkedin)) : ?><li><a href="<?php echo esc_url($owner_data->linkedin) ?>" class="linkedin-profile"><i class="fa fa-linkedin"></i> LinkedIn</a></li><?php endif; ?>
@@ -2045,12 +1463,31 @@ class Listeo_Core_Owner_Widget extends Listeo_Core_Widget
 										echo "skype:+" . $owner_data->skype . "?call";
 									} ?>" class="skype-profile"><i class="fa fa-skype"></i> Skype</a>
 					</li><?php endif; ?>
+				<?php if (isset($owner_data->tiktok) && !empty($owner_data->tiktok)) : ?><li>
+						<a href="<?php if (strpos($owner_data->tiktok, 'http') === 0) {
+										echo esc_url($owner_data->tiktok);
+									} else {
+										echo "https://www.tiktok.com/@" . esc_attr($owner_data->tiktok);
+									} ?>" class="tiktok-profile" target="_blank"><i class="fa-brands fa-tiktok"></i> TikTok</a>
+					</li><?php endif; ?>
 
 				<!-- <li><a href="#" class="gplus-profile"><i class="fa fa-google-plus"></i> Google Plus</a></li> -->
 			</ul>
 		<?php } ?>
+
+
+
 		<?php
-		if (is_user_logged_in()) :
+		$show_send = true;
+		if (
+			isset($instance['only_verified']) && $instance['only_verified'] == 'on'
+		) {
+			$verified = get_post_meta($post_id, '_verified', true);
+			if (!$verified) {
+				$show_send = false;
+			}
+		}
+		if (is_user_logged_in() && $show_send) :
 			if ((isset($instance['contact']) && !empty($instance['contact']))) : ?>
 				<!-- Reply to review popup -->
 				<div id="small-dialog" class="zoom-anim-dialog mfp-hide">
@@ -2077,6 +1514,12 @@ class Listeo_Core_Owner_Widget extends Listeo_Core_Widget
 
 		<?php
 
+		if (isset($instance['chat_via_whatsapp']) && $instance['chat_via_whatsapp'] == 'on') :
+			if (isset($owner_data->phone) && !empty($owner_data->phone)) : ?>
+				<a href="https://api.whatsapp.com/send?phone=<?php echo $owner_data->phone ?>&text=<?php echo esc_html_x('Hello', 'Whatsapp Chat via button', 'listeo_core'); ?>" class="send-message-to-owner button whatsapp-profile"><i class="fa fa-whatsapp"></i> <?php esc_html_e('Chat via WhatsApp', 'listeo_core'); ?></a>
+			<?php endif;
+		endif;
+
 
 		echo $after_widget;
 
@@ -2085,6 +1528,300 @@ class Listeo_Core_Owner_Widget extends Listeo_Core_Widget
 		echo $content;
 
 		//$this->cache_widget($args, $content);
+	}
+
+	/**
+	 * Render custom user fields
+	 * 
+	 * Available hooks for customization:
+	 * 
+	 * 1. listeo_owner_widget_custom_fields - Filter the entire fields array before rendering
+	 * 2. listeo_owner_widget_custom_fields_wrapper_class - Change wrapper CSS class
+	 * 3. listeo_owner_widget_field_name - Filter field display name
+	 * 4. listeo_owner_widget_skip_field - Skip rendering specific fields
+	 * 5. listeo_owner_widget_field_icon - Filter field icon class
+	 * 6. listeo_owner_widget_custom_field_output - Complete field output override
+	 * 7. listeo_owner_widget_field_{field_id}_output - Field-specific output override
+	 * 8. listeo_owner_widget_field_type_{type}_output - Field type-specific override
+	 * 9. listeo_owner_widget_array_field_values - Process array field values
+	 * 10. listeo_owner_widget_array_field_value - Process individual array values
+	 * 11. listeo_owner_widget_option_label - Override option labels
+	 * 12. listeo_owner_widget_array_field_format - Control array display format
+	 * 
+	 * @param int $owner_id User ID
+	 * @param array $instance Widget instance settings
+	 */
+	private function render_custom_fields($owner_id, $instance)
+	{
+		$custom_fields = get_option('listeo_owner_fields', array());
+		if (empty($custom_fields) || !is_array($custom_fields)) {
+			return;
+		}
+
+		// Define default/built-in fields that are already handled by the widget
+		$excluded_fields = array(
+			'phone',           // Already handled by widget phone setting
+			'email',           // Already handled by widget email setting
+			'description',     // Bio/description already handled
+			'user_description', // Bio/description already handled
+			'bio',            // Bio/description already handled
+			'twitter',        // Social profiles already handled with icons
+			'facebook',       // Social profiles already handled with icons
+			'instagram',      // Social profiles already handled with icons
+			'linkedin',       // Social profiles already handled with icons
+			'youtube',        // Social profiles already handled with icons
+			'whatsapp',       // Social profiles already handled with icons
+			'skype',          // Social profiles already handled with icons
+			'tiktok',         // Social profiles already handled with icons
+		);
+
+		$fields_to_display = array();
+
+		// Check which custom fields are enabled in widget settings
+		foreach ($custom_fields as $field_key => $field_data) {
+			if (isset($field_data['type']) && $field_data['type'] !== 'header') {
+				$field_id = isset($field_data['id']) ? $field_data['id'] : $field_key;
+
+				// Skip fields that are already handled by the widget
+				if (in_array($field_id, $excluded_fields)) {
+					continue;
+				}
+
+				$widget_setting_key = 'custom_' . $field_id;
+
+				// Check if this field is enabled in widget settings
+				if (isset($instance[$widget_setting_key]) && $instance[$widget_setting_key] === 'on') {
+					// Get the user meta value
+					$field_value = get_user_meta($owner_id, $field_id, true);
+
+					if (!empty($field_value)) {
+						$fields_to_display[] = array(
+							'data' => $field_data,
+							'value' => $field_value,
+							'id' => $field_id
+						);
+					}
+				}
+			}
+		}
+
+		// Allow filtering the fields to display
+		$fields_to_display = apply_filters('listeo_owner_widget_custom_fields', $fields_to_display, $owner_id, $instance);
+
+		// If we have fields to display, render them
+		if (!empty($fields_to_display)) {
+			// Allow customizing the wrapper class
+			$wrapper_class = apply_filters('listeo_owner_widget_custom_fields_wrapper_class', 'listing-details-sidebar custom-user-fields');
+			echo '<ul class="' . esc_attr($wrapper_class) . '">';
+
+			foreach ($fields_to_display as $field_info) {
+				$field_data = $field_info['data'];
+				$field_value = $field_info['value'];
+				$field_id = $field_info['id'];
+
+				$field_name = isset($field_data['name']) ? strip_tags($field_data['name']) : ucfirst(str_replace('_', ' ', $field_id));
+				$field_type = isset($field_data['type']) ? $field_data['type'] : 'text';
+
+				// Allow field name override
+				$field_name = apply_filters('listeo_owner_widget_field_name', $field_name, $field_id, $field_data);
+
+				// Allow skipping individual fields
+				if (apply_filters('listeo_owner_widget_skip_field', false, $field_id, $field_value, $field_data)) {
+					continue;
+				}
+
+				echo '<li class="custom-field-' . esc_attr($field_id) . '">';
+
+				// Add icon if specified
+				if (isset($field_data['icon']) && !empty($field_data['icon'])) {
+					$icon_class = apply_filters('listeo_owner_widget_field_icon', $field_data['icon'], $field_id, $field_data);
+					echo '<i class="' . esc_attr($icon_class) . '"></i> ';
+				}
+
+				// Render field based on type
+				$this->render_field_by_type($field_name, $field_value, $field_type, $field_data);
+
+				echo '</li>';
+			}
+
+			echo '</ul>';
+		}
+	}
+
+	/**
+	 * Render field value based on field type
+	 * 
+	 * @param string $field_name Display name
+	 * @param mixed $field_value Field value
+	 * @param string $field_type Field type
+	 * @param array $field_data Complete field data
+	 */
+	private function render_field_by_type($field_name, $field_value, $field_type, $field_data)
+	{
+		$field_id = isset($field_data['id']) ? $field_data['id'] : '';
+
+		// Allow complete override of field rendering
+		$custom_output = apply_filters('listeo_owner_widget_custom_field_output', null, $field_id, $field_name, $field_value, $field_type, $field_data);
+		if ($custom_output !== null) {
+			echo $custom_output;
+			return;
+		}
+
+		// Allow specific field override by field ID
+		if (!empty($field_id)) {
+			$field_specific_output = apply_filters("listeo_owner_widget_field_{$field_id}_output", null, $field_name, $field_value, $field_type, $field_data);
+			if ($field_specific_output !== null) {
+				echo $field_specific_output;
+				return;
+			}
+		}
+
+		// Allow field type-specific override
+		$type_specific_output = apply_filters("listeo_owner_widget_field_type_{$field_type}_output", null, $field_name, $field_value, $field_data);
+		if ($type_specific_output !== null) {
+			echo $type_specific_output;
+			return;
+		}
+
+		// First check if field_value is an array (for multi-select, multi-checkbox, etc.)
+		if (is_array($field_value) && !empty($field_value)) {
+			$this->render_array_field($field_name, $field_value, $field_type, $field_data);
+			return;
+		}
+
+		switch ($field_type) {
+			case 'url':
+				if (filter_var($field_value, FILTER_VALIDATE_URL)) {
+					echo '<a href="' . esc_url($field_value) . '" target="_blank" rel="noopener">' . esc_html($field_name) . '</a>';
+				} else {
+					echo '<strong>' . esc_html($field_name) . ':</strong> ' . esc_html($field_value);
+				}
+				break;
+
+			case 'email':
+				if (is_email($field_value)) {
+					echo '<a href="mailto:' . esc_attr($field_value) . '">' . esc_html($field_value) . '</a>';
+				} else {
+					echo '<strong>' . esc_html($field_name) . ':</strong> ' . esc_html($field_value);
+				}
+				break;
+
+			case 'phone':
+			case 'tel':
+				echo '<strong>' . esc_html($field_name) . ':</strong> ' . esc_html($field_value);
+				break;
+
+			case 'select':
+			case 'select_multiple':
+			case 'multiselect':
+				// For select fields, check if we have options to get readable labels
+				if (isset($field_data['options']) && is_array($field_data['options']) && isset($field_data['options'][$field_value])) {
+					$display_value = $field_data['options'][$field_value];
+				} else {
+					$display_value = $field_value;
+				}
+				echo '<strong>' . esc_html($field_name) . ':</strong> ' . esc_html($display_value);
+				break;
+
+			case 'textarea':
+				echo '<strong>' . esc_html($field_name) . ':</strong> ' . wp_kses_post(wpautop($field_value));
+				break;
+
+			case 'checkbox':
+				if ($field_value === 'on' || $field_value === '1' || $field_value === 1) {
+					echo '<strong>' . esc_html($field_name) . ':</strong> ' . esc_html__('Yes', 'listeo_core');
+				}
+				break;
+
+			default:
+				// Default text field or unknown type
+				echo '<strong>' . esc_html($field_name) . ':</strong> ' . esc_html($field_value);
+				break;
+		}
+	}
+
+	/**
+	 * Render array-type fields (multi-select, multi-checkbox, etc.)
+	 * 
+	 * @param string $field_name Display name
+	 * @param array $field_value Field value array
+	 * @param string $field_type Field type
+	 * @param array $field_data Complete field data
+	 */
+	private function render_array_field($field_name, $field_value, $field_type, $field_data)
+	{
+		$field_id = isset($field_data['id']) ? $field_data['id'] : '';
+
+		// Allow array field processing override
+		$processed_values = apply_filters('listeo_owner_widget_array_field_values', $field_value, $field_id, $field_type, $field_data);
+
+		$display_items = array();
+		$has_options = isset($field_data['options']) && is_array($field_data['options']);
+
+		foreach ($processed_values as $value) {
+			// Skip empty values
+			if (empty($value)) {
+				continue;
+			}
+
+			// Allow individual value processing
+			$processed_value = apply_filters('listeo_owner_widget_array_field_value', $value, $field_id, $field_type, $field_data);
+
+			// For checkbox fields, handle 'on' values
+			if (($field_type === 'multicheck' || $field_type === 'multicheck_split' || $field_type === 'multi-checkbox') && $processed_value === 'on') {
+				$display_items[] = esc_html__('Yes', 'listeo_core');
+				continue;
+			}
+
+			// Check if we have options to convert value to readable label
+			if ($has_options && isset($field_data['options'][$processed_value])) {
+				$label = $field_data['options'][$processed_value];
+				// Allow option label override
+				$custom_label = apply_filters('listeo_owner_widget_option_label', $label, $processed_value, $field_id, $field_data);
+				$display_items[] = esc_html($custom_label);
+			} else {
+				// If no options mapping, use the value as-is
+				$display_items[] = esc_html($processed_value);
+			}
+		}
+
+		if (!empty($display_items)) {
+			// Allow display format override
+			$display_format = apply_filters('listeo_owner_widget_array_field_format', 'auto', $field_id, $display_items, $field_data);
+
+			echo '<strong>' . esc_html($field_name) . ':</strong> ';
+
+			switch ($display_format) {
+				case 'comma':
+					echo implode(', ', $display_items);
+					break;
+				case 'bullets':
+					echo '<br>';
+					foreach ($display_items as $item) {
+						echo '• ' . $item . '<br>';
+					}
+					break;
+				case 'list':
+					echo '<ul>';
+					foreach ($display_items as $item) {
+						echo '<li>' . $item . '</li>';
+					}
+					echo '</ul>';
+					break;
+				case 'auto':
+				default:
+					// Auto-format based on count
+					if (count($display_items) <= 3) {
+						echo implode(', ', $display_items);
+					} else {
+						echo '<br>';
+						foreach ($display_items as $item) {
+							echo '• ' . $item . '<br>';
+						}
+					}
+					break;
+			}
+		}
 	}
 }
 
@@ -2122,8 +1859,8 @@ class Listeo_Recent_Posts extends WP_Widget
 	 * @since 2.8.0
 	 * @access public
 	 *
-	 * @param array $args     Display arguments including 'before_title', 'after_title',
-	 *                        'before_widget', and 'after_widget'.
+	 * @param array $args Display arguments including 'before_title', 'after_title',
+	 * 'before_widget', and 'after_widget'.
 	 * @param array $instance Settings for the current Recent Posts widget instance.
 	 */
 	public function widget($args, $instance)
@@ -2152,14 +1889,14 @@ class Listeo_Recent_Posts extends WP_Widget
 		 * @param array $args An array of arguments used to retrieve the recent posts.
 		 */
 		$r = new WP_Query(apply_filters('widget_posts_args', array(
-			'posts_per_page'      => $number,
-			'no_found_rows'       => true,
-			'post_status'         => 'publish',
+			'posts_per_page' => $number,
+			'no_found_rows' => true,
+			'post_status' => 'publish',
 			'ignore_sticky_posts' => true
 		)));
 
 		if ($r->have_posts()) :
-		?>
+			?>
 			<?php echo $args['before_widget']; ?>
 			<?php if ($title) {
 				echo $args['before_title'] . $title . $args['after_title'];
@@ -2271,6 +2008,34 @@ class Listeo_Coupon_Widget extends Listeo_Core_Widget
 	}
 
 	/**
+	 * Check if a coupon is expired based on its expiry date.
+	 *
+	 * @access private
+	 * @param int $coupon_id Coupon ID.
+	 * @return bool True if expired, false if still valid or no expiry date.
+	 */
+	private function is_coupon_expired($coupon_id)
+	{
+		$expiry_date = get_post_meta($coupon_id, 'date_expires', true);
+		
+		// If no expiry date is set, coupon never expires
+		if (empty($expiry_date) || $expiry_date === '0' || $expiry_date === 0) {
+			return false;
+		}
+		
+		// Convert expiry date to timestamp if it's not already
+		$expiry_timestamp = is_numeric($expiry_date) ? intval($expiry_date) : strtotime($expiry_date);
+		
+		// If we can't parse the date, assume it's not expired (safe fallback)
+		if ($expiry_timestamp === false) {
+			return false;
+		}
+		
+		// Check if expiry date is in the past
+		return $expiry_timestamp < time();
+	}
+
+	/**
 	 * widget function.
 	 *
 	 * @see WP_Widget
@@ -2283,7 +2048,7 @@ class Listeo_Coupon_Widget extends Listeo_Core_Widget
 	{
 
 
-		
+
 
 		extract($args);
 		$title  = apply_filters('widget_title', $instance['title'], $instance, $this->id_base);
@@ -2317,28 +2082,34 @@ class Listeo_Coupon_Widget extends Listeo_Core_Widget
 				return;
 			}
 		}
-		$_opening_hours_status = get_post_meta($post_id, '_coupon_section_status', true);
-		if (!$_opening_hours_status) {
+		$_coupon_section_status = get_post_meta($post_id, '_coupon_section_status', true);
+		if (!$_coupon_section_status) {
 			return;
 		}
 		//get coupon
 		ob_start();
 		$coupon_ids =  get_post_meta($post_id, '_coupon_for_widget', false);
+		$coupon_ids = array_unique($coupon_ids);
 		if (is_array($coupon_ids) && !empty($coupon_ids)) {
 			foreach ($coupon_ids as $coupon_id) {
 				if (!($coupon_id)) {
 
-					break;    
+					break;
 				}
 
 				$coupon_post = get_post($coupon_id);
 				//$coupon = new WC_Coupon($coupon_id);
 				if (!$coupon_post) {
-					break;    
+					break;
 				}
 
 				if ($coupon_post) {
 					$coupon_data = new WC_Coupon($coupon_id);
+				}
+
+				// Skip expired coupons completely
+				if ($this->is_coupon_expired($coupon_id)) {
+					continue;
 				}
 
 
@@ -2372,7 +2143,7 @@ class Listeo_Coupon_Widget extends Listeo_Core_Widget
 						<?php
 						$expiry_date = $coupon_data->get_date_expires();
 						if ($expiry_date) : ?>
-							<div class="coupon-valid-untill"><?php esc_html_e('Expires', 'listeo_core'); ?> <?php echo esc_html($expiry_date->date_i18n('F j, Y'));  ?></div>
+							<div class="coupon-valid-untill"><?php esc_html_e('Expires', 'listeo_core'); ?> <?php echo esc_html($expiry_date->date_i18n(get_option('date_format')));  ?></div>
 						<?php endif; ?>
 						<?php if ($coupon_data->get_description()) : ?>
 							<div class="coupon-how-to-use"><?php echo $coupon_data->get_description(); ?></div>
@@ -2446,7 +2217,7 @@ class Listeo_Shop_Vendor_Widget extends Listeo_Core_Widget
 			return;
 		}
 
-		
+
 
 		extract($args);
 		$title  = apply_filters('widget_title', $instance['title'], $instance, $this->id_base);
@@ -2597,7 +2368,7 @@ class Listeo_Shop_Vendor_Widget extends Listeo_Core_Widget
 
 
 
-<?php
+		<?php
 
 
 		//echo $after_widget; 
@@ -2608,18 +2379,124 @@ class Listeo_Shop_Vendor_Widget extends Listeo_Core_Widget
 	}
 }
 
- register_widget('Listeo_Core_Featured_Properties');
+//ads widget
+class Listeo_Core_Ads_Widget extends Listeo_Core_Widget
+{
+
+	/**
+	 * Constructor
+	 */
+	public function __construct()
+	{
+
+		$this->widget_cssclass    = 'listeo_core listeoads-widget margin-bottom-35';
+		$this->widget_description = __('Shows Listings Ads.', 'listeo_core');
+		$this->widget_id          = 'widget_ads';
+		$this->widget_name        =  __('Listeo Listing Ads Widget ', 'listeo_core');
+		$this->settings           = array(
+			'title' => array(
+				'type'  => 'text',
+				'std'   => __('Ads', 'listeo_core'),
+				'label' => __('Title', 'listeo_core')
+			),
+			'number' => array(
+				'type'  => 'number',
+				'std'   => 5,
+				'step'  => 1,
+				'min'   => 1,
+				'max'   => '',
+				'label' => __('Number of Ads', 'listeo_core')
+			),
+
+		);
+		$this->register();
+	}
+
+	/**
+	 * widget function.
+	 *
+	 * @see WP_Widget
+	 * @access public
+	 * @param array $args
+	 * @param array $instance
+	 * @return void
+	 */
+	public function widget($args, $instance)
+	{
+
+
+
+
+		extract($args);
+		$ads = listeo_get_ids_listings_for_ads('sidebar');
+		if (empty($ads)) {
+			return;
+		}
+		$title  = apply_filters('widget_title', $instance['title'], $instance, $this->id_base);
+		//$number = absint($instance['number']);
+		$number = isset($instance['number']) ? $instance['number'] : 5;
+		$listings   = new WP_Query(array(
+			'posts_per_page' => $number,
+			'orderby'        => 'date',
+			'order'          => 'DESC',
+			'post__in'       => $ads,
+			'post_type' 	 => 'listing',
+
+		));
+		ob_start();
+		$template_loader = new Listeo_Core_Template_Loader;
+		if ($listings->have_posts()) : ?>
+
+			<?php echo $before_widget; ?>
+
+			<?php if ($title) echo $before_title . $title . $after_title; ?>
+
+			<div class="widget-listing-slider dots-nav new-grid-layout-nl" data-slick='{"autoplay": true, "autoplaySpeed":3000}'>
+				<?php while ($listings->have_posts()) : $listings->the_post(); ?>
+					<div class="fw-carousel-item">
+						<?php
+						$ad_data = array(
+							'ad' => true,
+							'ad_id' => get_the_ID(),
+						);
+						//     $template_loader->get_template_part( 'content-listing-compact' );  
+						$template_loader->set_template_data($ad_data)->get_template_part('content-listing-grid');
+						?>
+					</div>
+				<?php endwhile; ?>
+			</div>
+
+			<?php echo $after_widget; ?>
+
+		<?php else : ?>
+
+			<?php $template_loader->get_template_part('listing-widget', 'no-content'); ?>
+
+<?php endif;
+
+		wp_reset_postdata();
+
+		$content = ob_get_clean();
+
+		echo $content;
+
+		$this->cache_widget($args, $content);
+	}
+}
+
+register_widget('Listeo_Core_Featured_Properties');
 register_widget('Listeo_Core_Bookmarks_Share_Widget');
- register_widget('Listeo_Core_Booking_Widget');
- register_widget('Listeo_Core_External_Booking_Widget');
- register_widget('Listeo_Core_Search_Widget');
- register_widget('Listeo_Core_Opening_Widget');
- register_widget('Listeo_Core_Owner_Widget');
- register_widget('Listeo_Core_Classified_Owner_Widget');
- register_widget('Listeo_Core_Contact_Vendor_Widget');
- register_widget('Listeo_Recent_Posts');
+
+register_widget('Listeo_Core_External_Booking_Widget');
+register_widget('Listeo_Core_Search_Widget');
+register_widget('Listeo_Core_Opening_Widget');
+register_widget('Listeo_Core_Owner_Widget');
+register_widget('Listeo_Core_Classified_Owner_Widget');
+register_widget('Listeo_Core_Contact_Vendor_Widget');
+register_widget('Listeo_Recent_Posts');
 register_widget('Listeo_Coupon_Widget');
 register_widget('Listeo_Shop_Vendor_Widget');
+register_widget('Listeo_Core_Ads_Widget');
 
 
 

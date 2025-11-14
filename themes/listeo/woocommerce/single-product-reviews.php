@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Display single product reviews (comments)
  *
@@ -13,7 +14,7 @@
  * @see 	    https://docs.woocommerce.com/document/template-structure/
  * @author 		WooThemes
  * @package 	WooCommerce/Templates
- * @version     4.3.0
+ * @version     10.6.0
  */
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly

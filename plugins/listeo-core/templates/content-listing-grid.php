@@ -1,186 +1,277 @@
-<?php 
-if(isset($data)) :
-    $style        = (isset($data->style)) ? $data->style : '' ;
-    $grid_columns        = (isset($data->grid_columns)) ? $data->grid_columns : '2' ;
-endif; 
-
+<?php
 $template_loader = new Listeo_Core_Template_Loader;
-$listing_type = get_post_meta( $post->ID,'_listing_type',true ); 
 $is_featured = listeo_core_is_featured($post->ID);
 $is_instant = listeo_core_is_instant_booking($post->ID);
-?>
-<!-- Listing Item -->
-<?php if(isset($style) && $style == 'grid') {
-    switch ($grid_columns) {
-        case '1':
-            echo '<div class="col-md-12">';
-            break;
-        case '2':
-            echo '<div class="col-lg-6 col-md-12">';
-            break;
-         case '3':
-            echo '<div class="col-lg-4 col-md-6">';
-            break;
-        
-        default:
-            echo '<div class="col-lg-6 col-md-12">';
-            break;
+$listing_type = get_post_meta($post->ID, '_listing_type', true);
+
+$show_as_ad = false;
+if (isset($data)) :
+
+    $show_as_ad = isset($data->ad) ? $data->ad : '';
+    if ($show_as_ad) {
+        $ad_type = get_post_meta($post->ID, 'ad_type', true);
+        $ad_id = get_post_meta($post->ID, 'ad_id', true);
     }
-} ?>
-<a href="<?php the_permalink(); ?>" class="listing-item-container listing-geo-data"  <?php echo listeo_get_geo_data($post); ?>>
-    <div class="listing-item  <?php if($is_featured){ ?>featured-listing<?php } ?>">
-        
-        <div class="listing-small-badges-container">
-            <?php if($is_featured){ ?>
-                <div class="listing-small-badge featured-badge"><i class="fa fa-star"></i> <?php esc_html_e('Featured','listeo_core'); ?></div>
-            <?php } ?> 
-            <?php if($is_instant){ ?>
-                <div class="listing-small-badge instant-badge"><i class="fa fa-bolt"></i> <?php esc_html_e('Instant Booking','listeo_core'); ?></div>
-            <?php } ?>
-            <?php if(get_the_listing_price_range()): ?>
-                <div class="listing-small-badge pricing-badge"><i class="fa fa-<?php echo esc_attr(get_option('listeo_price_filter_icon','tag')); ?>"></i><?php echo get_the_listing_price_range(); ?></div>
-            <?php endif; ?>
-            <?php
-                $vendor_id = get_post_field('post_author', $post->ID);
-                $is_vendor = get_user_meta($vendor_id, 'dokan_enable_selling', true);
+endif;
 
-                // Get the WP_User object (the vendor) from author ID
-                $_store_widget_status = get_post_meta($post->ID, '_store_widget_status', true);
-
-                if($is_vendor == "yes" && $_store_widget_status){
-                ?>
-                <div class="listing-small-badge shop-badge"><i class="fa fa-store"></i></i> <?php esc_html_e('Store', 'listeo_core'); ?></div>
-                <?php
-                }
-            ?>
-            <?php  
-            if( $listing_type  == 'event') { 
-                
-                $date_format = listeo_date_time_wp_format_php();
-                $_event_datetime = get_post_meta($post->ID,'_event_date', true); // mm/dd/yy
-                if($_event_datetime) {
-                    $_event_date = list($_event_datetime) = explode(' ', $_event_datetime);
-                
-                    if($_event_date) : 
-                        $date_format = get_option( 'date_format' );
-                           //var_dump($_event_date[0]);
-                                            //$meta_value = date_i18n(get_option( 'date_format' ), strtotime($meta_value_date[0])); 
-                        $meta_value_stamp_obj = DateTime::createFromFormat(listeo_date_time_wp_format_php(), $_event_date[0]);
-                        if($meta_value_stamp_obj){
-                            $meta_value_stamp = $meta_value_stamp_obj->getTimestamp();
-                        } else {
-                            $meta_value_stamp = false;
-                        }
-                                           
-                        $meta_value = date_i18n(get_option( 'date_format' ),$meta_value_stamp);?>
-                    <div class="listing-small-badge"><i class="fa fa-calendar-check"></i><?php echo esc_html($meta_value); ?></div> 
-                    <?php endif; 
-                }
-                
-            }  ?>
-            
-        </div>
-        <?php 
-		$template_loader->get_template_part( 'content-listing-image');  ?>
-        
-        <?php
-        
-        if( $listing_type  == 'service' && get_post_meta( $post->ID,'_opening_hours_status',true )) { 
-                if( listeo_check_if_open() ){ ?>
-                    <div class="listing-badge now-open"><?php esc_html_e('Now Open','listeo_core'); ?></div>
-                <?php } else { 
-                    if( listeo_check_if_has_hours() ) { ?>
-                        <div class="listing-badge now-closed"><?php esc_html_e('Now Closed','listeo_core'); ?></div>
-                    <?php } ?>
-            <?php } 
-        } 
-       ?>
-        
-        <div class="listing-item-content">
-
-            <?php 
-            $terms = get_the_terms( get_the_ID(), 'listing_category' );            
-            if ( $terms && ! is_wp_error( $terms ) ) :  
-                $main_term = array_pop($terms); ?>
-                <span class="tag"><?php echo $main_term->name; ?></span>
-            <?php endif; ?>
-
-            <h3><?php the_title(); ?> <?php if( get_post_meta($post->ID,'_verified',true ) == 'on') : ?><i class="verified-icon"></i><?php endif; ?></h3>
-            <?php if(get_the_listing_address()) { ?><span><?php the_listing_address(); ?></span><?php } ?>
-
-        </div>
-        <?php 
-        if( listeo_core_check_if_bookmarked($post->ID) ) { 
-                $nonce = wp_create_nonce("listeo_core_bookmark_this_nonce"); ?>
-                <span class="like-icon listeo_core-unbookmark-it liked"
-                data-post_id="<?php echo esc_attr($post->ID); ?>" 
-                data-nonce="<?php echo esc_attr($nonce); ?>" ></span>
-            <?php } else { 
-                if(is_user_logged_in()){ 
-                    $nonce = wp_create_nonce("listeo_core_remove_fav_nonce"); ?>
-                    <span class="save listeo_core-bookmark-it like-icon" 
-                    data-post_id="<?php echo esc_attr($post->ID); ?>" 
-                    data-nonce="<?php echo esc_attr($nonce); ?>" ></span>
+$elements = get_option('listeo_listings_list_items', array(
+    'category',
+    'bookmark',
+    'location',
+    'customfields',
+    'features',
+    'open_now',
+));
+?>
+<div <?php if ($show_as_ad) : ?> data-ad-id="<?php echo $ad_id; ?>" data-campaign-type="<?php echo $ad_type; ?>" <?php endif; ?> class="listing-card-container-nl listing-geo-data" <?php echo listeo_get_geo_data($post); ?>>
+    <div class="listing-card-nl">
+        <!-- ===== LEFT: IMAGE SLIDER ===== -->
+        <div class="listing-image-container-nl">
+            <a href="<?php the_permalink(); ?>">
+                <div class="slider-wrapper-nl">
+                    <?php $template_loader->get_template_part('content-listing-gallery');  ?>
+                </div>
+            </a>
+            <?php if (in_array('open_now', $elements) && get_post_meta($post->ID, '_opening_hours_status', true)) {
+                if (listeo_check_if_open()) { ?>
+                    <div class="status-button-nl">
+                        <?php esc_html_e('Now Open', 'listeo_core'); ?>
+                    </div>
                 <?php } else { ?>
-                    <span class="save like-icon tooltip left"  title="<?php esc_html_e('Login To Bookmark Items','listeo_core'); ?>"  ></span>
-                <?php } ?>
-        <?php } ?>
-    </div>
-    
-    <?php
-        if(!get_option('listeo_disable_reviews')){
+                    <div class="status-button-nl closed-nl">
+                        <?php esc_html_e('Now Closed', 'listeo_core'); ?>
+                    </div>
+            <?php }
+            } ?>
 
-            if($listing_type=='classifieds'){
-   
-                
-                        $price = get_post_meta($post->ID, '_classifieds_price', true);
-                        $currency_abbr = get_option( 'listeo_currency' );
-                        $currency_postion = get_option( 'listeo_currency_postion' );
-                        $currency_symbol = Listeo_Core_Listing::get_currency_symbol($currency_abbr);
-                        if($price){ ?>
-                            <div class="listing-classifieds-badges-container">
-                       <div class="listing-small-badge pricing-badge classifieds-pricing-badge"><i class="fa fa-<?php echo esc_attr(get_option('listeo_price_filter_icon','tag')); ?>"></i><?php if($currency_postion == "before") { echo $currency_symbol;} echo $price;  if($currency_postion == "after") { echo $currency_symbol;}?></div></div>
-                    <?php } 
-            
-            } else {
+            <div class="slider-arrow-nl left-nl" id="prevBtn"><i class="fa-solid fa-chevron-left"></i></div>
+            <div class="slider-arrow-nl right-nl" id="nextBtn"><i class="fa-solid fa-chevron-right"></i></div>
+            <div class="image-overlay-top-nl">
+                <?php
+                // First try to get global categories
+                $terms = get_the_terms(get_the_ID(), 'listing_category');
 
-
-            $rating = get_post_meta($post->ID, 'listeo-avg-rating', true);
-            $reviews = listeo_get_google_reviews($post);
-            if(!$rating && get_option('listeo_google_reviews_instead')){
-                    
-                    if(!empty($reviews['result']['reviews'])){
-                        $rating = number_format_i18n($reviews['result']['rating'],1);
-                        $rating = str_replace(',', '.', $rating);
+                // If no global categories, try type-specific taxonomy
+                if ((!$terms || is_wp_error($terms)) && isset($post)) {
+                    $taxonomy = listeo_get_listing_taxonomy($post);
+                    if ($taxonomy !== 'listing_category') {
+                        $terms = get_the_terms(get_the_ID(), $taxonomy);
                     }
                 }
-                if(isset($rating) && $rating > 0 ) : $rating_type = get_option('listeo_rating_type','star');
-                if($rating_type == 'numerical') { ?>
-                    <div class="numerical-rating" data-rating="<?php $rating_value = esc_attr(round($rating,1)); printf("%0.1f",$rating_value); ?>">
-                <?php } else { ?>
-                    <div class="star-rating" data-rating="<?php echo $rating; ?>">
-                <?php } ?>
-                <?php $number = listeo_get_reviews_number($post->ID); 
-                 if(!get_post_meta($post->ID, 'listeo-avg-rating', true) && get_option('listeo_google_reviews_instead')){ 
-                                       $number = $reviews['result']['user_ratings_total'];
-                                     }  ?>
-                <div class="rating-counter">(<?php printf( _n( '%s review', '%s reviews', $number,'listeo_core' ), number_format_i18n( $number ) );  ?>)</div>
-                
-                </div>
-            <?php else: ?>
-                    <div class="star-rating" >
-                        
-                        <div class="rating-counter no-reviews"><span><?php esc_html_e('No reviews yet','listeo_core') ?></span></div>
+
+                if (in_array('category', $elements) && $terms && !is_wp_error($terms)) :
+                    $categories = array();
+                    $count = 0;
+                    foreach ($terms as $term) {
+                        if ($count++ > 3) {
+                            break;
+                        }
+                        $categories[] = $term->name;
+                    }
+
+                    $categories_list = join(", ", $categories);
+                    echo '<span class="listing-category-tag-nl">';
+                    esc_html_e($categories_list);
+                    echo '</span>';
+                endif; ?>
+                <?php if (in_array('bookmark', $elements)) { ?>
+                    <div class="favorite-icon-nl" id="favoriteBtn">
+                        <?php
+                        if (listeo_core_check_if_bookmarked($post->ID)) {
+                            $nonce = wp_create_nonce("listeo_core_bookmark_this_nonce"); ?>
+                            <span class="listeo_core-unbookmark-it fa-solid fa-heart" style="display: block;" data-post_id="<?php echo esc_attr($post->ID); ?>" data-nonce="<?php echo esc_attr($nonce); ?>"></span>
+                            <?php } else {
+                            if (is_user_logged_in()) {
+                                $nonce = wp_create_nonce("listeo_core_remove_fav_nonce"); ?>
+                                <span class="save listeo_core-bookmark-it fa-regular fa-heart" data-post_id="<?php echo esc_attr($post->ID); ?>" data-nonce="<?php echo esc_attr($nonce); ?>"></span>
+
+
+                            <?php } else { ?>
+
+                                <span class="save fa-regular fa-heart tooltip left" title="<?php esc_html_e('Login To Bookmark Items', 'listeo_core'); ?>"></span>
+                            <?php } ?>
+                        <?php } ?>
+
                     </div>
-            <?php endif;
-            }   
-        } ?>
-    
-</a>
+                <?php } ?>
+            </div>
+        </div>
 
-<?php if(isset($style) && $style == 'grid') { ?>
+        <!-- ===== RIGHT: LISTING DETAILS (NOW 2-COLUMN) ===== -->
+        <a href="<?php the_permalink(); ?>" class="listing-details-nl">
+
+            <!-- Main Content Column (Left) -->
+            <div class="details-main-col-nl">
+                <?php 
+                // Check if we need to show any badges
+                $has_distance = isset($GLOBALS['listeo_current_distance']) && !is_null($GLOBALS['listeo_current_distance']);
+                $has_badges = $show_as_ad || $is_featured || $has_distance;
+                
+                if ($has_badges) : ?>
+                    <div class="listing-badges-nl">
+                        <?php if ($show_as_ad) : ?><span class="badge-nl sponsored-nl"><?php esc_html_e('Sponsored', 'listeo_core'); ?></span><?php endif; ?>
+                        <?php if ($is_featured) : ?><span class="badge-nl featured-nl"><i class="fa-solid fa-star"></i> <?php esc_html_e('Featured', 'listeo_core'); ?></span><?php endif; ?>
+                        
+                        <?php
+                        // Display distance badge for nearby listings
+                        if ($has_distance) {
+                            $distance = $GLOBALS['listeo_current_distance'];
+                            $unit = isset($GLOBALS['listeo_distance_unit']) ? $GLOBALS['listeo_distance_unit'] : 'km';
+                            $formatted_distance = listeo_format_distance($distance, $unit);
+                        ?>
+                            <span class="badge-nl distance-nl"><i class="fa fa-location-arrow"></i> <?php echo esc_html($formatted_distance); ?></span>
+                        <?php } ?>
+                    </div>
+                <?php endif; ?>
+                <h2 class="listing-title-nl"><?php the_title(); ?>
+                    <div class="listing-title-badges-nl">
+                        <?php if (listeo_core_is_verified($post->ID)) : ?>
+                            <div class="verified-icon-nl title-badge-nl">
+                                <i class="fa fa-check"></i>
+                                <span class="tooltip-nl"><?php esc_html_e('Verified Listing', 'listeo_core'); ?></span>
+                            </div>
+                        <?php endif; ?>
+                        <?php if ($is_instant) { ?>
+                            <div class="instant-badge-nl title-badge-nl">
+                                <i class=" fa fa-bolt"></i>
+                                <span class="tooltip-nl"><?php esc_html_e('Instant Booking', 'listeo_core'); ?></span>
+                            </div>
+                        <?php } ?>
+                    </div>
+                </h2>
+                <?php if (in_array('location', $elements) && has_listing_location($post)) { ?><p class="listing-location-nl"><?php the_listing_location_link($post->ID, false); ?></p><?php } ?>
+
+                <?php
+                if (in_array('customfields', $elements)) {
+                    
+                    get_custom_fields_for_list($post, false);
+                }
+                $term_list = get_the_terms($post->ID, 'listing_feature');
+                $tax_obj = get_taxonomy('listing_feature');
+
+                if (in_array('features', $elements) &&  !empty($term_list)) {
+                ?>
+
+                    <div class="listing-amenities-nl">
+                        <?php foreach ($term_list as $term) {
+
+
+                            $svg_flag = false;
+                            $icon = false;
+
+                            $term_link = get_term_link($term);
+                            if (is_wp_error($term_link))
+                                continue;
+                            $t_id = $term->term_id;
+                            if (isset($t_id)) {
+                                $_icon_svg = get_term_meta($t_id, '_icon_svg', true);
+                                $_icon_svg_image = wp_get_attachment_image_src($_icon_svg, 'medium');
+                            }
+
+                            if (isset($_icon_svg_image) && !empty($_icon_svg_image)) {
+                                $svg_flag = true;
+                                $icon = listeo_render_svg_icon($_icon_svg);
+                                //$icon = '<img class="listeo-map-svg-icon" src="'.$_icon_svg_image[0].'"/>';
+
+
+                            } else {
+
+                                if (!$icon) {
+
+                                    $icon = get_term_meta($t_id, 'icon', true);
+                                }
+                            }
+
+                            if (!empty($icon)) {
+                                echo '<div class="amenity-icon-nl">';
+                                if ($svg_flag == true) {
+                                    echo '<span class="feature-svg-icon">' . $icon . '</span><span class="tooltip-nl">' . $term->name . '</span>';
+                                } else {
+                                    echo '<i class="' . $icon . '"></i> <span class="tooltip-nl">' . $term->name . '</span>';
+                                }
+                                echo '</div>';
+                            }
+                        }
+                        ?>
+
+                    </div>
+                <?php } ?>
+            </div>
+
+            <!-- Sidebar Column (Right) -->
+            <div class="details-sidebar-col-nl">
+                <div class="details-sidebar-upper-nl">
+                    <?php
+                    if (!get_option('listeo_disable_reviews')) {
+                        // Use the new combined rating display function
+                        $rating_data = listeo_get_rating_display($post->ID);
+                        $rating = $rating_data['rating'];
+                        $number = $rating_data['count'];
+
+                        if (isset($rating) && $rating > 0) :
+                            $rating_type = get_option('listeo_rating_type', 'star');
+                    ?>
+
+                            <?php
+                            $stars_html = '<i class="fa-solid fa-star"></i>';
+                            $html = '<div class="listing-rating-nl">
+                                        <div class="stars-nl">
+                                            ' . $stars_html . '
+                                        </div>
+                                        <div class="rating-text-nl">' . number_format($rating, 1) . '</div>
+                                    </div>';
+
+                            echo $html;
+                            ?>
+
+                        <?php else : ?>
+                            <div class="listing-rating-nl">
+                                <div class="rating-text-nl no-rating"><?php esc_html_e('No reviews yet', 'listeo_core'); ?></div>
+                            </div>
+                    <?php endif;
+                    } ?>
+                </div>
+                <?php
+                // if listing type supports classifieds pricing, show price
+                if ($listing_type == 'classifieds') {
+                    $price = get_post_meta($post->ID, '_classifieds_price', true);
+                    $currency_abbr = get_option('listeo_currency');
+                    $currency_postion = get_option('listeo_currency_postion');
+                    $currency_symbol = Listeo_Core_Listing::get_currency_symbol($currency_abbr);
+                    if ($price) { ?>
+                        <div class="listing-booking-nl">
+                            <p class="price-nl"><?php
+                                                if (is_numeric($price) && $currency_postion == "before") {
+                                                    echo $currency_symbol;
+                                                }
+                                                if (is_numeric($price)) {
+                                                    $decimals = get_option('listeo_number_decimals', 2);
+                                                    echo number_format($price, $decimals);
+                                                } else {
+                                                    echo $price;
+                                                }
+                                                if (is_numeric($price) && $currency_postion == "after") {
+                                                    echo $currency_symbol;
+                                                } ?></p>
+                        </div>
+                    <?php }
+                }
+                if (in_array('price', $elements)) {
+                    if (get_the_listing_price_range()) : ?>
+                        <div class="listing-booking-nl">
+                            <p class="price-nl"><?php echo get_the_listing_price_range(); ?></p>
+                            <?php $price_type = get_post_meta($post->ID, '_count_by_hour', true) ? esc_html__('per hour', 'listeo_core') : esc_html__('per day', 'listeo_core');
+
+
+                            if (listeo_core_listing_type_supports($listing_type, 'date_range_booking') && $price_type) { ?>
+                                <span class="price-period-nl"><?php echo $price_type; ?></span>
+                            <?php } ?>
+                        </div>
+                <?php endif;
+                } ?>
+            </div>
+
+        </a>
+
     </div>
-<?php } ?>
-
-
-<!-- Listing Item / End -->
+</div>

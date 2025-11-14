@@ -1,218 +1,153 @@
-<!-- Main Details -->
 <?php
 
-$type = get_post_meta($post->ID, '_listing_type', true);
-$details_list = array();
-switch ($type) {
-	case 'service':
-		$details_list = Listeo_Core_Meta_Boxes::meta_boxes_service();
-		break;
-	case 'rental':
-		$details_list = Listeo_Core_Meta_Boxes::meta_boxes_rental();
-		break;
-	case 'event':
-		$details_list = Listeo_Core_Meta_Boxes::meta_boxes_event();
-		break;
-	case 'classifieds':
-		$details_list = Listeo_Core_Meta_Boxes::meta_boxes_classifieds();
-		if (!empty($details_list)) {
-			unset($details_list['fields']['_classifieds_price']);
-		}
-
-		break;
-
-	default:
-		//		$details_list = Listeo_Core_Meta_Boxes::meta_boxes_main_details_service(); 
-
-		break;
-}
-
+$details = listeo_get_listing_details($post);
 
 $class = (isset($data->class)) ? $data->class : 'listing-details';
-$output = '';
+
+// Filter out empty fields, but keep headers
+$details = array_filter($details, function ($detail) {
+	if (!isset($detail['display_type'])) return false;
+
+	// Always allow headers so we can evaluate them later
+	if ($detail['display_type'] === 'header') return true;
+
+	// Allow checkbox fields even if processed_value is empty
+	//if ($detail['display_type'] === 'checkbox') return true;
+
+	// Allow non-empty values only
+	return !empty($detail['processed_value']);
+});
+
+
+if (!empty($details)) :
+	$box_open = false;
+	$current_taxonomy = null;
+	$pending_header = null; // Store header HTML until we know we need it
 ?>
 
+	<?php foreach ($details as $i => $detail) :
+		if (!isset($detail['display_type'])) continue;
 
-<?php
-if (isset($details_list['fields'])) :
-	foreach ($details_list['fields'] as $detail => $value) {
 
-		if (isset($value['icon']) && !empty($value['icon'])) {
-			$check_if_im = substr($value['icon'], 0, 3);
-			if ($check_if_im == 'im ') {
-				$icon = ' <i class="' . esc_attr($value['icon']) . '"></i>';
+		// Handle headers - but don't output them immediately
+		if ($detail['display_type'] === 'header') {
+			// Determine what taxonomy to look for (if this is a taxonomy header)
+			$header_taxonomy = null;
+			if (!empty($detail['config']['is_taxonomy_field'])) {
+				$header_taxonomy = $detail['config']['taxonomy'];
+			}
+
+			// Check if there are visible fields after this header
+			if (!has_visible_fields_after($details, $i, $header_taxonomy)) continue;
+
+			// Close any open box
+			if ($box_open) {
+				echo '</ul>';
+				$box_open = false;
+			}
+
+			// Store the header HTML for later output
+			if ($detail['config']['icon']) {
+				$pending_header = '<h4 class="listing-details-header detail-header-with-icon"><i class="' . esc_attr($detail['config']['icon']) . '"></i> ' . esc_html($detail['config']['name']) . '</h4>';
 			} else {
-				$icon = ' <i class="fa ' . esc_attr($value['icon']) . '"></i>';
+				$pending_header = '<h4 class="listing-details-header">' . esc_html($detail['config']['name']) . '</h4>';
 			}
-		} else {
-			$icon = '<i class="fas fa-check"></i>';
+			continue;
 		}
 
-		if (in_array($value['type'], array('select_multiple', 'multicheck_split', 'multicheck'))) {
-			$meta_value = get_post_meta($post->ID, $value['id'], false);
-		} else {
-			$meta_value = get_post_meta($post->ID, $value['id'], true);
-		};
-
-		if ($meta_value == 'check_on' || $meta_value == 'on') {
-			$output .= '<li class="checkboxed single-property-detail-' . $value['id'] . '"><div class="single-property-detail-label-' . $value['id'] . '">' . $value['name'] . '</div></li>';
-		} else {
-			if (!empty($meta_value)) {
-				if ($value['type'] == 'datetime' || in_array($value['id'], array('_event_date', '_event_date_end'))) {
-
-					$meta_value_date = explode(' ', $meta_value, 2);
-					// if(!in_array($date_format,array('F j, Y','Y-m-d','m/d/Y','d/m/Y'))) {
-					// 	$meta_value_date[0] = str_replace('/','-',$meta_value_date[0]);
-					// }
-					$date_format = get_option('date_format');
-
-					//$meta_value = date_i18n(get_option( 'date_format' ), strtotime($meta_value_date[0])); 
-					// $meta_value_stamp_obj = DateTime::createFromFormat(listeo_date_time_wp_format_php(), $meta_value_date[0]);
-					// if($meta_value_stamp_obj){
-					// 	$meta_value_stamp = $meta_value_stamp_obj->getTimestamp();
-					// }
-
-
-					//						$meta_value = date_i18n(get_option( 'date_format' ),$meta_value_stamp);
-					$meta_value_ = DateTime::createFromFormat(listeo_date_time_wp_format_php(), $meta_value_date[0]);
-
-					if ($meta_value_ && !is_string($meta_value_)) {
-						$meta_value_stamp = $meta_value_->getTimestamp();
-						$meta_value = date_i18n(get_option('date_format'), $meta_value_stamp);
-					} else {
-						$meta_value = $meta_value_date[0];
-					}
-
-					//echo strtotime(end($meta_value_date));
-					//echo date( get_option( 'time_format' ), strtotime(end($meta_value_date)));
-					if (isset($meta_value_date[1])) {
-						$time = str_replace('-', '', $meta_value_date[1]);
-						$meta_value .= esc_html__(' at ', 'listeo_core');
-						$meta_value .= date_i18n(get_option('time_format'), strtotime($time));
-					}
-					// $convertedData = listeo_date_time_wp_format_php();
-					// $clock_format = get_option('listeo_clock_format');
-					// if($clock_format == "24") {
-					// 	$dateformated = DateTime::createFromFormat($convertedData.' H:i', $meta_value);	
-					// } else {
-					// 	$dateformated = DateTime::createFromFormat($convertedData.' h:i A', $meta_value);	
-					// }
-
-
-					// if($dateformated){
-					// 	$date_format = get_option( 'date_format' );
-					// 	$time_format = get_option( 'time_format' );
-					// 	$meta_value = $dateformated->format($date_format);
-					// 	$meta_value .= ' - '. $dateformated->format($time_format);
-					// }
-
+		// Start new section if it's a taxonomy field and the taxonomy changed
+		if (!empty($detail['config']['is_taxonomy_field'])) {
+			$taxonomy = $detail['config']['taxonomy'];
+			if ($taxonomy !== $current_taxonomy) {
+				// Close previous box if open
+				if ($box_open) {
+					echo '</ul>';
+					$box_open = false;
 				}
+				$current_taxonomy = $taxonomy;
 			}
-			if (in_array($value['id'], array('_id', '_ID', '_Id'))) {
-				$meta_value = apply_filters('listeo_listing_id', $post->ID);
-			}
-	
-		
-			
-			if (!empty($meta_value)) {
-				if (filter_var($meta_value, FILTER_VALIDATE_URL) !== false) {
-
-					$meta_value = '<a href="' . esc_url($meta_value) . '" target="_blank">' . esc_url($meta_value) . '</a>';
-				} 
-				//echo "tu jestesmy ".$value['id'].' '.$value['type'].' <br>';
-				if ($value['id'] == '_area') {
-					$scale = get_option('listeo_scale', 'sq ft');
-					if (isset($value['invert']) && $value['invert'] == true) {
-
-						$output .= '<li class="main-detail-' . $value['id'] . '">' . $icon . apply_filters('listeo_scale', $scale) . ' <span>' . $meta_value . '</span> </li>';
-					} else {
-						$output .= '<li class="main-detail-' . $value['id'] . '">' . $icon . '<span>' . $meta_value . '</span> ' . apply_filters('listeo_scale', $scale) . ' </li>';
-					}
-				} else if ($details_list['fields'][$detail]['type'] == 'file') {
-					$output .= '<li class="main-detail-' . $value['id'] . ' listeo-download-detail"> <a href="' . $meta_value . '" /> ' . esc_html__('Download', 'listeo_core') . ' ' . wp_basename($meta_value) . ' </a></li>';
-				} else {
-					// 					echo "<pre>";
-					// var_dump();
-					// echo "</pre>";
-					if (isset($details_list['fields'][$detail]['options']) && !empty($details_list['fields'][$detail]['options'])) {
-
-						if (is_array($meta_value) && !empty($meta_value)) {
-
-
-							if (isset($value['invert']) && $value['invert'] == true) {
-								$output .= '<li class="main-detail-' . $value['id'] . '">' . $icon . '<span>';
-								$i = 0;
-								$last = count($meta_value);
-
-
-								foreach ($meta_value as $key => $saved_value) {
-									$i++;
-									if (isset($details_list['fields'][$detail]['options'][$saved_value]))
-										$output .= $details_list['fields'][$detail]['options'][$saved_value];
-									if ($i >= 1 && $i < $last) : $output .= ", ";
-									endif;
-								}
-								$output .= '</span> <div class="single-property-detail-label-' . $value['id'] . '">' . $value['name'] . '</div> </li>';
-							} else {
-
-								$output .= '<li class="main-detail-' . $value['id'] . '">' . $icon . '<div class="single-property-detail-label-' . $value['id'] . '">' . $value['name'] . '</div> <span>';
-
-								$i = 0;
-
-
-								// if(!empty($meta_value) && $details_list['fields'][$detail]['type'] == 'select_multiple') {
-								// 	$meta_value = $meta_value[0];
-
-								// }
-								$last = count($meta_value);
-
-								foreach ($meta_value as $key => $saved_value) {
-									$i++;
-									if ($details_list['fields'][$detail]['type'] == 'select_multiple') {
-
-										if (isset($details_list['fields'][$detail]['options'][$saved_value]))
-											$output .= $details_list['fields'][$detail]['options'][$saved_value];
-										if ($i >= 0 && $i < $last) : $output .= ", ";
-										endif;
-									} else {
-
-										if (isset($details_list['fields'][$detail]['options'][$saved_value]))
-											$output .= $details_list['fields'][$detail]['options'][$saved_value];
-										if ($i >= 0 && $i < $last) : $output .= ", ";
-										endif;
-									}
-								}
-								$output .= '</span></li>';
-							}
-						} else {
-
-							if (isset($value['invert']) && $value['invert'] == true) {
-								if (isset($details_list['fields'][$detail]['options'][$meta_value])) {
-									$output .= '<li class="main-detail-' . $value['id'] . '">' . $icon . '<span>' . $details_list['fields'][$detail]['options'][$meta_value] . '</span> <div class="single-property-detail-label-' . $value['id'] . '">' . $value['name'] . '</div> </li>';
-								}
-							} else {
-								$output .= '<li class="main-detail-' . $value['id'] . '">' . $icon . '<div class="single-property-detail-label-' . $value['id'] . '">' . $value['name'] . '</div> <span>' . $details_list['fields'][$detail]['options'][$meta_value] . '</span></li>';
-							}
-						}
-					} else {
-
-						if (isset($value['invert']) && $value['invert'] == true) {
-							$output .= '<li class="main-detail-' . $value['id'] . '">' . $icon . '<div class="single-property-detail-label-' . $value['id'] . '">' . $value['name'] . '</div> <span>';
-							$output .= (is_array($meta_value)) ? implode(",", $meta_value) : $meta_value;
-							$output .= '</span></li>';
-						} else {
-							$output .= '<li class="main-detail-' . $value['id'] . '">' . $icon . '<span>';
-							$output .= (is_array($meta_value)) ? implode(",", $meta_value) : $meta_value;
-							$output .= '</span> <div class="single-property-detail-label-' . $value['id'] . '">' . $value['name'] . '</div> </li>';
-						}
-					}
+		} else {
+			// If it's not a taxonomy field and a taxonomy was active, reset it
+			if ($current_taxonomy !== null) {
+				if ($box_open) {
+					echo '</ul>';
+					$box_open = false;
 				}
+				$current_taxonomy = null;
 			}
 		}
+
+		// Now we have an actual field to display, so output pending header and open box if needed
+		if ($pending_header) {
+			echo $pending_header;
+			$pending_header = null;
+		}
+
+		if (!$box_open) {
+			echo '<ul class="' . esc_attr($class) . '" id="' . esc_attr($class) . '">';
+			$box_open = true;
+		}
+
+		// Render the actual field
+		if ($detail['display_type'] === 'checkbox') :
+	?>
+			<!-- Checkbox Field Template -->
+			<li class="<?php echo esc_attr(implode(' ', $detail['css_classes'])); ?>">
+				<i class="<?php echo esc_attr($detail['icon']); ?>"></i>
+				<div class="checkboxed-single single-property-detail-label-<?php echo esc_attr($detail['config']['id']); ?>">
+					<?php echo esc_html($detail['config']['name']); ?>
+
+					<?php if (!empty($detail['config']['default'])) : ?>
+						<span><?php echo esc_html($detail['config']['default']); ?></span>
+					<?php else : ?>
+						<span><?php echo esc_html("Yes", 'listeo_core'); ?></span>
+					<?php endif; ?>
+
+				</div>
+			</li>
+
+		<?php elseif ($detail['display_type'] === 'area') : ?>
+			<!-- Area Field Template -->
+			<?php $area_data = $detail['processed_value']; ?>
+			<li class="<?php echo esc_attr(implode(' ', $detail['css_classes'])); ?>">
+				<i class="<?php echo esc_attr($detail['icon']); ?>"></i>
+				<?php if ($detail['is_inverted']) : ?>
+					<?php echo esc_html($area_data['scale']); ?>
+					<span><?php echo listeo_render_detail_value($detail); ?></span>
+				<?php else : ?>
+					<span><?php echo listeo_render_detail_value($detail); ?></span>
+					<?php echo esc_html($area_data['scale']); ?>
+				<?php endif; ?>
+			</li>
+
+		<?php elseif ($detail['display_type'] === 'file') : ?>
+			<!-- File Field Template -->
+			<li class="<?php echo esc_attr(implode(' ', $detail['css_classes'])); ?>">
+				<i class="<?php echo esc_attr($detail['icon']); ?>"></i>
+				<?php echo listeo_render_detail_value($detail); ?>
+			</li>
+
+		<?php else : ?>
+			<!-- Regular Field Template -->
+			<li class="<?php echo esc_attr(implode(' ', $detail['css_classes'])); ?>">
+				<i class="<?php echo esc_attr($detail['icon']); ?>"></i>
+				<?php if ($detail['is_inverted']) : ?>
+					<span><?php echo listeo_render_detail_value($detail); ?></span>
+					<div class="single-property-detail-label-<?php echo esc_attr($detail['config']['id']); ?>">
+						<?php echo esc_html($detail['config']['name']); ?>
+					</div>
+				<?php else : ?>
+					<div class="single-property-detail-label-<?php echo esc_attr($detail['config']['id']); ?>">
+						<?php echo esc_html($detail['config']['name']); ?>
+					</div>
+					<span><?php echo listeo_render_detail_value($detail); ?></span>
+				<?php endif; ?>
+			</li>
+		<?php endif; ?>
+<?php endforeach;
+
+	// Close any remaining open box
+	if ($box_open) {
+		echo '</ul>';
 	}
-endif;
-if (!empty($output)) : ?>
-	<ul class="<?php esc_attr_e($class); ?>" id="<?php esc_attr_e($class); ?>">
-		<?php echo $output; ?>
-	</ul>
-<?php endif; ?>
+endif; ?>

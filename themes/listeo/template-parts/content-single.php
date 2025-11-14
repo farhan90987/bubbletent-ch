@@ -33,13 +33,13 @@ if ( ! post_password_required() ) {
         if($thumb){
           $imageurl = urlencode($thumb[0]);  
         } else {
-          $thumb = '';
+          $imageurl = '';
         }
         
         ?>
         <ul class="share-buttons margin-top-40 margin-bottom-0">
           <?php if (in_array("facebook", $share_options)) { ?><li><?php echo '<a target="_blank" class="fb-share" href="https://www.facebook.com/sharer/sharer.php?u=' . $url . '"><i class="fa fa-facebook"></i> Share</a>'; ?></li><?php } ?>
-          <?php if (in_array("twitter", $share_options)) { ?><li><?php echo '<a target="_blank" class="twitter-share" href="https://twitter.com/share?url=' . $url . '&amp;text=' . esc_attr($summary ). '" title="' . esc_html__( 'Twitter', 'listeo' ) . '"><i class="fa fa-twitter"></i> Tweet</a></a>'; ?></li><?php } ?>
+          <?php if (in_array("twitter", $share_options)) { ?><li><?php echo '<a target="_blank" class="twitter-share" href="https://twitter.com/share?url=' . $url . '&amp;text=' . esc_attr($summary ). '" title="' . esc_html__( 'Twitter', 'listeo' ) . '"><i class="fa-brands fa-x-twitter"></i> ' . __('Share', 'listeo_core') . '</a></a>'; ?></li><?php } ?>
         
           <?php if (in_array("pinterest", $share_options)) { ?><li><?php echo '<a target="_blank"  class="pinterest-share" href="http://pinterest.com/pin/create/button/?url=' . $url . '&amp;description=' . esc_attr($summary) . '&media=' . esc_attr($imageurl) . '" onclick="window.open(this.href); return false;"><i class="fa fa-pinterest-p"></i> Pin</a></a>'; ?></li><?php } ?>
         </ul>

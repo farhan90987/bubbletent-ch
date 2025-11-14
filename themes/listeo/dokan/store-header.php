@@ -128,10 +128,20 @@ if (('default' === $profile_layout) || ('layout2' === $profile_layout)) {
                 if ($social_fields && $show_socials) { ?>
                     <div class="store-social-wrapper">
                         <ul class="store-social">
-                            <?php foreach ($social_fields as $key => $field) { ?>
+                            <?php foreach ($social_fields as $key => $field) {
+
+                            ?>
                                 <?php if (!empty($social_info[$key])) { ?>
                                     <li>
-                                        <a href="<?php echo esc_url($social_info[$key]); ?>" target="_blank"><i class="fa fa-<?php echo esc_attr($field['icon']); ?>"></i></a>
+                                        <a href="<?php echo esc_url($social_info[$key]); ?>" target="_blank">
+                                            <?php if ($field['icon'] == 'fa-brands fa-square-x-twitter') { ?>
+
+                                                <i class="fa-brands fa-x-twitter"></i>
+                                            <?php } else { ?>
+                                                <i class="fa fa-<?php echo esc_attr($field['icon']); ?>"></i>
+                                            <?php } ?>
+
+                                        </a>
                                     </li>
                                 <?php } ?>
                             <?php } ?>
@@ -140,9 +150,9 @@ if (('default' === $profile_layout) || ('layout2' === $profile_layout)) {
                 <?php } ?>
             </div> <!-- .profile-info -->
         </div><!-- .profile-info-summery -->
-        
+
     </div><!-- .profile-info-summery-wrapper -->
-    
+
     <a class="button vendors-listings-link" href="<?php echo esc_url(get_author_posts_url($author)); ?>"><?php echo esc_html_e("Vendor's Listings", "listeo") ?></a>
 
 </div> <!-- .profile-info-box -->

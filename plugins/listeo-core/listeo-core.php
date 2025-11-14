@@ -1,7 +1,7 @@
 <?php
 /*
  * Plugin Name: Listeo-Core - Directory Plugin by Purethemes
- * Version: 1.8.14
+ * Version: 2.0.6
  * Plugin URI: http://www.purethemes.net/
  * Description: Directory & Listings Plugin from Purethemes.net
  * Author: Purethemes.net
@@ -22,13 +22,15 @@
  *  / ____/ /_/ / /  /  __/ /_/ / / /  __/ / / / / /  __(__  )
  * /_/    \__,_/_/   \___/\__/_/ /_/\___/_/ /_/ /_/\___/____/  
  * 
- * 
+ *   
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 define( 'LISTEO_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LISTEO_CORE_URL', trailingslashit(plugin_dir_url(__FILE__)));
+define('LISTEO_CORE_PRICING_VERSION', '1.9.58'); // Update this when you make DB changes
+
 /* load CMB2 for meta boxes*/
 if ( file_exists( dirname( __FILE__ ) . '/lib/cmb2/init.php' ) ) {
 	require_once dirname( __FILE__ ) . '/lib/cmb2/init.php';
@@ -42,12 +44,34 @@ global $current_commission_table_version;
 $current_commission_table_version = '2.1';
 
 global $listeo_core_db_version;
-$listeo_core_db_version = "2.1";
+$listeo_core_db_version = "2.2";
+
 
 include_once( 'includes/class-listeo-paypal-payout.php' );
 //include_once( 'includes/class-listeo-stripe-connect.php' );
 require_once( 'includes/class-listeo-core-admin.php' );
 require_once( 'includes/class-listeo-core.php' );
+
+// Load Custom Listing Types System
+require_once( 'includes/class-listeo-core-custom-listing-types.php' );
+if (is_admin()) {
+    require_once( 'includes/class-listeo-core-custom-listing-types-admin.php' );
+}
+
+// Load Custom Permalink System
+include_once( 'includes/class-listeo-core-custom-permalink-manager.php' );
+include_once( 'includes/class-listeo-core-permalink-token-parser.php' );
+include_once( 'includes/class-listeo-core-permalink-validator.php' );
+include_once( 'includes/class-listeo-core-permalink-redirect-manager.php' );
+include_once( 'includes/class-listeo-core-permalink-safety-manager.php' );
+
+// Load Google Reviews API Gateway System
+include_once( 'includes/class-listeo-core-google-reviews-gateway.php' );
+
+// Load Data Migration System (for migrating serialized multi-value fields)
+if ( is_admin() ) {
+	include_once( 'includes/class-listeo-core-data-migration.php' );
+}
 
 
 
@@ -58,7 +82,7 @@ require_once( 'includes/class-listeo-core.php' );
  * @return object listeo_core
  */
 function Listeo_Core () {
-	$instance = Listeo_Core::instance( __FILE__, '1.8.14' );
+	$instance = Listeo_Core::instance( __FILE__, '2.0' );
 
 	/*if ( is_null( $instance->settings ) ) {
 		$instance->settings =  Listeo_Core_Settings::instance( $instance );
@@ -78,9 +102,78 @@ include( dirname( __FILE__ ) . '/includes/class-listeo-core-templates.php' );
 
 include( dirname( __FILE__ ) . '/includes/paid-listings/class-listeo-core-paid-listings.php' );
 include( dirname( __FILE__ ) . '/includes/paid-listings/class-wc-product-listing-package.php' );
+include( dirname( __FILE__ ) . '/includes/class-wc-product-ad-campaign.php' );
 include( dirname( __FILE__ ) . '/includes/class-wc-product-listing-booking.php' );
 include( dirname( __FILE__ ) . '/includes/paid-listings/class-listeo-core-paid-listings-admin.php' );
 include( dirname( __FILE__ ) . '/includes/paid-listings/class-listeo-core-paid-listings-admin-listings.php' );
+
+// Load regions importer with conflict detection
+if (!function_exists('is_plugin_active')) {
+    include_once(ABSPATH . 'wp-admin/includes/plugin.php');
+}
+
+// Only load regions importer if no conflicts exist
+add_action('plugins_loaded', function() {
+    // Check for conflicts
+    $has_conflict = class_exists('Dynamic_Regions_Importer') || 
+                   (function_exists('is_plugin_active') && is_plugin_active('regions-importer/regions-import.php'));
+    
+    if (!$has_conflict) {
+        // Include and initialize the regions importer
+        if (!class_exists('Listeo_Core_Regions_Importer')) {
+            include( dirname( __FILE__ ) . '/includes/class-listeo-core-regions-importer.php' );
+        }
+        
+        if (class_exists('Listeo_Core_Regions_Importer')) {
+            Listeo_Core_Regions_Importer::instance();
+        }
+    } else {
+        // Show admin notice about conflict - moved to init to avoid early textdomain loading
+        add_action('init', function() {
+            add_action('admin_notices', function() {
+                if (current_user_can('manage_options')) {
+                    ?>
+                    <div class="notice notice-warning">
+                        <p><strong><?php _e('Listeo Core:', 'listeo_core'); ?></strong> <?php _e('The standalone "Regions Importer" plugin is detected. Please deactivate it to use the integrated regions importer functionality.', 'listeo_core'); ?></p>
+                    </div>
+                    <?php
+                }
+            });
+        });
+    }
+});
+
+// Load translation importer with conflict detection
+add_action('plugins_loaded', function() {
+    // Check for translation importer conflicts
+    $has_translation_conflict = class_exists('PT_Translation_Importer_Core') || 
+                               class_exists('PT_Admin_Page') ||
+                               (function_exists('is_plugin_active') && is_plugin_active('translation-importer/translation-importer.php'));
+    
+    if (!$has_translation_conflict) {
+        // Include and initialize the translation importer
+        if (!class_exists('Listeo_Core_Translation_Importer')) {
+            include( dirname( __FILE__ ) . '/includes/class-listeo-core-translation-importer.php' );
+        }
+        
+        if (class_exists('Listeo_Core_Translation_Importer')) {
+            Listeo_Core_Translation_Importer::instance();
+        }
+    } else {
+        // Show admin notice about conflict - moved to init to avoid early textdomain loading
+        add_action('init', function() {
+            add_action('admin_notices', function() {
+                if (current_user_can('manage_options')) {
+                    ?>
+                    <div class="notice notice-warning">
+                        <p><strong><?php _e('Listeo Core:', 'listeo_core'); ?></strong> <?php _e('The standalone "Translation Importer" plugin is detected. Please deactivate it to use the integrated translation importer functionality.', 'listeo_core'); ?></p>
+                    </div>
+                    <?php
+                }
+            });
+        });
+    }
+});
 
 
 function listeo_core_pricing_install() {
@@ -120,17 +213,29 @@ function listeo_core_pricing_install() {
 	  package_option_social_links int(1) NULL,
 	  package_option_opening_hours int(1) NULL,
 	  package_option_video int(1) NULL,
+	  package_option_pricing_menu int(1) NULL,
 	  package_option_coupons int(1) NULL,
+	  package_option_faq int(1) NULL,
 	  PRIMARY KEY  (id)
 	) $collate;
 	";
 	
 	dbDelta( $sql );
-
+	update_option('listeo_core_pricing_db_version', LISTEO_CORE_PRICING_VERSION);
 }
 
 register_activation_hook( __FILE__, 'listeo_core_pricing_install' );
 
+
+function listeo_core_pricing_update_db_check()
+{
+	$installed_version = get_option('listeo_core_pricing_db_version');
+
+	if ($installed_version != LISTEO_CORE_PRICING_VERSION) {
+		listeo_core_pricing_install();
+	}
+}
+add_action('admin_init', 'listeo_core_pricing_update_db_check');
 
 
 function listeo_core_activity_log() {
@@ -198,14 +303,30 @@ function listeo_core_messages_db() {
 	  sender_id bigint(20) NOT NULL,
 	  message  text NOT NULL,
 	  created_at bigint(20) NOT NULL,
+	  attachment_id bigint(20) DEFAULT NULL,
+	  attachment_url text DEFAULT NULL,
+	  attachment_name varchar(255) DEFAULT NULL,
+	  attachment_type varchar(50) DEFAULT NULL,
+	  attachment_size int(11) DEFAULT NULL,
 	  PRIMARY KEY  (id)
 	) $collate;
 	";
-	
+
 	dbDelta( $sql );
+	update_option('listeo_messages_db_version', '1.1');
 
 }
 register_activation_hook( __FILE__, 'listeo_core_messages_db' );
+
+// Check for database updates on admin init
+function listeo_core_messages_update_db_check() {
+	$installed_version = get_option('listeo_messages_db_version', '1.0');
+
+	if (version_compare($installed_version, '1.1', '<')) {
+		listeo_core_messages_db();
+	}
+}
+add_action('admin_init', 'listeo_core_messages_update_db_check');
 
 function listeo_core_conversations_db() {
 	global $wpdb;
@@ -314,16 +435,7 @@ function listeo_core_commisions_db() {
 }
 register_activation_hook( __FILE__, 'listeo_core_commisions_db' );
 
-if (! function_exists('listeo_update_commission_table_check')){
-    function listeo_update_commission_table_check(){
-        global $listeo_core_db_version;
-		
-        if ( get_site_option( 'listeo_commission_table_version' ) != $listeo_core_db_version ) {
-            listeo_core_commisions_db();
-        }
-    }
-    add_action( 'plugins_loaded', 'listeo_update_commission_table_check' );
-}
+
 
 
 function listeo_core_commisions_payouts_db() {
@@ -476,11 +588,110 @@ function listeo_core_stats_db()
 
 register_activation_hook(__FILE__, 'listeo_core_stats_db');
 
+function listeo_core_ad_stats_db()
+{
+	global $wpdb;
+	$wpdb->hide_errors();
+
+	/* Vars */
+	$table_name = $wpdb->prefix . 'listeo_core_ad_stats';
+	$charset_collate = $wpdb->get_charset_collate();
+
+	$sql = "CREATE TABLE $table_name (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        ad_id bigint(20) NOT NULL,
+        campaign_type varchar(10) NOT NULL,
+        views bigint(20) NOT NULL DEFAULT 0,
+        clicks bigint(20) NOT NULL DEFAULT 0,
+        date date NOT NULL,
+		campaign_placement varchar(50) NOT NULL,
+        PRIMARY KEY  (id),
+        KEY ad_id (ad_id),
+        KEY date (date)
+    ) $charset_collate;";
+
+	/* Create table */
+	require_once(ABSPATH . 'wp-admin/includes/upgrade.php'); // Load dbDelta()
+	dbDelta($sql);
+}
+
+register_activation_hook(__FILE__, 'listeo_core_ad_stats_db');
+
+
+function listeo_core_tickets_db() {
+        global $wpdb;
+		$wpdb->hide_errors();
+
+
+
+        $charset_collate = $wpdb->get_charset_collate();
+        $table_name = $wpdb->prefix . 'listeo_core_tickets';
+        $sql = "CREATE TABLE IF NOT EXISTS $table_name (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            booking_id bigint(20) NOT NULL,
+            ticket_code varchar(32) NOT NULL,
+            status varchar(20) NOT NULL DEFAULT 'valid',
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            used_at datetime DEFAULT NULL,
+			used_by varchar(120) DEFAULT NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY ticket_code (ticket_code)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+}
+
+register_activation_hook(__FILE__, 'listeo_core_tickets_db');
+
 
 function listeo_core_missing_cmb2() { ?>
 	<div class="error">
 		<p><?php _e( 'CMB2 Plugin is missing CMB2!', 'listeo_core' ); ?></p>
 	</div>
 <?php }
+
+// Set best-match as default sort when AI plugin is active
+function listeo_core_set_ai_default_sort() {
+    // Only set if AI Search plugin is active
+    if (class_exists('Listeo_AI_Search') || function_exists('listeo_ai_search_init')) {
+        // Check if we've already configured this to avoid overriding user choices
+        $ai_sort_configured = get_option('listeo_ai_sort_configured', false);
+        
+        if (!$ai_sort_configured) {
+            $current_default = get_option('listeo_sort_by', 'date');
+            
+            // Only change to best-match if current default is a basic/default option
+            $basic_defaults = array('date', 'date-desc', 'date-asc', 'featured');
+            if (in_array($current_default, $basic_defaults)) {
+                update_option('listeo_sort_by', 'best-match');
+            }
+            
+            // Mark as configured so we don't override user choices in the future
+            update_option('listeo_ai_sort_configured', true);
+        }
+        
+        // Always ensure best-match is in the available sortby options
+        $current_options = get_option('listeo_listings_sortby_options', array('highest-rated', 'reviewed', 'date-desc', 'date-asc', 'title', 'featured', 'views', 'verified', 'upcoming-event', 'rand'));
+        if (!in_array('best-match', $current_options)) {
+            $current_options[] = 'best-match';
+            update_option('listeo_listings_sortby_options', $current_options);
+        }
+    }
+}
+add_action('plugins_loaded', 'listeo_core_set_ai_default_sort', 20);
+
+/**
+ * Ensure distance sorting is available in sort options
+ */
+function listeo_core_set_distance_default_sort() {
+    // Always ensure distance is in the available sortby options
+    $current_options = get_option('listeo_listings_sortby_options', array('highest-rated', 'reviewed', 'date-desc', 'date-asc', 'title', 'featured', 'views', 'verified', 'upcoming-event', 'rand', 'best-match'));
+    if (!in_array('distance', $current_options)) {
+        $current_options[] = 'distance';
+        update_option('listeo_listings_sortby_options', $current_options);
+    }
+}
+add_action('plugins_loaded', 'listeo_core_set_distance_default_sort', 21);
 
 Listeo_Core();

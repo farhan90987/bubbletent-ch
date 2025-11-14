@@ -80,13 +80,16 @@
               var autocomplete = new google.maps.places.Autocomplete(input,geooptions);
 
               autocomplete.addListener('place_changed', function() {
-
                 var place = autocomplete.getPlace();
                 if (!place.geometry) {
-//                  window.alert("No details available for input: '" + place.name + "'");
+                  //                  window.alert("No details available for input: '" + place.name + "'");
                   return;
                 }
 
+                // Example: Trigger a search or update results
+                var target = $("div#listeo-listings-container");
+                target.triggerHandler("update_results", [1, false]);
+                
               });
               $('#location_search').on('focus', function(){
                     setTimeout(function(){ 
@@ -102,8 +105,12 @@
                   
                   var target   = $('div#listeo-listings-container' );
                   target.triggerHandler( 'update_results', [ 1, false ] );
-                  var newLatLng = new L.LatLng(result.geometry.location.lat(), result.geometry.location.lng());
-                  map.panTo(newLatLng);
+                  
+                  // Only pan the map if it exists (avoid error on pages without maps)
+                  if (typeof map !== 'undefined' && map) {
+                      var newLatLng = new L.LatLng(result.geometry.location.lat(), result.geometry.location.lng());
+                      map.panTo(newLatLng);
+                  }
 
               });
 

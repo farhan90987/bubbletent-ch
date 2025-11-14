@@ -82,6 +82,8 @@
 
                 </div>
 
+                             <div id="dokan-analytics-app"></div>
+                       
             </article><!-- .dashboard-content-area -->
 
              <?php

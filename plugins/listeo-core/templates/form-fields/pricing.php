@@ -84,7 +84,8 @@ if (isset($field['value']) && is_array($field['value'])) :
 												<div class="checkboxes in-row pricing-quanity-buttons">
 													<input type="checkbox" class="input-checkbox" name="<?php echo esc_attr($key); ?>[<?php echo esc_attr($i); ?>][menu_elements][<?php echo esc_attr($z); ?>][bookable_quantity]" id="<?php echo esc_attr($key); ?>[<?php echo esc_attr($i); ?>][menu_elements][<?php echo esc_attr($z); ?>][bookable_quantity]" <?php if (isset($menu_el['bookable_quantity'])) echo 'checked="checked"'; ?> />
 													<label for="<?php echo esc_attr($key); ?>[<?php echo esc_attr($i); ?>][menu_elements][<?php echo esc_attr($z); ?>][bookable_quantity]"><?php esc_html_e('Quantity Buttons', 'listeo_core') ?></label>
-													<input type="number" class="bookable_quantity_max" step="1" name="<?php echo esc_attr($key); ?>[<?php echo esc_attr($i); ?>][menu_elements][<?php echo esc_attr($z); ?>][bookable_quantity_max]" value="<?php echo $menu_el['bookable_quantity_max']; ?>" placeholder="<?php esc_html_e('Max quantity', 'listeo_core'); ?>" />
+													
+													<input type="number" class="bookable_quantity_max" step="1" name="<?php echo esc_attr($key); ?>[<?php echo esc_attr($i); ?>][menu_elements][<?php echo esc_attr($z); ?>][bookable_quantity_max]" value="<?php if(isset($menu_el['bookable_quantity_max']) ) echo $menu_el['bookable_quantity_max']; ?>" placeholder="<?php esc_html_e('Max quantity', 'listeo_core'); ?>" />
 												</div>
 
 

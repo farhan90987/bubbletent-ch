@@ -24,20 +24,46 @@ $(document).ready(function(){
           }
 
           if( $( this ).data('longitude') ) {
-            arrMarkers.push([ 
+            // badges can be in listing-list-small-badges-container, or listing-small-list-badges-container or listing-small-badges-container
+            // add a check for each of them and use first on that is found
+            var badges;
+            if( $( this ).find('.listing-list-small-badges-container').length > 0 ) {
+              badges = $( this ).find('.listing-list-small-badges-container').html();
+            } else if( $( this ).find('.listing-small-list-badges-container').length > 0 ) {
+               badges = $( this ).find('.listing-small-list-badges-container').html();
+            } else {
+              badges = $( this ).find('.listing-small-badges-container').html();
+            }
+            if( !badges ) {
+              badges = "";
+            }
+
+            var rating;
+            if( $( this ).find('.listing-rating-nl').length > 0 ) {
+              rating = $( this ).find('.listing-rating-nl').html();
+            } else {
+              rating = $(this).data("rating");
+            }
+
+            arrMarkers.push([
               locationData(
-                $(this).find('a').attr('href') ? $(this).find('a').attr('href') : $(this).attr('href'),
-                $(this).data('image'),
-                $(this).data('title'),
-                $(this).data('listing-type'),
-                $(this).data('classifieds-price'),
+                $(this).find("a").attr("href")
+                  ? $(this).find("a").attr("href")
+                  : $(this).attr("href"),
+                $(this).data("image"),
+                $(this).data("title"),
+                $(this).data("listing-type"),
+                $(this).data("classifieds-price"),
                 point_address,
-                $(this).data('rating'),
-                $(this).data('reviews')
+                rating,
+                $(this).data("reviews"),
+                badges
               ),
-              $( this ).data('longitude'), $( this ).data('latitude'), 1, $(this).data('icon'),
+              $(this).data("longitude"),
+              $(this).data("latitude"),
+              1,
+              $(this).data("icon"),
             ]);
-            
           }
         });
         
@@ -53,18 +79,20 @@ $(document).ready(function(){
         '<span class="'+fifthStar+'"></span>');
     }
 
-  function locationData(locationURL,locationImg,locationTitle,locationType, locationPrice, locationAddress, locationRating, locationRatingCounter) {
-          
+  function locationData(locationURL,locationImg,locationTitle,locationType, locationPrice, locationAddress, locationRating, locationRatingCounter, badges) {
+         
       var output;
       var output_top;
       var output_bottom;
       output_top= ''+
             '<a href="'+ locationURL +'" class="leaflet-listing-img-container">'+
+            '<div class="listing-small-badges-container">' + badges + '</div>' +
                '<img src="'+locationImg+'" alt="">'+
                '<div class="leaflet-listing-item-content">'+
                   '<h3>'+locationTitle+'</h3>'+
                   '<span>'+locationAddress+'</span>'+
                '</div>'+
+               
 
             '</a>'+
 
@@ -75,7 +103,11 @@ $(document).ready(function(){
                          '</div>'+
                       '</div>';
                } else {
-                    if(locationRating>0){
+              
+                // check if locationRating is a number and greater than 0
+                 
+                    if (typeof locationRating === 'number' && locationRating > 0) {
+                 
 
                 // Rating Stars Output
                 
@@ -119,6 +151,15 @@ $(document).ready(function(){
                       output_bottom = '<div class="'+infoBox_ratingType+'" data-rating="'+locationRating+'"><div class="rating-counter">('+locationRatingCounter+' '+listeo_core.maps_reviews_text+')</div>'+stars+'</div>'+
                          '</div>'+
                       '</div>';
+                  }
+                  // check if it's html code
+                  else if (typeof locationRating === 'string' && locationRating.trim() !== '') {
+                    output_bottom =
+                      '<div class="listing-rating-nl">' +
+                      locationRating +
+                      "</div>" +
+                      "</div>" +
+                      "</div>";
                   } else {
                     output_bottom = '<div class="'+infoBox_ratingType+'"><span class="not-rated">'+listeo_core.maps_noreviews_text+'</span></div>'+
                          '</div>'+
@@ -140,6 +181,12 @@ $(document).ready(function(){
       var marker;
       var locations;
       var markerArray = [];
+      
+      // User location marker and radius circle variables
+      var userLocationMarker = null;
+      var radiusCircle = null;
+      var userLocationLayer = L.layerGroup();
+      var userLocationFirstShow = true;
       
 
       var latlngStr = listeo_core.centerPoint.split(",",2);
@@ -164,115 +211,281 @@ $(document).ready(function(){
           center: [lat,lng],
           zoom: zoomLevel,
           zoomControl: false,
-          gestureHandling: true,
+          gestureHandling: false,
           tap: false
        }
       }
      
 
-      var _map =  document.getElementById('map');
-      if (typeof(_map) != 'undefined' && _map != null) {
-          window.map = L.map('map',mapOptions)
+      var _map = document.querySelectorAll("div#map");
+      // if  querySelectorAll has found an element
       
-          switch (listeo_core.map_provider) {
-            case "osm":
-              L.tileLayer(
-                "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                {
-                  attribution:
-                    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-                }
-              ).addTo(map);
-              break;
-
-            case "google":
-              var roads = L.gridLayer
-                .googleMutant({
-                  type: "roadmap", // valid values are 'roadmap', 'satellite', 'terrain' and 'hybrid'
-                  maxZoom: 18,
-                })
-                .addTo(map);
-
-              break;
-
-            case "mapbox":
-              var accessToken = listeo_core.mapbox_access_token;
-              var mapbox_style_url = listeo_core.mapbox_style_url;
-
-              if (listeo_core.mapbox_retina) {
-                L.tileLayer(mapbox_style_url + accessToken, {
-                  attribution:
-                    " &copy;  <a href='https://www.mapbox.com/about/maps/'>Mapbox</a> &copy;  <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a> <strong><a href='https://www.mapbox.com/map-feedback/' target='_blank'>Improve this map</a></strong>",
-                  maxZoom: 18,
-                  zoomOffset: -1,
-                  //detectRetina: true,
-                  tileSize: 512,
-                }).addTo(map);
-              } else {
-                L.tileLayer(mapbox_style_url + accessToken, {
-                  attribution:
-                    " &copy;  <a href='https://www.mapbox.com/about/maps/'>Mapbox</a> &copy;  <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a> <strong><a href='https://www.mapbox.com/map-feedback/' target='_blank'>Improve this map</a></strong>",
-                  maxZoom: 18,
-                  //detectRetina: true,
-                  id: "mapbox.streets",
-                }).addTo(map);
-              }
-
-              break;
-
-            case "bing":
-              var options = {
-                bingMapsKey: listeo_core.bing_maps_key,
-                imagerySet: "RoadOnDemand",
-              };
-
-              L.tileLayer.bing(options).addTo(map);
-              break;
-
-            case "thunderforest":
-              var tileUrl =
-                  "https://tile.thunderforest.com/cycle/{z}/{x}/{y}{r}.png?apikey=" +
-                  listeo_core.thunderforest_api_key,
-                layer = new L.TileLayer(tileUrl, { maxZoom: 18 });
-              map.addLayer(layer);
-              break;
-
-            case "here":
-              L.tileLayer
-                .here({
-                  appId: listeo_core.here_app_id,
-                  appCode: listeo_core.here_app_code,
-                })
-                .addTo(map);
-              break;
-          }
-
-          if($('div#map').parent().parent().hasClass('fs-inner-container')){
-            var zoomOptions = {
-               zoomInText: '<i class="fa fa-plus" aria-hidden="true"></i>',
-               zoomOutText: '<i class="fa fa-minus" aria-hidden="true"></i>',
-            };
-            // Creating zoom control
-            var zoom = L.control.zoom(zoomOptions);
-            zoom.addTo(map);
-          } else {
-            map.scrollWheelZoom.disable();
-            
-
-            var zoomOptions = {
-               zoomInText: '<i class="fa fa-plus" aria-hidden="true"></i>',
-               zoomOutText: '<i class="fa fa-minus" aria-hidden="true"></i>',
-            };
-            // Creating zoom control
-            var zoom = L.control.zoom(zoomOptions);
-            zoom.addTo(map);
-          }
-          
-      } 
 
       
+     if (_map.length > 0) {
+       window.map = L.map("map", mapOptions);
+
+       switch (listeo_core.map_provider) {
+         case "osm":
+           L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+             attribution:
+               '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+           }).addTo(map);
+           break;
+
+         case "google":
+           var roads = L.gridLayer
+             .googleMutant({
+               type: "roadmap", // valid values are 'roadmap', 'satellite', 'terrain' and 'hybrid'
+               maxZoom: 18,
+             })
+             .addTo(map);
+
+           break;
+
+         case "mapbox":
+           var accessToken = listeo_core.mapbox_access_token;
+           var mapbox_style_url = listeo_core.mapbox_style_url;
+
+           if (listeo_core.mapbox_retina) {
+             L.tileLayer(mapbox_style_url + accessToken, {
+               attribution:
+                 " &copy;  <a href='https://www.mapbox.com/about/maps/'>Mapbox</a> &copy;  <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a> <strong><a href='https://www.mapbox.com/map-feedback/' target='_blank'>Improve this map</a></strong>",
+               maxZoom: 18,
+               zoomOffset: -1,
+               //detectRetina: true,
+               tileSize: 512,
+             }).addTo(map);
+           } else {
+             L.tileLayer(mapbox_style_url + accessToken, {
+               attribution:
+                 " &copy;  <a href='https://www.mapbox.com/about/maps/'>Mapbox</a> &copy;  <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a> <strong><a href='https://www.mapbox.com/map-feedback/' target='_blank'>Improve this map</a></strong>",
+               maxZoom: 18,
+               //detectRetina: true,
+               id: "mapbox.streets",
+             }).addTo(map);
+           }
+
+           break;
+
+         case "bing":
+           var options = {
+             bingMapsKey: listeo_core.bing_maps_key,
+             imagerySet: "RoadOnDemand",
+           };
+
+           L.tileLayer.bing(options).addTo(map);
+           break;
+
+         case "thunderforest":
+           var tileUrl =
+               "https://tile.thunderforest.com/cycle/{z}/{x}/{y}{r}.png?apikey=" +
+               listeo_core.thunderforest_api_key,
+             layer = new L.TileLayer(tileUrl, { maxZoom: 18 });
+           map.addLayer(layer);
+           break;
+
+         case "here":
+           L.tileLayer
+             .here({
+               appId: listeo_core.here_app_id,
+               appCode: listeo_core.here_app_code,
+             })
+             .addTo(map);
+           break;
+       }
+
+       // Check if scroll should be enabled based on data attribute
+       var scrollEnabled = false;
+       if (typeof mapScrollAttr !== typeof undefined && mapScrollAttr !== false) {
+         scrollEnabled = (mapScrollAttr === 'true' || mapScrollAttr === '1' || mapScrollAttr === 1);
+       }
+       
+       // Enable or disable scroll based on the attribute
+       if (!scrollEnabled) {
+         map.scrollWheelZoom.disable();
+       }
+       
+       // Add zoom controls
+       var zoomOptions = {
+         zoomInText: '<i class="fa fa-plus" aria-hidden="true"></i>',
+         zoomOutText: '<i class="fa fa-minus" aria-hidden="true"></i>',
+       };
+       var zoom = L.control.zoom(zoomOptions);
+       zoom.addTo(map);
+
+       // Modify where the map is initialized (around line 472)
+       if (window.map) {
+         // Add user location layer to map
+         window.map.addLayer(userLocationLayer);
+         
+         // Add flag to track if map was moved by user
+         var userMovedMap = false;
+         var initialLoadComplete = false;
+         var ignoreMapEvents = false;
+
+         // Set initial load complete after a short delay
+         setTimeout(function() {
+           initialLoadComplete = true;
+         }, 5000);
+
+         // Add movestart event to track user interaction
+         window.map.on("movestart", function(e) {
+           // Only set userMovedMap if initial load is complete and event is triggered by user action
+           if(initialLoadComplete && !!e.originalEvent) {
+             userMovedMap = true;
+           }
+         });
+
+         // NEW: Add event listener for dragstart to detect user initiated map movement
+         window.map.on('dragstart', function(e) {
+           if(ignoreMapEvents) return;
+           userMovedMap = true;
+         });
+
+         // NEW: Add event listener for zoomstart to detect user initiated zooming
+         window.map.on('zoomstart', function(e) {
+           if(ignoreMapEvents) return;
+           userMovedMap = true;
+         });
+
+         // Add zoomend event to detect when user has finished zooming
+         window.map.on('zoomend', function(e) {
+           if(ignoreMapEvents) return;
+           if(!!e.originalEvent) {
+             userMovedMap = true;
+             userLocationFirstShow = false; // User has interacted, no more auto-fitting
+           }
+         });
+
+         // Add moveend event to detect when user has finished panning
+         window.map.on('moveend', function(e) {
+           if(ignoreMapEvents) return;
+           if(!!e.originalEvent) {
+             userMovedMap = true;
+             userLocationFirstShow = false; // User has interacted, no more auto-fitting
+           }
+         });
+
+         // Add moveend event with debounce
+         window.map.on(
+           "moveend",
+           debounce(function () {
+             if (!initialLoadComplete) {
+               return;
+             }
+             if (userMovedMap && listeo_core.map_bounds_search == "on") {
+               var bounds = map.getBounds();
+               var ne = bounds.getNorthEast();
+               var sw = bounds.getSouthWest();
+
+               // Add hidden inputs with bounds to the search form
+               var searchForm = $("#listeo_core-search-form");
+               searchForm
+                 .find('.map-bounds, input[name="search_by_map_move"]')
+                 .remove(); // remove old flags
+               searchForm.append(
+                 '<input type="hidden" class="map-bounds" name="map_bounds[ne_lat]" value="' +
+                   ne.lat +
+                   '">'
+               );
+               searchForm.append(
+                 '<input type="hidden" class="map-bounds" name="map_bounds[ne_lng]" value="' +
+                   ne.lng +
+                   '">'
+               );
+               searchForm.append(
+                 '<input type="hidden" class="map-bounds" name="map_bounds[sw_lat]" value="' +
+                   sw.lat +
+                   '">'
+               );
+               searchForm.append(
+                 '<input type="hidden" class="map-bounds" name="map_bounds[sw_lng]" value="' +
+                   sw.lng +
+                   '">'
+               );
+               searchForm.append(
+                 '<input type="hidden" name="search_by_map_move" value="true">'
+               );
+
+               // Trigger search update
+               var target = $("div#listeo-listings-container");
+               target.triggerHandler("update_results", [1, false]);
+               userMovedMap = false;
+             }
+           }, 500)
+         );
+       }
+     } 
+
       
+      function debounce(func, wait) {
+        var timeout;
+        return function () {
+          var context = this,
+            args = arguments;
+          clearTimeout(timeout);
+          timeout = setTimeout(function () {
+            func.apply(context, args);
+          }, wait);
+        };
+      }
       
+    // Function to add/update user location marker and radius circle
+    function updateUserLocationOnMap(lat, lng, radius, locationText) {
+      if (!window.map || !lat || !lng || !radius) {
+        return;
+      }
+      
+      // Clear existing user location elements
+      userLocationLayer.clearLayers();
+      
+      // Create user location marker with distinct styling
+      var userLocationIcon = L.divIcon({
+        iconAnchor: [7.5, 15],
+        popupAnchor: [0, -15],
+        className: 'listeo-user-location-marker',
+        html: '<div class="user-location-container">' +
+              '<div class="user-location-marker">' +
+              '</div>' +
+              '</div>'
+      });
+      
+      userLocationMarker = L.marker([lat, lng], {
+        icon: userLocationIcon,
+        zIndexOffset: 1000 // Ensure it appears above other markers
+      });
+      
+      // Create radius circle
+      var radiusUnit = listeo_core.radius_unit || 'km';
+      var radiusInMeters = radius * (radiusUnit === 'km' ? 1000 : 1609.34); // Convert to meters
+      radiusCircle = L.circle([lat, lng], {
+        radius: radiusInMeters,
+        fillColor: '#007cba',
+        fillOpacity: 0.1,
+        color: '#007cba',
+        weight: 2,
+        opacity: 0.8,
+        dashArray: '5, 10'
+      });
+      
+      // Add to user location layer
+      userLocationLayer.addLayer(userLocationMarker);
+      userLocationLayer.addLayer(radiusCircle);
+      
+      // Fit map to include radius circle only on first show and if autofit is enabled
+      if (listeo_core.maps_autofit == "on" && userLocationFirstShow && !userMovedMap) {
+        var bounds = radiusCircle.getBounds();
+        // Extend bounds to include existing markers if any
+        if (markerArray.length > 0) {
+          var listingsBounds = L.featureGroup(markerArray).getBounds();
+          bounds.extend(listingsBounds);
+        }
+        window.map.fitBounds(bounds, { padding: [20, 20] });
+        userLocationFirstShow = false; // Mark that we've done the initial auto-fit
+      }
+    }
+    
     function listingsMap(map){
         markers = L.markerClusterGroup({
             spiderfyOnMaxZoom: true,
@@ -332,14 +545,21 @@ $(document).ready(function(){
     
         if(markerArray.length > 0 ){
           group = L.featureGroup(markerArray);
-          if(listeo_core.maps_autofit == 'on'){
-            map.fitBounds(group.getBounds()); 
-          }
+           if (
+             listeo_core.maps_autofit == "on" &&
+             !$('#listeo_core-search-form input[name="search_by_map_move"]')
+               .length
+           ) {
+             map.fitBounds(group.getBounds());
+           }
          
         }
     }
 
-    $( '#listeo-listings-container' ).on( 'update_results_success', function (  ) {
+    $( '#listeo-listings-container' ).on( 'update_results_success', function ( event, data ) {
+        userMovedMap = false;
+        ignoreMapEvents = true;
+        setTimeout(function(){ ignoreMapEvents = false; }, 1500);
         if(window.map){
             map.closePopup();
             map.removeLayer(markers);
@@ -347,15 +567,48 @@ $(document).ready(function(){
             markers = false;
             map.closePopup();
             listingsMap(map);
+            
+            // Update user location marker if search data includes location and radius
+            if (data && data.user_location && data.user_location.lat && data.user_location.lng && data.user_location.radius) {
+              // Check if this is a new location (different from current)
+              var isNewLocation = !userLocationMarker || 
+                Math.abs(userLocationMarker.getLatLng().lat - data.user_location.lat) > 0.0001 ||
+                Math.abs(userLocationMarker.getLatLng().lng - data.user_location.lng) > 0.0001;
+              
+              // Only reset firstShow flag if it's a genuinely new location
+              if (isNewLocation) {
+                userLocationFirstShow = true;
+              }
+              
+              updateUserLocationOnMap(
+                data.user_location.lat,
+                data.user_location.lng,
+                data.user_location.radius,
+                data.user_location.address
+              );
+            } else {
+              // Check form data for location search
+              var locationSearch = $('#location_search').val();
+              var radiusValue = $('.distance-radius').val() || $('#search_radius').val();
+              
+              if (locationSearch && radiusValue && (listeo_core.maps_api_server || listeo_core.geoapify_maps_api_server)) {
+                // Clear user location for now - will be handled by the enhanced AJAX response
+                // This ensures we don't show stale data while new geocoding happens
+              } else {
+                // Clear user location if no search location or radius
+                userLocationLayer.clearLayers();
+                userLocationFirstShow = true; // Reset for next location search
+              }
+            }
         }
       
     });
 
     
-    var map_id =  document.getElementById('map');
+    var map_id =  document.querySelectorAll('div#map');
 
-    if (typeof(map_id) != 'undefined' && map_id != null) {
-        listingsMap(map);
+    if (map_id.length > 0) {
+      listingsMap(map);
     }
 
     if(listeo_core.map_provider != 'google') {
@@ -414,7 +667,7 @@ $(document).ready(function(){
             center: curLocation,
             zoom: 8,
             zoomControl: false,
-            gestureHandling: true
+            gestureHandling: false
          }
         window.submit_map = L.map('submit_map',mapOptions);
 
@@ -642,7 +895,7 @@ $(document).ready(function(){
             center: [lat,lng],
             zoom: listeo_core.maps_single_zoom,
             zoomControl: false,
-            gestureHandling: true
+            gestureHandling: false
          }
 
         map_single = L.map('singleListingMap',mapOptions);
@@ -907,8 +1160,21 @@ if(listeo_core.address_provider == 'osm'){
             $('#autocomplete-container').removeClass("osm-dropdown-active");
             
             var newLatLng = new L.LatLng($(this).data('latitude'), $(this).data('longitude'));
-            if(map){
+
+            // check if map exists
+            if(window.map){
             map.flyTo(newLatLng, 10);
+            
+            // Update user location marker immediately if radius is set
+            var radiusValue = $('.distance-radius').val() || $('#search_radius').val();
+            if (radiusValue && radiusValue > 0) {
+              updateUserLocationOnMap(
+                $(this).data('latitude'),
+                $(this).data('longitude'),
+                radiusValue,
+                $(this).text()
+              );
+            }
             }
             var target   = $('div#listeo-listings-container' );
             target.triggerHandler( 'update_results', [ 1, false ] );
@@ -922,7 +1188,7 @@ if(listeo_core.address_provider == 'osm'){
           var query = $("#location_search").val()
           query = query.replace(/^\s+|\s+$/gm, "");
           geocoder.geocode(query, function(results) { 
-            console.log(results[0].center);
+            
             if(map){
               map.flyTo(results[0].center, 10);  
             }
@@ -1014,17 +1280,20 @@ if(listeo_core.address_provider == 'osm'){
                         listing_results.triggerHandler( 'update_results', [ 1, false ] );
                       });
                     } else {
-                      geocoder.reverse(latlng, 4, function(results) { 
-                        if($('#location_search').length){
-                          if($('#location_search').val().length === 0 ) {
+                      geocoder.reverse(latlng, 73728, function (results) {
+                        if ($("#location_search").length) {
+                          if ($("#location_search").val().length === 0) {
                             $("#location_search").val(results[0].name);
                           }
                         }
                         $("#_address").val(results[0].name);
-                        $('#_geolocation_lat').val(latitude);
-                        $('#_geolocation_long').val(longitude);
-                        var listing_results      = $('#listeo-listings-container');
-                        listing_results.triggerHandler( 'update_results', [ 1, false ] );
+                        $("#_geolocation_lat").val(latitude);
+                        $("#_geolocation_long").val(longitude);
+                        var listing_results = $("#listeo-listings-container");
+                        listing_results.triggerHandler("update_results", [
+                          1,
+                          false,
+                        ]);
                       });
 
                     }
@@ -1034,6 +1303,21 @@ if(listeo_core.address_provider == 'osm'){
               });
           }
       }
+    
+      // Add event handler for radius changes to update user location circle in real time
+      $(document).on('input change', '.distance-radius, #search_radius', function() {
+        var radiusValue = $(this).val();
+        var locationSearch = $('#location_search').val();
+        
+        if (window.map && locationSearch && radiusValue && radiusValue > 0) {
+          // Update the radius circle if user location is already shown
+          if (userLocationMarker && radiusCircle) {
+            var lat = userLocationMarker.getLatLng().lat;
+            var lng = userLocationMarker.getLatLng().lng;
+            updateUserLocationOnMap(lat, lng, radiusValue, locationSearch);
+          }
+        }
+      });
     
       if(listeo_core.maps_autolocate){
         

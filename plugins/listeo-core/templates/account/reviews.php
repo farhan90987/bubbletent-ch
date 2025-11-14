@@ -187,7 +187,7 @@ $limit = 2;
 
 </div>
 <?php endif;?>
-<?php if(in_array($role,array('administrator','admin','guest'))) : ?>
+<?php if(in_array($role,array('administrator','admin','guest','subscriber'))) : ?>
 <!-- Listings -->
 <div class="col-lg-12 col-md-12">
 	<div class="dashboard-list-box your-reviews-box margin-top-0">

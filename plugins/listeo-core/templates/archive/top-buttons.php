@@ -15,8 +15,16 @@ $segments = explode('|', $buttons);
 	<div class="col-md-3 col-xs-6">
 		<!-- Layout Switcher -->
 		<div class="layout-switcher">
-			<a href="#" data-layout="grid" class="grid"><i class="fa fa-th"></i></a>
-			<a href="#" data-layout="list" class="list"><i class="fa fa-align-justify"></i></a>
+			<?php
+			$layout = get_option('pp_listings_layout', 'grid');
+			if ($layout == 'grid_old' || $layout == 'list_old') { ?>
+				
+				<a href="#" data-layout="grid_old" class="grid"><i class="fa fa-th"></i></a>
+				<a href="#" data-layout="list_old" class="list"><i class="fa fa-align-justify"></i></a>
+			<?php } else { ?>
+				<a href="#" data-layout="grid" class="grid"><i class="fa fa-th"></i></a>
+				<a href="#" data-layout="list" class="list"><i class="fa fa-align-justify"></i></a>
+			<?php } ?>
 		</div>
 	</div>
 <?php endif; ?>
@@ -108,26 +116,47 @@ $segments = explode('|', $buttons);
 				<!-- Panel Dropdown / End -->
 			<?php endif; ?>
 
-			<?php if (in_array('order', $segments)) : ?>
+			<?php if (in_array('order', $segments)) :
+
+				$list_of_order = get_option('listeo_listings_sortby_options', array('highest-rated', 'reviewed', 'date-desc', 'date-asc', 'title', 'featured', 'views', 'verified', 'upcoming-event', 'rand', 'best-match'));
+			?>
 				<!-- Sort by -->
 				<div class="sort-by">
 					<div class="sort-by-select">
-						<?php $default = isset($_GET['listeo_core_order']) ? (string) $_GET['listeo_core_order']  :  get_option('listeo_sort_by', 'date');  
+						<?php $default = isset($_GET['listeo_core_order']) ? (string) $_GET['listeo_core_order']  :  get_option('listeo_sort_by', 'date');
+						?>
+						<?php 
+						// Check if AI search plugin is active
+						$is_ai_search_active = class_exists('Listeo_AI_Search') || function_exists('listeo_ai_search_init');
 						?>
 						<select form="listeo_core-search-form" name="listeo_core_order" data-placeholder="<?php esc_attr_e('Default order', 'listeo_core'); ?>" class="select2-sortby orderby">
 							<option <?php selected($default, 'default'); ?> value="default"><?php esc_html_e('Default Order', 'listeo_core'); ?></option>
-							<option <?php selected($default, 'highest-rated'); ?> value="highest-rated"><?php esc_html_e('Highest Rated', 'listeo_core'); ?></option>
-							<?php if (!get_option('listeo_disable_reviews')) : ?>
-								<option <?php selected($default, 'reviewed'); ?> value="reviewed"><?php esc_html_e('Most Reviewed', 'listeo_core'); ?></option>
+							<?php
+							// Add Best Match option only when AI Search is active
+							if ($is_ai_search_active && in_array('best-match', $list_of_order)) : ?>
+								<option <?php selected($default, 'best-match'); ?> value="best-match">
+									<?php esc_html_e('Best Match', 'listeo_core'); ?>
+								</option>
 							<?php endif; ?>
-							<option <?php selected($default, 'date-desc'); ?> value="date-desc"><?php esc_html_e('Newest Listings', 'listeo_core'); ?></option>
-							<option <?php selected($default, 'date-asc'); ?> value="date-asc"><?php esc_html_e('Oldest Listings', 'listeo_core'); ?></option>
-							<option <?php selected($default, 'title'); ?> value="title"><?php esc_html_e('Alphabetically', 'listeo_core'); ?></option>
-							<option <?php selected($default, 'featured'); ?> value="featured"><?php esc_html_e('Featured', 'listeo_core'); ?></option>
-							<option <?php selected($default, 'views'); ?> value="views"><?php esc_html_e('Most Views', 'listeo_core'); ?></option>
-							<option <?php selected($default, 'verified'); ?> value="verified"><?php esc_html_e('Verified', 'listeo_core'); ?></option>
-							<option <?php selected($default, 'upcoming-event'); ?> value="upcoming-event"><?php esc_html_e('Upcoming Event', 'listeo_core'); ?></option>
-							<option <?php selected($default, 'rand'); ?> value="rand"><?php esc_html_e('Random', 'listeo_core'); ?></option>
+							<?php
+							// Add Nearest First option (always available)
+							if (in_array('distance', $list_of_order)) : ?>
+								<option <?php selected($default, 'distance'); ?> value="distance" class="distance-sort">
+									<?php esc_html_e('Nearest First', 'listeo_core'); ?>
+								</option>
+							<?php endif; ?>
+							<?php if (in_array('highest-rated', $list_of_order)) { ?> <option <?php selected($default, 'highest-rated'); ?> value="highest-rated"><?php esc_html_e('Highest Rated', 'listeo_core'); ?></option><?php } ?>
+							<?php if (!get_option('listeo_disable_reviews')) : ?>
+								<?php if (in_array('reviewed', $list_of_order)) { ?><option <?php selected($default, 'reviewed'); ?> value="reviewed"><?php esc_html_e('Most Reviewed', 'listeo_core'); ?></option><?php } ?>
+							<?php endif; ?>
+							<?php if (in_array('date-desc', $list_of_order)) { ?><option <?php selected($default, 'date-desc'); ?> value="date-desc"><?php esc_html_e('Newest Listings', 'listeo_core'); ?></option><?php } ?>
+							<?php if (in_array('date-asc', $list_of_order)) { ?><option <?php selected($default, 'date-asc'); ?> value="date-asc"><?php esc_html_e('Oldest Listings', 'listeo_core'); ?></option><?php } ?>
+							<?php if (in_array('title', $list_of_order)) { ?><option <?php selected($default, 'title'); ?> value="title"><?php esc_html_e('Alphabetically', 'listeo_core'); ?></option><?php } ?>
+							<?php if (in_array('featured', $list_of_order)) { ?><option <?php selected($default, 'featured'); ?> value="featured"><?php esc_html_e('Featured', 'listeo_core'); ?></option><?php } ?>
+							<?php if (in_array('views', $list_of_order)) { ?><option <?php selected($default, 'views'); ?> value="views"><?php esc_html_e('Most Views', 'listeo_core'); ?></option><?php } ?>
+							<?php if (in_array('verified', $list_of_order)) { ?><option <?php selected($default, 'verified'); ?> value="verified"><?php esc_html_e('Verified', 'listeo_core'); ?></option><?php } ?>
+							<?php if (in_array('upcoming-event', $list_of_order)) { ?><option <?php selected($default, 'upcoming-event'); ?> value="upcoming-event"><?php esc_html_e('Upcoming Event', 'listeo_core'); ?></option><?php } ?>
+							<?php if (in_array('rand', $list_of_order)) { ?><option <?php selected($default, 'rand'); ?> value="rand"><?php esc_html_e('Random', 'listeo_core'); ?></option><?php } ?>
 						</select>
 					</div>
 				</div>

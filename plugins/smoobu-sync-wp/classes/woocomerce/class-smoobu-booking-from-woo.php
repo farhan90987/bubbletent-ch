@@ -1274,39 +1274,62 @@ class Smoobu_Booking_From_Woo
 	 * @param array   $applied_coupons Array of applied coupons.
 	 * @return void
 	 */
-	private function update_fixed_cart_discount($cart, $applied_coupons)
-	{
-		$discount_amount = 0;
+	private function update_fixed_cart_discount( $cart, $applied_coupons ) {
 
-		foreach ($applied_coupons as $coupon_code) {
-			$coupon = new WC_Coupon($coupon_code);
-
-			// Apply discount only for fixed cart coupons.
-			if ($coupon->get_discount_type() === 'fixed_cart') {
-				$discount_amount += $coupon->get_amount();
-			}
-		}
-
-		if ($discount_amount <= 0) {
+		// --- Safety checks ------------------------------------------------------
+		if ( ! $cart instanceof WC_Cart || empty( $applied_coupons ) ) {
 			return;
 		}
 
-		// Apply discount to the grand total, including taxes and fees.
-		// Check if subtotal is less than discount.
-		$subtotal = WC()->cart->get_subtotal();
-
-		$subtotal_content = 0;
-		foreach ($cart->cart_contents as $cart_item) {
-			$subtotal_content += $cart_item['data']->get_price() * $cart_item['quantity'];
+		if ( ! isset( $cart->cart_contents ) || ! is_array( $cart->cart_contents ) ) {
+			return;
 		}
 
-		if (floatval($subtotal_content) < floatval($discount_amount)) {
-			// Cap discount to subtotal and set discount as a negative fee.
-			$discount_amount = ($subtotal_content - $discount_amount);
-			$cart->add_fee(__('Additional Discount', 'smoobu-calendar'), ($discount_amount), false);
-			$cart->set_discount_total($subtotal_content);
+		// --- Calculate total fixed-cart discount -------------------------------
+		$discount_amount = 0;
+
+		foreach ( $applied_coupons as $coupon_code ) {
+			try {
+				$coupon = new WC_Coupon( $coupon_code );
+			} catch ( Exception $e ) {
+				continue; // skip invalid coupon codes
+			}
+
+			if ( $coupon && $coupon->get_discount_type() === 'fixed_cart' ) {
+				$discount_amount += floatval( $coupon->get_amount() );
+			}
+		}
+
+		if ( $discount_amount <= 0 ) {
+			return;
+		}
+
+		// --- Compute subtotal safely -------------------------------------------
+		$subtotal_content = 0;
+
+		foreach ( $cart->cart_contents as $cart_item ) {
+			if (
+				isset( $cart_item['data'] )
+				&& is_object( $cart_item['data'] )
+				&& method_exists( $cart_item['data'], 'get_price' )
+				&& isset( $cart_item['quantity'] )
+			) {
+				$subtotal_content += floatval( $cart_item['data']->get_price() ) * floatval( $cart_item['quantity'] );
+			}
+		}
+
+		// --- Apply discount logic ----------------------------------------------
+		if ( $subtotal_content <= 0 ) {
+			return;
+		}
+
+		// If the discount exceeds subtotal, cap it and add as negative fee.
+		if ( $discount_amount > $subtotal_content ) {
+			$adjusted_discount = $subtotal_content; // cap discount
+			$cart->add_fee( __( 'Additional Discount', 'smoobu-calendar' ), -$adjusted_discount, false );
+			$cart->set_discount_total( $adjusted_discount );
 		} else {
-			$cart->set_discount_total($discount_amount);
+			$cart->set_discount_total( $discount_amount );
 		}
 	}
 

@@ -7,7 +7,16 @@
  * @package listeo
  */
 
-get_header(); ?>
+
+$full_width_header = get_option('listeo_full_width_header');
+
+
+if ($full_width_header == 'enable') {
+	get_header('fullwidth');
+} else {
+	get_header();
+}
+ ?>
 <!-- Titlebar
 ================================================== -->
 <div id="titlebar">

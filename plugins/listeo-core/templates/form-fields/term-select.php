@@ -34,6 +34,10 @@ if(!is_array($selected)){
 }
 $taxonomy = get_taxonomy($field['taxonomy']);
 
+//if selected is array with just one value, convert it to int
+if(is_array($selected) && count($selected) == 1){
+	$selected = (int) current($selected);
+}
 
 $dropdown_args = array(
 	'taxonomy'         => $field['taxonomy'],
@@ -77,12 +81,19 @@ if($multi){
 	$dropdown_args['show_option_none'] = __('Choose ','listeo_core'). $taxonomy->labels->singular_name;
 	
 }
-$placeholder_data = __('Choose ','listeo_core'). $taxonomy->labels->singular_name;
+if(isset($field['placeholder']) && !empty($field['placeholder'])){
+	$placeholder_data = $field['placeholder'];
+} else {
+	$placeholder_data = __('Choose ', 'listeo_core') . $taxonomy->labels->singular_name;
+}
+
+//$dropdown_args['show_option_none'] = $placeholder_data;
+
 $dropdown_output = wp_dropdown_categories( apply_filters( 'listeo_core_term_select_field_wp_dropdown_categories_args', $dropdown_args , $key, $field ) );
  if ( ! empty( $field['required'] ) ) {
-$dropdown_output = str_replace('<select', '<select required data-placeholder="'.$placeholder_data.'" ', $dropdown_output);
+	$dropdown_output = str_replace('<select', '<select required data-taxonomy="'.$field['taxonomy'].'" data-placeholder="'.$placeholder_data.'" ', $dropdown_output);
  }  else {
- 	$dropdown_output = str_replace('<select', '<select data-placeholder="'.$placeholder_data.'" ', $dropdown_output);
+ 	$dropdown_output = str_replace('<select', '<select data-taxonomy="'.$field['taxonomy'].'" data-placeholder="'.$placeholder_data.'" ', $dropdown_output);
  }
 
 echo $dropdown_output;

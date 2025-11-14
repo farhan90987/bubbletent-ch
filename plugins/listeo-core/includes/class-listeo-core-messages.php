@@ -9,12 +9,26 @@ class Listeo_Core_Messages {
 
 	public function __construct() {
 
-		add_shortcode( 'listeo_messages', array( $this, 'listeo_messages' ) );
+        add_shortcode( 'listeo_messages', array( $this, 'listeo_messages' ) );
         add_action('wp_ajax_listeo_send_message', array($this, 'send_message_ajax'));
         add_action('wp_ajax_listeo_send_message_chat', array($this, 'send_message_ajax_chat'));
 		add_action('wp_ajax_listeo_get_conversation', array($this, 'get_conversation_ajax'));
+		add_action('wp_ajax_listeo_upload_message_attachment', array($this, 'upload_message_attachment_ajax'));
+		add_action('wp_ajax_listeo_download_attachment', array($this, 'download_attachment'));
 
         add_action( 'listeo_core_check_for_new_messages', array( $this, 'check_for_new_messages' ) );
+
+        // enqueue script only on messages page
+        add_action( 'wp_enqueue_scripts', function() {
+            if ( is_page( get_option( 'listeo_messages_page' ) ) ) {
+                if(get_option('listeo_chat_filter','on') == 'on') {
+                    
+                    wp_enqueue_script( 'listeo-core-chat-filter', LISTEO_CORE_URL . 'assets/js/chatfilter.js', array( 'jquery' ), '1.0', true );
+                }
+                
+                
+            }
+        } );
 	}
 
     /**
@@ -44,7 +58,8 @@ class Listeo_Core_Messages {
                 OR read_user_2 = '0' )
                 AND notification != 'sent'
                 AND last_update < %s
-            ", strtotime( "-15 minutes" ) 
+            ",
+            current_time('timestamp') - (15 * 60) 
         )
         );
 
@@ -105,13 +120,24 @@ class Listeo_Core_Messages {
         global $wpdb;
 
         // TODO: filter by parameters
-        
-        $result =  $wpdb -> insert( $wpdb->prefix . 'listeo_core_messages', array(
+
+        $data = array(
             'conversation_id' 	=> $args['conversation_id'],
             'sender_id' 		=> $args['sender_id'],
             'message' 			=> stripslashes_deep($args['message']),
             'created_at' 		=> current_time( 'timestamp' ),
-        ));
+        );
+
+        // Add attachment data if provided
+        if (!empty($args['attachment_id'])) {
+            $data['attachment_id'] = $args['attachment_id'];
+            $data['attachment_url'] = $args['attachment_url'];
+            $data['attachment_name'] = $args['attachment_name'];
+            $data['attachment_type'] = $args['attachment_type'];
+            $data['attachment_size'] = $args['attachment_size'];
+        }
+
+        $result =  $wpdb -> insert( $wpdb->prefix . 'listeo_core_messages', $data);
 
         if(isset($wpdb->insert_id)) {
             $id = $wpdb->insert_id;
@@ -166,32 +192,47 @@ class Listeo_Core_Messages {
         die();
     }
 
-    public function send_message_ajax_chat() {        
-       
+    public function send_message_ajax_chat() {
+
         $conversation_id = sanitize_text_field($_REQUEST['conversation_id']);
     	$message = sanitize_textarea_field($_REQUEST['message']);
-        if(empty($message)){
+        if(empty($message) && empty($_REQUEST['attachment_id'])){
             $result['type'] = 'error';
             $result['message'] = __( 'Empty message' , 'listeo_core' );
             $result = json_encode($result);
-            echo $result;  
-           
+            echo $result;
+
             die();
         }
         if(empty($conversation_id)){
             $result['type'] = 'error';
             $result['message'] = __( 'Whoops, we have a problem' , 'listeo_core' );
             $result = json_encode($result);
-            echo $result;  
-           
+            echo $result;
+
             die();
         }
-    	    	
+
     	$mess_arr['conversation_id'] = $conversation_id;
     	$mess_arr['sender_id'] = get_current_user_id();
     	$mess_arr['message'] = $message;
+
+        // Handle attachment if provided
+        if (!empty($_REQUEST['attachment_id'])) {
+            $attachment_id = intval($_REQUEST['attachment_id']);
+            $attachment = get_post($attachment_id);
+
+            if ($attachment && $attachment->post_type === 'attachment') {
+                $mess_arr['attachment_id'] = $attachment_id;
+                $mess_arr['attachment_url'] = wp_get_attachment_url($attachment_id);
+                $mess_arr['attachment_name'] = basename(get_attached_file($attachment_id));
+                $mess_arr['attachment_type'] = $attachment->post_mime_type;
+                $mess_arr['attachment_size'] = filesize(get_attached_file($attachment_id));
+            }
+        }
+
     	$id = $this->send_new_message($mess_arr);
-        
+
         if($id) {
             $result['type'] = 'success';
             $result['message'] = __( 'Your message was successfully sent' , 'listeo_core' );
@@ -201,8 +242,8 @@ class Listeo_Core_Messages {
         }
 
         $result = json_encode($result);
-        echo $result;  
-	   
+        echo $result;
+
 	    die();
     }
 
@@ -218,11 +259,16 @@ class Listeo_Core_Messages {
         
         if ( is_numeric($offset)) $offset = " OFFSET " . esc_sql($offset);
 
-        $result  = $wpdb -> get_results( "
-        SELECT * FROM `" . $wpdb->prefix . "listeo_core_conversations` 
-        WHERE  user_1 = '$user_id' OR user_2 = '$user_id'
-        ORDER BY last_update DESC $limit $offset
-        ");
+        $sql = "
+        SELECT * FROM `{$wpdb->prefix}listeo_core_conversations`
+        WHERE user_1 = %d OR user_2 = %d
+        ORDER BY last_update DESC {$limit} {$offset}
+    ";
+
+        $result = $wpdb->get_results(
+            $wpdb->prepare($sql, (int)$user_id, (int)$user_id),
+            
+        );
         
         return $result;
     }
@@ -265,20 +311,51 @@ class Listeo_Core_Messages {
         }
             $user_id = get_current_user_id();
             $conversation = $this->get_single_conversation($user_id,$conversation_id);
-            
+
             ob_start();
             foreach ($conversation as $key => $message) { ?>
                 <div class="message-bubble <?php if($user_id == $message->sender_id ) echo esc_attr('me'); ?>">
                     <div class="message-avatar"><a href="<?php echo esc_url(get_author_posts_url($message->sender_id)); ?>"><?php echo get_avatar($message->sender_id, '70') ?></a></div>
-                    <div class="message-text"><?php echo wpautop(esc_html($message->message)) ?></div>
+                    <div class="message-text">
+                        <?php if (!empty($message->message)) : ?>
+                            <?php echo wpautop(esc_html($message->message)); ?>
+                        <?php endif; ?>
+                        <?php if (!empty($message->attachment_id)) :
+                            $attachment_url = admin_url('admin-ajax.php?action=listeo_download_attachment&attachment_id=' . $message->attachment_id . '&message_id=' . $message->id);
+                            $file_ext = pathinfo($message->attachment_name, PATHINFO_EXTENSION);
+                            $file_icon = 'fa-file';
+                            // Set icon based on file type
+                            if (in_array($file_ext, ['jpg', 'jpeg', 'png', 'gif'])) {
+                                $file_icon = 'fa-file-image';
+                            } elseif ($file_ext == 'pdf') {
+                                $file_icon = 'fa-file-pdf';
+                            } elseif (in_array($file_ext, ['doc', 'docx'])) {
+                                $file_icon = 'fa-file-word';
+                            } elseif (in_array($file_ext, ['xls', 'xlsx'])) {
+                                $file_icon = 'fa-file-excel';
+                            } elseif (in_array($file_ext, ['zip', 'rar'])) {
+                                $file_icon = 'fa-file-archive';
+                            }
+                            ?>
+                            <div class="message-attachment">
+                                <a href="<?php echo esc_url($attachment_url); ?>" class="attachment-link" target="_blank">
+                                    <i class="fa <?php echo esc_attr($file_icon); ?>"></i>
+                                    <span class="attachment-name"><?php echo esc_html($message->attachment_name); ?></span>
+                                    <?php if ($message->attachment_size) : ?>
+                                        <span class="attachment-size">(<?php echo size_format($message->attachment_size); ?>)</span>
+                                    <?php endif; ?>
+                                </a>
+                            </div>
+                        <?php endif; ?>
+                    </div>
                 </div>
             <?php }
             $output = ob_get_clean();
-            
+
             $result['type'] = 'success';
             $result['message'] = $output;
             $result = json_encode($result);
-            echo $result;  
+            echo $result;
         die();
     }
 
@@ -286,11 +363,13 @@ class Listeo_Core_Messages {
 
         global $wpdb;
 
-        $result  = $wpdb -> get_results( "
-        SELECT * FROM `" . $wpdb->prefix . "listeo_core_conversations` 
-        WHERE  id = '$conversation_id'
-
-        ");
+        $result = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM `{$wpdb->prefix}listeo_core_conversations` WHERE id = %d",
+                (int) $conversation_id
+            ),
+            
+        );
 
         return $result;
 
@@ -300,40 +379,52 @@ class Listeo_Core_Messages {
 
         global $wpdb;
 
-        $result  = $wpdb -> get_results( "
-        SELECT * FROM `" . $wpdb->prefix . "listeo_core_messages` 
-        WHERE  conversation_id = '$conversation_id' 
-        ORDER BY created_at ASC
-        ");
+        $result = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM `{$wpdb->prefix}listeo_core_messages` 
+                 WHERE conversation_id = %d 
+                 ORDER BY created_at ASC",
+                (int) $conversation_id
+            ),
+           
+        );
 
         return $result;
 
     }
 
-    public function get_conversation_referral( $referral ) {
-        if($referral){
+    public function get_conversation_referral($referral)
+    {
+        if ($referral) {
             //$referral = $conversation[0]->referral;
 
             if (strpos($referral, 'listing_') !== false) {
 
-                   $listing_id = str_replace('listing_','',$referral);
-                   return get_the_title($listing_id);
-            } 
+                $listing_id = str_replace('listing_', '', $referral);
+                // return title with link
+                return "<a href='" . get_permalink($listing_id) . "'>" . get_the_title($listing_id) . "</a>";
+
+                //return get_the_title($listing_id);
+            }
             if (strpos($referral, 'booking_') !== false) {
 
-                   $booking_id = str_replace('booking_','',$referral);
-                   $bookings = new Listeo_Core_Bookings_Calendar;
-                   $booking_data = $bookings->get_booking($booking_id);
-                   if($booking_data){}
+                $booking_id = str_replace('booking_', '', $referral);
+                $bookings = new Listeo_Core_Bookings_Calendar;
+                $booking_data = $bookings->get_booking($booking_id);
+                if ($booking_data) {
                     $title = get_the_title($booking_data['listing_id']);
                     $status = $booking_data['status'];
-                    return __('Reservation for ','listeo_core').$title;
+
+                    return __('Reservation for ', 'listeo_core') . $title;
                 } else {
-                    return __('No referral','listeo_core');
+                    return __('No referral', 'listeo_core');
                 }
+            } else {
+                return __('No referral', 'listeo_core');
             }
         }
-        
+    }
+
     
 
     /**
@@ -345,11 +436,15 @@ class Listeo_Core_Messages {
 
         global $wpdb;
 
-        $result  = $wpdb -> get_results( "
-        SELECT * FROM `" . $wpdb->prefix . "listeo_core_messages` 
-        WHERE  conversation_id = '$conversation'
-        ORDER BY created_at DESC LIMIT 1
-        ");
+        $result = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM `{$wpdb->prefix}listeo_core_messages`
+                 WHERE conversation_id = %d
+                 ORDER BY created_at DESC LIMIT 1",
+                (int)$conversation
+            ),
+           
+        );
 
         return $result;
 
@@ -448,6 +543,160 @@ class Listeo_Core_Messages {
          return false;
     }
 	/**
+	 * Handle attachment upload via AJAX
+	 */
+	public function upload_message_attachment_ajax() {
+		// Check if attachments are enabled
+		if (get_option('listeo_message_attachments', 'on') !== 'on') {
+			wp_send_json_error(__('Message attachments are disabled', 'listeo_core'));
+		}
+
+		// Check if user is logged in
+		if (!is_user_logged_in()) {
+			wp_send_json_error(__('You must be logged in to upload attachments', 'listeo_core'));
+		}
+
+		// Check nonce
+		if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'listeo_messages_nonce')) {
+			wp_send_json_error(__('Security check failed', 'listeo_core'));
+		}
+
+		// Check conversation ID and verify user is part of it
+		if (!isset($_POST['conversation_id'])) {
+			wp_send_json_error(__('Invalid conversation', 'listeo_core'));
+		}
+
+		$conversation_id = intval($_POST['conversation_id']);
+		$conversation = $this->get_conversation($conversation_id);
+		$user_id = get_current_user_id();
+
+		if (!$conversation || ($conversation[0]->user_1 != $user_id && $conversation[0]->user_2 != $user_id)) {
+			wp_send_json_error(__('You are not authorized to upload to this conversation', 'listeo_core'));
+		}
+
+		// Check if file was uploaded
+		if (empty($_FILES['attachment'])) {
+			wp_send_json_error(__('No file uploaded', 'listeo_core'));
+		}
+
+		// Allowed file types
+		$allowed_types = array(
+			'jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx',
+			'xls', 'xlsx', 'txt', 'zip', 'rar'
+		);
+
+		$file = $_FILES['attachment'];
+		$file_ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+		// Validate file type
+		if (!in_array($file_ext, $allowed_types)) {
+			wp_send_json_error(__('File type not allowed', 'listeo_core'));
+		}
+
+		// Validate file size (10MB max)
+		$max_size = 10 * 1024 * 1024; // 10MB in bytes
+		if ($file['size'] > $max_size) {
+			wp_send_json_error(__('File size exceeds 10MB limit', 'listeo_core'));
+		}
+
+		// Handle file upload
+		require_once(ABSPATH . 'wp-admin/includes/file.php');
+		require_once(ABSPATH . 'wp-admin/includes/media.php');
+		require_once(ABSPATH . 'wp-admin/includes/image.php');
+
+		// Upload file to media library
+		$upload_overrides = array('test_form' => false);
+		$movefile = wp_handle_upload($file, $upload_overrides);
+
+		if ($movefile && !isset($movefile['error'])) {
+			// Create attachment
+			$attachment = array(
+				'post_mime_type' => $movefile['type'],
+				'post_title' => sanitize_file_name($file['name']),
+				'post_content' => '',
+				'post_status' => 'inherit'
+			);
+
+			$attach_id = wp_insert_attachment($attachment, $movefile['file']);
+
+			if (!is_wp_error($attach_id)) {
+				// Generate attachment metadata
+				$attach_data = wp_generate_attachment_metadata($attach_id, $movefile['file']);
+				wp_update_attachment_metadata($attach_id, $attach_data);
+
+				// Return success with attachment info
+				wp_send_json_success(array(
+					'attachment_id' => $attach_id,
+					'attachment_url' => wp_get_attachment_url($attach_id),
+					'attachment_name' => basename($movefile['file']),
+					'attachment_type' => $movefile['type'],
+					'attachment_size' => $file['size']
+				));
+			} else {
+				wp_send_json_error(__('Failed to create attachment', 'listeo_core'));
+			}
+		} else {
+			$error = isset($movefile['error']) ? $movefile['error'] : __('Upload failed', 'listeo_core');
+			wp_send_json_error($error);
+		}
+	}
+
+	/**
+	 * Handle secure attachment download
+	 */
+	public function download_attachment() {
+		// Check if user is logged in
+		if (!is_user_logged_in()) {
+			wp_die(__('You must be logged in to download attachments', 'listeo_core'));
+		}
+
+		// Get attachment and message info
+		if (!isset($_GET['attachment_id']) || !isset($_GET['message_id'])) {
+			wp_die(__('Invalid attachment request', 'listeo_core'));
+		}
+
+		$attachment_id = intval($_GET['attachment_id']);
+		$message_id = intval($_GET['message_id']);
+		$user_id = get_current_user_id();
+
+		// Get message from database
+		global $wpdb;
+		$message = $wpdb->get_row($wpdb->prepare(
+			"SELECT m.*, c.user_1, c.user_2
+			FROM {$wpdb->prefix}listeo_core_messages m
+			JOIN {$wpdb->prefix}listeo_core_conversations c ON m.conversation_id = c.id
+			WHERE m.id = %d AND m.attachment_id = %d",
+			$message_id,
+			$attachment_id
+		));
+
+		// Verify user has access to this attachment
+		if (!$message || ($message->user_1 != $user_id && $message->user_2 != $user_id)) {
+			wp_die(__('You do not have permission to download this attachment', 'listeo_core'));
+		}
+
+		// Get file path
+		$file_path = get_attached_file($attachment_id);
+
+		if (!file_exists($file_path)) {
+			wp_die(__('File not found', 'listeo_core'));
+		}
+
+		// Serve file for download
+		$file_name = basename($file_path);
+		$file_type = wp_check_filetype($file_path);
+
+		header('Content-Type: ' . $file_type['type']);
+		header('Content-Disposition: attachment; filename="' . $file_name . '"');
+		header('Content-Length: ' . filesize($file_path));
+		header('Cache-Control: must-revalidate');
+		header('Pragma: public');
+
+		readfile($file_path);
+		exit;
+	}
+
+	/**
 	 * User messages shortcode
 	 */
 	public function listeo_messages( $atts ) {
@@ -487,6 +736,7 @@ class Listeo_Core_Messages {
                 } 
             }
             $total = count($this->get_conversations($user_id));
+            
             $max_number_pages = ceil($total/$limit);
             $template_loader->set_template_data( 
                 array( 

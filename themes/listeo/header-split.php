@@ -23,7 +23,7 @@
 	<?php wp_head(); ?>
 </head>
 
-<body <?php if (get_option('listeo_dark_mode')) {
+<body <?php if (get_option('listeo_dark_mode') == 'enable') {
 			echo 'id="dark-mode"';
 		} ?> <?php body_class(); ?>>
 	<?php wp_body_open(); ?>
@@ -35,7 +35,7 @@
 				<?php
 				$logo_transparent = get_option('pp_dashboard_logo_upload', ''); ?>
 				<a href="<?php echo esc_url(home_url('/')); ?>" class="" title="<?php echo esc_attr(get_bloginfo('name', 'display')); ?>" rel="home"><img id="listeo_logo" src="<?php echo esc_url($logo_transparent); ?>" data-rjs="<?php echo esc_url($logo_transparent); ?>" alt="<?php esc_attr(bloginfo('name')); ?>" /></a>
-				
+
 			</div>
 			<a href="#" class="menu-icon-toggle"></a>
 		</div>
@@ -56,6 +56,23 @@
 
 		<div class="mobile-nav-widgets">
 			<?php dynamic_sidebar('mobilemenu'); ?>
+			<aside id="listeo_side_social_icons" class="mobile-menu-widget widget ">
+				<?php /* get the slider array */
+				$footericons =  get_option('listeo_side_social_icons', array());
+				if (!empty($footericons)) {
+
+					echo '<ul class="new-footer-social-icons">';
+					foreach ($footericons as $icon) {
+						if ($icon['icons_service'] == 'telegram') {
+							echo '<li><a target="_blank" title="' . esc_attr($icon['icons_service']) . '" href="' . esc_url($icon['icons_url']) . '"><i class="fa fa-' . $icon['icons_service'] . '"></i></a></li>';
+						} else {
+							echo '<li><a target="_blank" title="' . esc_attr($icon['icons_service']) . '" href="' . esc_url($icon['icons_url']) . '"><i class="icon-brand-' . $icon['icons_service'] . '"></i></a></li>';
+						}
+					}
+					echo '</ul>';
+				}
+				?>
+			</aside>
 		</div>
 	</nav>
 	<!-- Mobile Navigation / End-->
@@ -70,7 +87,9 @@
 
 
 			<!-- Header -->
-			<div id="header">
+			<div id="header" class="<?php if (get_option('listeo_custom_header') == 'enable') {
+										echo "custom-header";
+									} ?>">
 				<div class="container">
 
 					<!-- Left Side Content -->

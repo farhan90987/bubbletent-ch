@@ -8,63 +8,88 @@ endif;
 $user_id = get_current_user_id();
 $current_user = wp_get_current_user();
 
-$stripe_settings      = get_option('woocommerce_stripe_settings', []);
-if ($stripe_settings) {
-	$testmode       = (!empty($stripe_settings['testmode']) && 'yes' === $stripe_settings['testmode']) ? true : false;
-	if ($testmode) {
-		$client_id = get_option('listeo_stripe_connect_test_client_id');
-	} else {
-		$client_id = get_option('listeo_stripe_connect_live_client_id');
-	}
-	$secret_key           = ($testmode ? 'test_' : '') . 'secret_key';
-	$secret         = !empty($stripe_settings[$secret_key]) ? $stripe_settings[$secret_key] : false;
-}
 
-if (isset($_GET['code'])) {
+	$stripe_connect_activation = get_option('listeo_stripe_connect_activation');
 
-	$code = wc_clean($_GET['code']);
-	if (!is_user_logged_in()) {
-		if (isset($_GET['state'])) {
-			$user_id = wc_clean($_GET['state']);
-		}
-	}
+	if ($stripe_connect_activation) {
+		$stripe_mode = get_option('listeo_stripe_connect_mode');
 
+		$testmode       = (!empty($stripe_mode) && 'test' === $stripe_mode) ? true : false;
 
-	$token_request_body = array(
-		'grant_type' => 'authorization_code',
-		'client_id' => $client_id,
-		'code' => $code,
-		'client_secret' => $secret
-	);
-
-	$target_url = 'https://connect.stripe.com/oauth/token';
-	$headers = array(
-		'User-Agent'    => 'Listeo Stripe Split Pay',
-		'Authorization' => 'Bearer ' . $secret,
-	);
-	$response    = wp_remote_post(
-		$target_url,
-		array(
-			'sslverify'   => apply_filters('https_local_ssl_verify', false),
-			'timeout'     => 70,
-			'redirection' => 5,
-			'blocking'    => true,
-			'headers'     => $headers,
-			'body'        => $token_request_body
-		)
-	);
-
-	if (!is_wp_error($response)) {
-		$resp = (array) json_decode($response['body']);
-		if (!isset($resp['error'])) {
-			update_user_meta($user_id, 'vendor_connected', 1);
-			update_user_meta($user_id, 'access_token', $resp['access_token']);
-			update_user_meta($user_id, 'refresh_token', $resp['refresh_token']);
-			update_user_meta($user_id, 'stripe_publishable_key', $resp['stripe_publishable_key']);
-			update_user_meta($user_id, 'stripe_user_id', $resp['stripe_user_id']);
-			update_user_meta($user_idD, 'listeo_core_payment_type', 'stripe');
+		if ($testmode) {
+			$client_id = get_option('listeo_stripe_connect_test_client_id');
 		} else {
-			echo "Stripe OAuth connection error";
+			$client_id = get_option('listeo_stripe_connect_live_client_id');
+		}
+		$secret_key    = 'listeo_stripe_connect_' . ($testmode ? 'test_' : 'live_') . 'secret_key';
+		$secret        = !empty(get_option($secret_key)) ? get_option($secret_key) : false;
+	}
+
+
+if(isset($_REQUEST['stripe-express-setup']) && $_REQUEST['stripe-express-setup']=='yes'){
+	$account_id = get_user_meta($current_user->ID, 'listeo_stripe_express_account_id', true);
+	$stripe = new \Stripe\StripeClient($secret);
+	$account = $stripe->accounts->retrieve(
+		$account_id,
+		[]
+	);
+
+	if($account->charges_enabled){
+		update_user_meta($user_id, 'vendor_connected', 1);
+		update_user_meta($user_id, 'stripe_user_id', $account_id);
+		update_user_meta($user_id, 'listeo_core_payment_type', 'stripe');
+	}
+	
+}
+if (get_option('listeo_stripe_connect_account_type') == 'standard') {
+	if (isset($_GET['code'])) {
+
+		$code = wc_clean($_GET['code']);
+		if (!is_user_logged_in()) {
+			if (isset($_GET['state'])) {
+				$user_id = wc_clean($_GET['state']);
+			}
+		}
+
+
+		$token_request_body = array(
+			'grant_type' => 'authorization_code',
+			'client_id' => $client_id,
+			'code' => $code,
+			'client_secret' => $secret
+		);
+
+		$target_url = 'https://connect.stripe.com/oauth/token';
+		$headers = array(
+			'User-Agent'    => 'Listeo Stripe Split Pay',
+			'Authorization' => 'Bearer ' . $secret,
+		);
+		$response    = wp_remote_post(
+			$target_url,
+			array(
+				'sslverify'   => apply_filters('https_local_ssl_verify', false),
+				'timeout'     => 70,
+				'redirection' => 5,
+				'blocking'    => true,
+				'headers'     => $headers,
+				'body'        => $token_request_body
+			)
+		);
+
+		if (!is_wp_error($response)) {
+			$resp = (array) json_decode($response['body']);
+			if (!isset($resp['error'])) {
+				update_user_meta($user_id, 'vendor_connected', 1);
+				update_user_meta($user_id, 'access_token', $resp['access_token']);
+				update_user_meta($user_id, 'refresh_token', $resp['refresh_token']);
+				update_user_meta($user_id, 'stripe_publishable_key', $resp['stripe_publishable_key']);
+				update_user_meta($user_id, 'stripe_user_id', $resp['stripe_user_id']);
+				update_user_meta($user_id, 'listeo_core_payment_type', 'stripe');
+			} else {
+				
+				error_log($resp['error_description']);
+				echo "Stripe OAuth connection error";
+			}
 		}
 	}
 }
@@ -169,10 +194,15 @@ if (isset($_GET['code'])) {
 <div class="row">
 	<div class="col-lg-6 col-md-12">
 		<div class="dashboard-list-box invoices with-icons margin-top-20">
-			<h4><?php esc_html_e('Earnings', 'listeo_core') ?> <div class="comission-taken"><?php esc_html_e('Fee', 'listeo_core'); ?>: <strong><?php echo get_option('listeo_commission_rate', 10) ?>%</strong></div>
+			<?php
+				$listeo_commission_rate = get_user_meta($user_id, 'listeo_commission_rate', true);
+				if (empty($commission)) {
+					$listeo_commission_rate = get_option('listeo_commission_rate', 10);
+				} ?>
+			<h4><?php esc_html_e('Earnings', 'listeo_core') ?> <div class="comission-taken"><?php esc_html_e('Fee', 'listeo_core'); ?>: <strong><?php echo $listeo_commission_rate; ?>%</strong></div>
 			</h4>
 			<?php if ($commissions) { ?>
-				<ul>
+				<ul class="commissions-list">
 					<?php
 					foreach ($commissions as $commission) {
 
@@ -230,7 +260,7 @@ if (isset($_GET['code'])) {
 										if (in_array('paypal', $payouts_options)) { ?>
 
 											<?php if (!listeo_is_payout_active()) {  ?>
-												<div class="payment-tab <?php if (empty($payment_type) || $payment_type == 'paypal') { ?>payment-tab-active <?php } ?>">
+												<div class="payment-tab <?php if ($payment_type == 'paypal') { ?>payment-tab-active <?php } ?>">
 													<div class="payment-tab-trigger">
 														<input <?php checked($payment_type, 'paypal') ?> id="paypal" name="payment_type" type="radio" value="paypal">
 														<label for="paypal"><?php esc_html_e('PayPal', 'listeo_core'); ?></label>
@@ -299,7 +329,7 @@ if (isset($_GET['code'])) {
 									} ?>
 									<?php if (get_option('listeo_stripe_connect_activation') == 'yes') { ?>
 
-										<div class="payment-tab <?php if ($payment_type == 'stripe') { ?>payment-tab-active <?php } ?> ">
+										<div class="payment-tab <?php if (!in_array($payment_type, array('paypal', 'banktransfer'))) { ?>payment-tab-active <?php } ?> ">
 											<div class="payment-tab-trigger">
 												<input <?php checked($payment_type, 'stripe') ?> type="radio" name="payment_type" id="stripe" value="stripe">
 												<label for="stripe"><?php esc_html_e('Stripe Connect', 'listeo_core'); ?></label>
@@ -309,50 +339,76 @@ if (isset($_GET['code'])) {
 												<div class="row">
 
 													<div class="col-md-12">
-														<div class="card-label">
+														<div class="card-label stripe-card-label">
 															<?php
 
 															if (get_user_meta($user_id, 'vendor_connected', true) == 1) { ?>
 																<label style="padding: 0; margin: 0;"><?php _e('You are connected with Stripe', 'listeo_core'); ?></label><br>
 																<a class="stripe-btn disconnect-stripe-button button" href="#"><?php _e('Disconnect Stripe Account', 'listeo_core'); ?></a>
-															<?php
+																<?php
 																$is_stripe_connected = true;
 															} else {
+																if (get_option('listeo_stripe_connect_account_type') == 'standard') {
+																	$user_email = $current_user->user_email;
 
-																$user_email = $current_user->user_email;
+																	// Show OAuth link
+																	$authorize_request_body = apply_filters('listeo_stripe_authorize_request_params', array(
+																		'response_type' => 'code',
+																		'scope' => 'read_write',
+																		'client_id' => $client_id,
+																		'redirect_uri' => add_query_arg(array('stripe-setup' => 'yes'), get_permalink()),
+																		'state' => $user_id,
+																		'stripe_user' => array(
+																			'email'         => $user_email,
+																			'url'           => $current_user->user_url,
+																			'business_name' => $current_user->first_name,
+																			'first_name'    => $current_user->first_name,
+																			'last_name'     => $current_user->last_name,
 
-																// Show OAuth link
-																$authorize_request_body = apply_filters('listeo_stripe_authorize_request_params', array(
-																	'response_type' => 'code',
-																	'scope' => 'read_write',
-																	'client_id' => $client_id,
-																	'redirect_uri' => add_query_arg(array('stripe-setup' => 'yes'), get_permalink()),
-																	'state' => $user_id,
-																	'stripe_user' => array(
-																		'email'         => $user_email,
-																		'url'           => get_the_author_link($user_id),
-																		'business_name' => $current_user->first_name,
-																		'first_name'    => $current_user->first_name,
-																		'last_name'     => $current_user->last_name
-																	)
-																), $user_id);
-																if (get_option('listeo_stripe_connect_account_type') == 'express') {
-																	$is_allow_stripe_express_api = true;
-																} else {
-																	$is_allow_stripe_express_api = false;
-																}
+																		)
+																	), $user_id);
+																	if (get_option('listeo_stripe_connect_account_type') == 'express') {
+																		$is_allow_stripe_express_api = true;
+																	} else {
+																		$is_allow_stripe_express_api = false;
+																	}
 
-																if ($is_allow_stripe_express_api == true) {
-																	$authorize_request_body['suggested_capabilities'] = array('transfers', 'card_payments');
-																	$url = 'https://connect.stripe.com/express/oauth/authorize?' . http_build_query($authorize_request_body);
-																} else {
-																	$url = 'https://connect.stripe.com/oauth/authorize?' . http_build_query($authorize_request_body);
-																}
+																	if ($is_allow_stripe_express_api == true) {
+																		$authorize_request_body['suggested_capabilities'] = array('transfers', 'card_payments');
+																		$url = 'https://connect.stripe.com/express/oauth/authorize?' . http_build_query($authorize_request_body);
+																	} else {
+																		$url = 'https://connect.stripe.com/oauth/authorize?' . http_build_query($authorize_request_body);
+																	}
 
 
-															?>
-																<a href=<?php echo esc_url($url); ?> target="_self" class="conntect-w-stripe-btn"><?php _e('Connect with Stripe', 'listeo_core'); ?></a>
-															<?php } ?>
+
+																?><a href=<?php echo esc_url($url); ?> target="_self" class="conntect-w-stripe-btn"><?php _e('Connect with Stripe', 'listeo_core'); ?></a>
+																	<?php  } else {
+																	$account_id = get_user_meta($current_user->ID, 'listeo_stripe_express_account_id', true);
+																	$account_url = get_user_meta($current_user->ID, 'listeo_stripe_express_account_url', true);
+																	$account_url_expiration = get_user_meta($current_user->ID, 'listeo_stripe_express_account_url_expiration', true);
+																	//end if standard account
+																	//check if account is onboarded
+																	// $stripe = new \Stripe\StripeClient('sk_test_your_key');
+																	// $stripe->accounts->retrieve(
+																	// 	'acct_1032D82eZvKYlo2C',
+																	// 	[]
+																	// );
+																	
+																	
+																	if ($account_url && $account_url_expiration > time()) {
+																	?>
+																		<a href="<?php echo $account_url; ?>" target="_self" class="conntect-w-stripe-btn"><?php _e('Connect with Stripe', 'listeo_core'); ?></a>
+
+																	<?php  } else { ?>
+																		<a href="#" target="_self" class="listeo-create-stripe-express-link-account conntect-w-stripe-btn">
+																			<i class="fa fa-circle-o-notch fa-spin" aria-hidden="true"></i><?php _e('Create Stripe Account', 'listeo_core'); ?>
+																		</a>
+																		<a style="display:none" href="#" target="_self" class="real-conntect-w-stripe-btn conntect-w-stripe-btn"><?php _e('Connect with Stripe', 'listeo_core'); ?></a>
+																	<?php } ?>
+															<?php }
+															} ?>
+
 														</div>
 													</div>
 
@@ -413,7 +469,7 @@ if (isset($_GET['code'])) {
 
 							?>
 								<a class="payout-method button" href="<?php echo $login_link['url']; ?>"><?php esc_html_e('Go to Stripe Dashboard', 'listeo_core') ?></a>
-							<?php } 
+							<?php }
 							if ($stripe_user_data['type'] == 'standard') { ?>
 								<a class="payout-method button" href="https://dashboard.stripe.com/b/<?php echo $stripe_user_data['id']; ?>"><?php esc_html_e('Edit Account', 'listeo_core') ?></a>
 							<?php } ?>

@@ -14,12 +14,13 @@
     var calendarEl = document.getElementById("calendar");
     var calendar = new FullCalendar.Calendar(calendarEl, {
       initialView: "dayGridMonth",
-      locale: listeoCal.language,
+
       headerToolbar: {
         left: "prev,next today",
         center: "title",
         right: "dayGridMonth,timeGridWeek,listWeek",
       },
+      locale: listeoCal.language,
       eventTimeFormat: {
         // like '14:30:00'
         hour: "2-digit",

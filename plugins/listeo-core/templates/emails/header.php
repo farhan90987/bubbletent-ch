@@ -60,8 +60,7 @@ a, a:hover {
 			padding-top: 20px;
 			padding-bottom: 20px;">
 
-			<!-- LOGO -->
-			<!-- Image text color should be opposite to background color. Set your url, image src, alt and title. Alt text should fit the image size. Real image size should be x2. URL format: http://domain.com/?utm_source={{Campaign-Source}}&utm_medium=email&utm_content=logo&utm_campaign={{Campaign-Name}} -->
+		
 		<?php 
 
 		$logo = wp_get_attachment_image_url(get_option('listeo_email_logo'),'full'); 

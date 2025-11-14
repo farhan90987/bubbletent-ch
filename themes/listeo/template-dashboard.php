@@ -59,6 +59,9 @@ if (!is_user_logged_in()) {
 				case 'email':
 					$errors[] = esc_html__('The email address you entered is not valid.', 'listeo');
 					break;
+				case 'gmail-only':
+					$errors[] = esc_html__('Please use address from gmail.', 'listeo');
+					break;
 				case 'email_exists':
 					$errors[] = esc_html__('An account exists with this email address.', 'listeo');
 					break;
@@ -67,6 +70,9 @@ if (!is_user_logged_in()) {
 					break;
 				case 'captcha-no':
 					$errors[] = esc_html__('Please check reCAPTCHA checbox to register.', 'listeo');
+					break;
+				case 'required-field':
+					$errors[] = esc_html__('You have missed required field', 'listeo');
 					break;
 				case 'username_exists':
 					$errors[] =  esc_html__('This username already exists.', 'listeo');
@@ -80,6 +86,9 @@ if (!is_user_logged_in()) {
 				case 'terms-fail':
 					$errors[] = esc_html__("Please accept the Terms and Conditions to register account.", 'listeo');
 					break;
+				case 'otp-fail':
+					$errors[] = esc_html__("Please enter the correct OTP to register account.", 'listeo');
+					break;
 				case 'first_name':
 					$errors[] = esc_html__("Please provide your first name", 'listeo');
 					break;
@@ -91,6 +100,9 @@ if (!is_user_logged_in()) {
 					break;
 				case 'password-no':
 					$errors[] = esc_html__("You have forgot about password.", 'listeo_core', 'listeo');
+					break;
+				case 'strong_password':
+					$errors[] = esc_html__("Your password is not strong enough.", 'listeo_core', 'listeo');
 					break;
 				case 'incorrect_password':
 					$err = __(
@@ -153,11 +165,11 @@ if (!is_user_logged_in()) {
 								if ($password_field) {
 									printf(
 										esc_html__('You have successfully registered to %s.', 'listeo'),
-										'<strong>' . get_bloginfo('name') . '</strong>'
+										get_bloginfo('name')
 									);
 								} else {
 									printf(
-										esc_html__('You have successfully registered to <strong>%s</strong>. We have emailed your password to the email address you entered.', 'listeo'),
+										esc_html__('You have successfully registered to %s. We have emailed your password to the email address you entered.', 'listeo'),
 										get_bloginfo('name')
 									);
 								}
@@ -208,7 +220,7 @@ if (!is_user_logged_in()) {
 				<?php do_action('listeo/dashboard-menu/start'); ?>
 				<ul data-submenu-title="<?php esc_html_e('Main', 'listeo'); ?>">
 
-					<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller'))) : ?>
+					<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller', 'vendor_staff'))) : ?>
 						<?php $dashboard_page = get_option('listeo_dashboard_page');
 						if ($dashboard_page) : ?>
 							<li <?php if ($post->ID == $dashboard_page) : ?>class="active" <?php endif; ?>><a href="<?php echo esc_url(get_permalink($dashboard_page)); ?>"><i class="sl sl-icon-settings"></i> <?php esc_html_e('Dashboard', 'listeo'); ?></a></li>
@@ -223,7 +235,7 @@ if (!is_user_logged_in()) {
 							<li <?php if ($post->ID == $user_bookings_page) : ?>class="active" <?php endif; ?>><a href="<?php echo esc_url(get_permalink($user_bookings_page)); ?>"><i class="fa fa-calendar-check"></i> <?php esc_html_e('My Bookings', 'listeo'); ?></a></li>
 						<?php endif;
 					} else {
-						if (!in_array($role, array('owner', 'seller'))) : ?>
+						if (!in_array($role, array('owner', 'seller', 'vendor_staff'))) : ?>
 							<?php if ($user_bookings_page) : ?>
 								<li <?php if ($post->ID == $user_bookings_page) : ?>class="active" <?php endif; ?>><a href="<?php echo esc_url(get_permalink($user_bookings_page)); ?>"><i class="fa fa-calendar-check"></i> <?php esc_html_e('My Bookings', 'listeo'); ?></a></li>
 							<?php endif; ?>
@@ -243,20 +255,27 @@ if (!is_user_logged_in()) {
 						</li>
 					<?php endif; ?>
 
-					<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller'))) : ?>
-						<?php 
+					<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller', 'vendor_staff'))) : ?>
+						<?php
 						$bookings_page = get_option('listeo_bookings_page');
 						$bookings_calendar_page = get_option('listeo_bookings_calendar_page');
+						$qr_page = get_option('listeo_ticket_check_page');
 
 						if ($bookings_page) : ?>
-							<li <?php if ($post->ID == $bookings_page || $post->ID == $bookings_calendar_page) : ?>class="active" <?php endif; ?>><a><i class="fa fa-calendar-check"></i> <?php esc_html_e('Bookings', 'listeo'); ?></a>
+							<li <?php if ($post->ID == $bookings_page || $post->ID == $bookings_calendar_page || $post->ID == $qr_page) : ?>class="active" <?php endif; ?>><a><i class="fa fa-calendar-check"></i> <?php esc_html_e('Bookings', 'listeo'); ?></a>
 								<ul>
-									<?php 
+									<?php
 									if ($bookings_calendar_page) : ?>
 										<li <?php if ($post->ID == $bookings_calendar_page) : ?>class="active" <?php endif; ?>><a href="<?php echo esc_url(get_permalink($bookings_calendar_page)); ?>"><?php esc_html_e('Calendar View', 'listeo'); ?>
 
 											</a>
 										</li>
+									<?php endif; ?>
+									<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller', 'vendor_staff'))) : ?>
+										<?php
+										if ($qr_page) : ?>
+											<li <?php if ($post->ID == $qr_page) : ?>class="active" <?php endif; ?>><a href="<?php echo esc_url(get_permalink($qr_page)); ?>"><?php esc_html_e('QR Scan', 'listeo'); ?></a></li>
+										<?php endif; ?>
 									<?php endif; ?>
 									<li>
 										<a href="<?php echo esc_url(get_permalink($bookings_page)); ?>?status=waiting"><?php esc_html_e('Pending', 'listeo'); ?>
@@ -296,7 +315,7 @@ if (!is_user_logged_in()) {
 							</li>
 						<?php endif; ?>
 					<?php endif; ?>
-					<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller'))) : ?>
+					<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller', 'vendor_staff'))) : ?>
 						<?php $wallet_page = get_option('listeo_wallet_page');
 						if ($wallet_page) : ?>
 							<li <?php if ($post->ID == $wallet_page) : ?>class="active" <?php endif; ?>><a href="<?php echo esc_url(get_permalink($wallet_page)); ?>"><i class="sl sl-icon-wallet"></i> <?php esc_html_e('Wallet', 'listeo'); ?></a>
@@ -304,12 +323,18 @@ if (!is_user_logged_in()) {
 						<?php endif; ?>
 					<?php endif; ?>
 					<?php wp_nav_menu(array('theme_location' => 'dashboard_main', 'menu_id' => 'dashboard_main', 'container' => false, 'items_wrap' => '%3$s', 'fallback_cb' => false)); ?>
-					<?php wp_nav_menu(array('theme_location' => 'dashboard_main_guest', 'menu_id' => 'dashboard_main_guest', 'container' => false, 'items_wrap' => '%3$s', 'fallback_cb' => false)); ?>
-					<?php wp_nav_menu(array('theme_location' => 'dashboard_main_owner', 'menu_id' => 'dashboard_main_owner', 'container' => false, 'items_wrap' => '%3$s', 'fallback_cb' => false)); ?>
+					<?php
+					if (in_array($role, array('administrator', 'admin', 'guest'))) :
+						wp_nav_menu(array('theme_location' => 'dashboard_main_guest', 'menu_id' => 'dashboard_main_guest', 'container' => false, 'items_wrap' => '%3$s', 'fallback_cb' => false));
+					endif; ?>
+					<?php
+					if (in_array($role, array('administrator', 'admin', 'owner', 'seller', 'vendor_staff'))) :
+						wp_nav_menu(array('theme_location' => 'dashboard_main_owner', 'menu_id' => 'dashboard_main_owner', 'container' => false, 'items_wrap' => '%3$s', 'fallback_cb' => false));
+					endif; ?>
 				</ul>
 
 				<ul data-submenu-title="<?php esc_html_e('Listings', 'listeo'); ?>">
-					<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller'))) : ?>
+					<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller', 'vendor_staff'))) : ?>
 						<?php $submit_page = get_option('listeo_submit_page');
 						if ($submit_page) : ?>
 							<li <?php if ($post->ID == $submit_page) : ?>class="active" <?php endif; ?>><a href="<?php echo esc_url(get_permalink($submit_page)); ?>"><i class="sl sl-icon-plus"></i> <?php esc_html_e('Add Listing', 'listeo'); ?></a></li>
@@ -350,13 +375,19 @@ if (!is_user_logged_in()) {
 							</li>
 						<?php endif; ?>
 					<?php endif; ?>
-					<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller'))) : ?>
+					<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller', 'vendor_staff'))) : ?>
 						<?php $stats_page = get_option('listeo_stats_page');
 						if ($stats_page) : ?>
 							<li <?php if ($post->ID == $stats_page) : ?>class="active" <?php endif; ?>><a href="<?php echo esc_url(get_permalink($stats_page)); ?>"><i class="sl sl-icon-chart"></i> <?php esc_html_e('Statistics', 'listeo'); ?></a></li>
 						<?php endif; ?>
 					<?php endif; ?>
-					<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller'))) : ?>
+					<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller', 'vendor_staff'))) : ?>
+						<?php $ads_page = get_option('listeo_ad_campaigns_page');
+						if ($ads_page) : ?>
+							<li <?php if ($post->ID == $ads_page) : ?>class="active" <?php endif; ?>><a href="<?php echo esc_url(get_permalink($ads_page)); ?>"><i class="sl sl-icon-rocket"></i> <?php esc_html_e('Ad Campaign', 'listeo'); ?></a></li>
+						<?php endif; ?>
+					<?php endif; ?>
+					<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller', 'vendor_staff'))) : ?>
 						<?php $coupons_page = get_option('listeo_coupons_page');
 						if ($coupons_page) : ?>
 							<li <?php if ($post->ID == $coupons_page) : ?>class="active" <?php endif; ?>><a href="<?php echo esc_url(get_permalink($coupons_page)); ?>"><i class="sl sl-icon-credit-card"></i> <?php esc_html_e('Coupons', 'listeo'); ?></a></li>
@@ -366,15 +397,15 @@ if (!is_user_logged_in()) {
 					if ($reviews_page) : ?>
 						<li <?php if ($post->ID == $reviews_page) : ?>class="active" <?php endif; ?>><a href="<?php echo esc_url(get_permalink($reviews_page)); ?>"><i class="sl sl-icon-star"></i> <?php esc_html_e('Reviews', 'listeo'); ?></a></li>
 					<?php endif; ?>
-					
-						<?php $bookmarks_page = get_option('listeo_bookmarks_page');
-						if ($bookmarks_page) : ?>
-							<li <?php if ($post->ID == $bookmarks_page) : ?>class="active" <?php endif; ?>><a href="<?php echo esc_url(get_permalink($bookmarks_page)); ?>"><i class="sl sl-icon-heart"></i> <?php esc_html_e('Bookmarks', 'listeo'); ?></a></li>
-						<?php endif; ?>
-					
+
+					<?php $bookmarks_page = get_option('listeo_bookmarks_page');
+					if ($bookmarks_page) : ?>
+						<li <?php if ($post->ID == $bookmarks_page) : ?>class="active" <?php endif; ?>><a href="<?php echo esc_url(get_permalink($bookmarks_page)); ?>"><i class="sl sl-icon-heart"></i> <?php esc_html_e('Bookmarks', 'listeo'); ?></a></li>
+					<?php endif; ?>
+
 					<?php wp_nav_menu(array('theme_location' => 'dashboard_listings', 'menu_id' => 'dashboard_listings', 'container' => false, 'items_wrap' => '%3$s', 'fallback_cb' => false)); ?>
 				</ul>
-				<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller'))) : ?>
+				<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller', 'vendor_staff'))) : ?>
 					<?php if (class_exists('WeDevs_Dokan')) : ?>
 						<ul data-submenu-title="<?php esc_html_e('Store', 'listeo'); ?>">
 							<?php
@@ -438,7 +469,7 @@ if (!is_user_logged_in()) {
 						<li <?php if ($post->ID == $orders_page) : ?>class="active" <?php endif; ?>><a href="<?php echo esc_url($orders_page); ?>"><i class="sl sl-icon-basket"></i> <?php esc_html_e('My Orders', 'listeo'); ?></a></li>
 					<?php endif; ?>
 
-					<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller'))) : ?>
+					<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller', 'vendor_staff'))) : ?>
 						<?php
 						$subscription_page_status = get_option('listeo_subscription_page');
 						if (class_exists('WC_Subscriptions') && $subscription_page_status) {
@@ -488,10 +519,10 @@ if (!is_user_logged_in()) {
 				</div>
 				<?php };
 
-			if (listeo_is_payout_active()) {
+			if (listeo_is_payout_active() &&  get_user_meta(get_current_user_id(), 'listeo_core_payment_type', true) == 'paypal_payout') {
 				$is_payout_email_added = esc_attr(get_user_meta(get_current_user_id(), 'listeo_paypal_payout_email', true));
 				if (empty($is_payout_email_added)) {
-					if (in_array($role, array('administrator', 'admin', 'owner', 'seller'))) :
+					if (in_array($role, array('administrator', 'admin', 'owner', 'seller', 'vendor_staff'))) :
 				?>
 
 						<div class="notice notification margin-bottom-40" id="unpaid_listing_in_cart">
@@ -509,6 +540,7 @@ if (!is_user_logged_in()) {
 						<?php
 						$is_dashboard_page = get_option('listeo_dashboard_page');
 						$is_booking_page = get_option('listeo_bookings_page');
+						$is_submit_page = get_option('listeo_submit_page');
 						global $post;
 						if ($is_dashboard_page == $post->ID) { ?>
 							<h2><?php esc_html_e('Hello', 'listeo'); ?> <?php echo esc_html($name); ?> !</h2>
@@ -541,8 +573,17 @@ if (!is_user_logged_in()) {
 										break;
 								}
 							} else { ?>
-								<h1><?php the_title(); ?></h1>
+							<h1><?php the_title(); ?></h1>
 							<?php }
+						} elseif ($is_submit_page == $post->ID) {
+							if (isset($_GET['action']) && $_GET['action'] == 'renew' && isset($_GET['package_action']) && $_GET['package_action'] == 'change_package') { ?>
+								<h1><?php esc_html_e('Change Listing Package', 'listeo'); ?></h1>
+							<?php } elseif (isset($_GET['action']) && $_GET['action'] == 'edit') { ?>
+								<h1><?php esc_html_e('Edit Listing', 'listeo'); ?></h1>
+							<?php } else { ?>
+								<h1><?php the_title(); ?></h1>
+							<?php
+							}
 						} else { ?>
 							<h1><?php the_title(); ?></h1>
 						<?php } ?>

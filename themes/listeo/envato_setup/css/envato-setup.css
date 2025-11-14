@@ -1,8 +1,9 @@
 .envato-setup-content p, .envato-setup-content table {
-    font-size: 1em;
+    font-size: 1.2em;
     line-height: 1.75em;
     color: #666
 }
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 body {
     margin: 30px auto 24px;
@@ -10,6 +11,8 @@ body {
     background: #f1f1f1;
     padding: 0;
     border: none;
+    font-family: 'Outfit', ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+
 }
 
 #wc-logo {
@@ -25,7 +28,7 @@ body {
 
 .envato-setup-content {
     box-shadow: 0 3px 12px rgba(0, 0, 0, .1);
-    padding: 34px 34px 0;
+    padding: 40px 40px 20px 40px;
     background: #fff;
     overflow: hidden;
     zoom: 1;
@@ -588,4 +591,48 @@ body {
 .listeo-setup-activated  {
     text-align: center;
     margin-bottom: 50px;
+}
+
+.envato_default_content td:nth-child(2) {
+    min-width: 160px;
+}
+
+.envato-wizard-plugins { padding: 0;}
+.envato-wizard-plugins li {
+    position: relative;
+    font-size: 16px;
+}
+
+/* Add emojis before each plugin label */
+.envato-wizard-plugins li::before {
+	content: "\27A1\FE0F"; /* ➡️ */
+	margin-right: 3px;
+}
+
+
+
+/* Optional spacing for emoji */
+.envato-wizard-plugins li::before {
+	margin-right: 5px;
+}
+.envato-wizard-plugins li span {
+    font-size: 0.9em;
+    color: #0091cd;
+    background: #0091cd10;
+    margin: 0 5px;
+    padding: 2px 5px;
+    border-radius: 5px;
+    justify-self: center;
+    zoom: 0.85;
+}
+
+.envato-setup-content input {
+    padding: 10px;
+    border-color: #e0e0e0;
+    border-width: 2px;
+}
+
+
+.envato-setup-content .form-table  th  {
+    vertical-align: middle;
 }

@@ -58,6 +58,7 @@ class Listeo_Core_Emails {
 		add_action( 'listeo_mail_to_owner_new_instant_reservation', array($this, 'mail_to_owner_new_instant_reservation'));
 
 		add_action( 'listeo_mail_to_user_canceled', array($this, 'mail_to_user_canceled'));
+		add_action( 'listeo_mail_to_owner_canceled', array($this, 'mail_to_owner_canceled'));
 		
 		add_action( 'listeo_mail_to_user_pay', array($this, 'mail_to_user_pay'));
 		add_action( 'listeo_mail_to_owner_paid', array($this, 'mail_to_owner_paid'));
@@ -70,9 +71,44 @@ class Listeo_Core_Emails {
 		
 		add_action('listeo_mail_to_user_past_booking', array($this, 'mail_to_user_review_reminder'));
 		
+		add_action('listeo_mail_to_user_claim_approved', array($this, 'mail_to_user_claim_approved'));
+		add_action('listeo_mail_to_user_claim_rejected', array($this, 'mail_to_user_claim_rejected'));
+		add_action('listeo_mail_to_user_claim_pending', array($this, 'mail_to_user_claim_pending'));
+		add_action('listeo_mail_to_user_claim_completed', array($this, 'mail_to_owner_claim_completed'));
+
+		add_action('listeo_mail_to_admin_claim_request', array($this, 'mail_to_admin_claim_request'));
+
+		add_action('listeo_otp_mail', array($this, 'otp_mail'));
 		
 
 
+	}
+
+	function otp_mail($args){
+
+		$email = $args['email'];
+		$otp = $args['otp'];
+		$otp = mt_rand(1000, 9999);
+
+		$transient_key = 'otp_' . $email; // Create a unique transient key
+		delete_transient($transient_key); // Delete any existing transients
+		set_transient($transient_key, $otp, 5 * MINUTE_IN_SECONDS); // Store OTP for 5 minutes
+
+		$args = array(
+			
+			'otp' 	=> $otp,
+		);
+
+		$subject 	 = get_option('listeo_otp_email_subject', 'Authenticate Your Email Address');
+		$subject 	 = $this->replace_shortcode($args, $subject);
+
+		$body 	 =  get_option('listeo_otp_email_content', "Hi {user_name},<br>
+                    Your OTP code is {otp}.<br>
+                    <br>
+                    Thank you.
+                    <br>");
+		$body 	 = $this->replace_shortcode($args, $body);
+		self::send($email, $subject, $body);
 	}
 
 	function mail_to_user_review_reminder($args)
@@ -88,7 +124,10 @@ class Listeo_Core_Emails {
 			return;
 		}
 		$email = get_the_author_meta('user_email', $booking['bookings_author']);
-
+		// check if user has opt out from emails
+		if(get_the_author_meta('email_notifications', $booking['bookings_author']) == 'on'){
+			return;
+		}
 		$args = array(
 			'user_name' 	=> get_the_author_meta('display_name', $booking['bookings_author']),
 			'user_mail' 	=> $email,
@@ -141,7 +180,9 @@ class Listeo_Core_Emails {
 			return;
 		}
 		$email = get_the_author_meta('user_email', $booking['bookings_author']);
-
+		if (get_the_author_meta('email_notifications', $booking['bookings_author']) == 'on') {
+			return;
+		}
 		$args = array(
 			'user_name' 	=> get_the_author_meta('display_name', $booking['bookings_author']),
 			'user_mail' 	=> $email,
@@ -153,6 +194,7 @@ class Listeo_Core_Emails {
 			'listing_longitude'  => get_post_meta($booking['listing_id'], '_geolocation_long', true),
 			'listing_phone'  => get_post_meta($booking['listing_id'], '_phone', true),
 			'listing_email'  => get_post_meta($booking['listing_id'], '_email', true),
+			'email_message'  => get_post_meta($booking['listing_id'], '_email_message', true),
 			'dates' => (isset($booking_data['dates'])) ? $booking_data['dates'] : '',
 			'details' => (isset($booking_data['details'])) ? $booking_data['details'] : '',
 			'service' => (isset($booking_data['service'])) ? $booking_data['service'] : '',
@@ -199,8 +241,11 @@ class Listeo_Core_Emails {
 		}
 		
 		$author   	= 	get_userdata($post->post_author);
+		// user id
 		$email 		=  $author->data->user_email;
-
+		if (get_the_author_meta('email_notifications', $post->post_author) == 'on') {
+			return;
+		}
 		$args = array(
 			'user_name' 	=> $author->display_name,
 			'user_mail' 	=> $email,
@@ -238,7 +283,9 @@ class Listeo_Core_Emails {
 		
 		$author   	= 	get_userdata( $post->post_author ); 
 		$email 		=  $author->data->user_email;
-
+		if (get_the_author_meta('email_notifications', $post->post_author) == 'on') {
+			return;
+		}
 		$args = array(
 			'user_name' 	=> $author->display_name,
 			'user_mail' 	=> $email,
@@ -256,35 +303,48 @@ class Listeo_Core_Emails {
 		self::send( $email, $subject, $body );
 	}
 
-	function new_listing_email_admin($post_id ){
+	function new_listing_email_admin($post_id)
+	{
 		$post = get_post($post_id);
-	
-		if ( $post->post_type !== 'listing' ) {
+
+		if ($post->post_type !== 'listing') {
 			return;
 		}
-		if ( $post->post_status !== 'pending' ) {
+		if ($post->post_status !== 'pending') {
 			return;
 		}
-		
-		if(!get_option('listeo_new_listing_admin_notification')){
+
+		if (!get_option('listeo_new_listing_admin_notification')) {
 			return;
 		}
-		
+
+		// Get last notification timestamp
+		$last_notification = get_post_meta($post_id, '_last_admin_notification', true);
+		$current_time = current_time('timestamp');
+
+		// If last notification was less than 2 hours ago, skip
+		if ($last_notification && ($current_time - $last_notification < 2 * HOUR_IN_SECONDS)) {
+			return;
+		}
 
 		$email = get_option('admin_email');
+		$email = apply_filters('listeo_new_listing_email_recipient', $email);
+
 		$args = array(
-			
-			'user_mail' 	=> get_option('admin_email'),
-			'listing_name' => $post->post_title,
-			);
+			'user_mail'     => $email,
+			'listing_name'  => $post->post_title,
+		);
 
-		$subject 	 = esc_html__('There is new listing waiting for approval','listeo_core');
-		$subject 	 = $this->replace_shortcode( $args, $subject );
+		$subject = esc_html__('There is new listing waiting for approval', 'listeo_core');
+		$subject = $this->replace_shortcode($args, $subject);
 
-		$body 	 = esc_html__('There is listing waiting for your approval "{listing_name}"','listeo_core');
-		$body 	 = $this->replace_shortcode( $args, $body );
+		$body = esc_html__('There is listing waiting for your approval "{listing_name}"', 'listeo_core');
+		$body = $this->replace_shortcode($args, $body);
 
-		self::send( $email, $subject, $body );
+		// Update the last notification timestamp
+		update_post_meta($post_id, '_last_admin_notification', $current_time);
+
+		self::send($email, $subject, $body);
 	}
 
 	function published_listing_email($post ){
@@ -300,7 +360,9 @@ class Listeo_Core_Emails {
 		}
 		$author   	= 	get_userdata( $post->post_author ); 
 		$email 		=  $author->data->user_email;
-
+		if (get_the_author_meta('email_notifications', $post->post_author) == 'on') {
+			return;
+		}
 		$args = array(
 			'user_name' 	=> $author->display_name,
 			'user_mail' 	=> $email,
@@ -330,7 +392,9 @@ class Listeo_Core_Emails {
 		
 		$author   	= 	get_userdata( $post->post_author ); 
 		$email 		=  $author->data->user_email;
-
+		if (get_the_author_meta('email_notifications', $post->post_author) == 'on') {
+			return;
+		}
 		$args = array(
 			'user_name' 	=> $author->display_name,
 			'user_mail' 	=> $email,
@@ -353,6 +417,10 @@ class Listeo_Core_Emails {
 		if ( $post->post_type !== 'listing' ) {
 			return;
 		}
+		// check post status
+		if ( $post->post_status !== 'publish' ) {
+			return;
+		}
 		$already_sent = get_post_meta( $post_id, 'notification_email_sent', true );
 		if($already_sent) {
 			return;
@@ -364,7 +432,9 @@ class Listeo_Core_Emails {
 		
 		$author   	= 	get_userdata( $post->post_author ); 
 		$email 		=  $author->data->user_email;
-
+		if (get_the_author_meta('email_notifications', $post->post_author) == 'on') {
+			return;
+		}
 		$args = array(
 			'user_name' 	=> $author->display_name,
 			'user_mail' 	=> $email,
@@ -393,7 +463,7 @@ class Listeo_Core_Emails {
   //           [listing_id] => 604
   //           [date_start] => 2019-01-16 09:00:00
   //           [date_end] => 2019-01-16 11:00:00
-  //           [comment] => {"first_name":"\u0141ukasz asdas","last_name":"Girek asdas d","email":"admin@listeo.com","phone":"+48 0500389009","childrens":"0","adults":"2"}
+  //           [comment] => {"first_name":"\u0141ukasz asdas","last_name":"Girek asdas d","email":"admin@listeo.com","phone":"+48 0500389009","children":"0","adults":"2"}
   //           [order_id] => 
   //           [status] => 
   //           [type] => reservation
@@ -403,15 +473,19 @@ class Listeo_Core_Emails {
   //       )
 		
 	function mail_to_user_waiting_approval($args){
+		
 		if(!get_option('listeo_booking_user_waiting_approval_email')){
 			return;
 		}
+
 		$email 		=  $args['email'];
 
 		$booking_data = $this->get_booking_data_emails($args['booking']);
 		
 		$booking = $args['booking'];
-		
+		if (get_the_author_meta('email_notifications', $booking['bookings_author']) == 'on') {
+			return;
+		}
 		$args = array(
 			'user_name' 	=> get_the_author_meta('display_name',$booking['bookings_author']),
 			'user_mail' 	=> $email,
@@ -458,7 +532,9 @@ class Listeo_Core_Emails {
 		$email 		=  $args['email'];
 		$booking_data = $this->get_booking_data_emails($args['booking']);
 		$booking = $args['booking'];
-		
+		if (get_the_author_meta('email_notifications', $booking['bookings_author']) == 'on') {
+			return;
+		}
 		$args = array(
 			'user_name' 	=> get_the_author_meta('display_name',$booking['bookings_author']),
 			'user_mail' 	=> $email,
@@ -470,6 +546,7 @@ class Listeo_Core_Emails {
 			'listing_longitude'  => get_post_meta($booking['listing_id'], '_geolocation_long', true),
 			'listing_phone'  => get_post_meta($booking['listing_id'],'_phone',true),
 			'listing_email'  => get_post_meta($booking['listing_id'],'_email',true),
+			'email_message'  => get_post_meta($booking['listing_id'], '_email_message', true),
 			'dates' => (isset($booking_data['dates'])) ? $booking_data['dates'] : '',
 			'details' => (isset($booking_data['details'])) ? $booking_data['details'] : '',
 			'service' => (isset($booking_data['service'])) ? $booking_data['service'] : '',
@@ -506,6 +583,9 @@ class Listeo_Core_Emails {
 		$email 		=  $args['email'];
 		$booking = $args['booking'];
 		$booking_data = $this->get_booking_data_emails($args['booking']);
+		if (get_the_author_meta('email_notifications', $booking['owner_id']) == 'on') {
+			return;
+		}
 		$args = array(
 			'user_name' 	=> get_the_author_meta('display_name',$booking['owner_id']),
 			'user_mail' 	=> $email,
@@ -517,6 +597,7 @@ class Listeo_Core_Emails {
 			'listing_longitude'  => get_post_meta($booking['listing_id'], '_geolocation_long', true),
 			'listing_phone'  => get_post_meta($booking['listing_id'],'_phone',true),
 			'listing_email'  => get_post_meta($booking['listing_id'],'_email',true),
+			'email_message'  => get_post_meta($booking['listing_id'], '_email_message', true),
 			'dates' => (isset($booking_data['dates'])) ? $booking_data['dates'] : '',
 			'details' => (isset($booking_data['details'])) ? $booking_data['details'] : '',
 			'service' => (isset($booking_data['service'])) ? $booking_data['service'] : '',
@@ -551,6 +632,9 @@ class Listeo_Core_Emails {
 		$email 		=  $args['email'];
 		$booking = $args['booking'];
 		$booking_data = $this->get_booking_data_emails($args['booking']);
+		if (get_the_author_meta('email_notifications', $booking['owner_id']) == 'on') {
+			return;
+		}
 		$args = array(
 			'user_name' 	=> get_the_author_meta('display_name',$booking['owner_id']),
 			'user_mail' 	=> $email,
@@ -596,8 +680,11 @@ class Listeo_Core_Emails {
 		$email 		=  $args['email'];
 		$booking = $args['booking'];
 		$booking_data = $this->get_booking_data_emails($args['booking']);
+		if (get_the_author_meta('email_notifications', $booking['bookings_author']) == 'on') {
+			return;
+		}
 		$args = array(
-			'user_name' 	=> get_the_author_meta('display_name',$booking['owner_id']),
+			'user_name' 	=> get_the_author_meta('display_name',$booking['bookings_author']),
 			'user_mail' 	=> $email,
 			'booking_date' => $booking['created'],
 			'listing_name' => get_the_title($booking['listing_id']),
@@ -633,6 +720,53 @@ class Listeo_Core_Emails {
 		$body 	 = $this->replace_shortcode( $args, $body );
 		self::send( $email, $subject, $body );
 	}
+	function mail_to_owner_canceled($args){
+		if(!get_option('listeo_booking_owner_cancallation_email')){
+			return;
+		}
+		$email 		=  $args['email'];
+		$booking = $args['booking'];
+		$booking_data = $this->get_booking_data_emails($args['booking']);
+		if (get_the_author_meta('email_notifications', $booking['bookings_author']) == 'on') {
+			return;
+		}
+		$args = array(
+			'user_name' 	=> get_the_author_meta('display_name',$booking['owner_id']),
+			'user_mail' 	=> $email,
+			'booking_date' => $booking['created'],
+			'listing_name' => get_the_title($booking['listing_id']),
+			'listing_url'  => get_permalink($booking['listing_id']),
+			'listing_address'  => get_post_meta($booking['listing_id'],'_address',true),
+			'listing_latitude'  => get_post_meta($booking['listing_id'], '_geolocation_lat', true),
+			'listing_longitude'  => get_post_meta($booking['listing_id'], '_geolocation_long', true),
+			'listing_phone'  => get_post_meta($booking['listing_id'],'_phone',true),
+			'listing_email'  => get_post_meta($booking['listing_id'],'_email',true),
+			'dates' => (isset($booking_data['dates'])) ? $booking_data['dates'] : '',
+			'details' => (isset($booking_data['details'])) ? $booking_data['details'] : '',
+			'service' => (isset($booking_data['service'])) ? $booking_data['service'] : '',
+			'tickets' => (isset($booking_data['tickets'])) ? $booking_data['tickets'] : '',
+			'adults' =>(isset($booking_data['adults'])) ? $booking_data['adults'] : '',
+			'children' => (isset($booking_data['children'])) ? $booking_data['children'] : '',
+			'user_message' => (isset($booking_data['message'])) ? $booking_data['message'] : '',
+			'client_first_name' => (isset($booking_data['client_first_name'])) ? $booking_data['client_first_name'] : '',
+			'client_last_name' => (isset($booking_data['client_last_name'])) ? $booking_data['client_last_name'] : '',
+			'client_email' => (isset($booking_data['client_email'])) ? $booking_data['client_email'] : '',
+			'client_phone' => (isset($booking_data['client_phone'])) ? $booking_data['client_phone'] : '',
+			'billing_address' => (isset($booking_data['billing_address'])) ? $booking_data['billing_address'] : '',
+			'billing_postcode' => (isset($booking_data['billing_postcode'])) ? $booking_data['billing_postcode'] : '',
+			'billing_city' => (isset($booking_data['billing_city'])) ? $booking_data['billing_city'] : '',
+			'billing_country' => (isset($booking_data['billing_country'])) ? $booking_data['billing_country'] : '',
+			'price' => (isset($booking['price'])) ? $booking['price'] : '',
+			'expiring' => (isset($booking['expiring'])) ? $booking['expiring'] : '',
+			);
+
+		$subject 	 = get_option('listeo_booking_owner_cancellation_email_subject');
+		$subject 	 = $this->replace_shortcode( $args, $subject );
+
+		$body 	 = get_option('listeo_booking_owner_cancellation_email_content');
+		$body 	 = $this->replace_shortcode( $args, $body );
+		self::send( $email, $subject, $body );
+	}
 
 	function mail_to_user_free_confirmed($args){
 		if(!get_option('listeo_free_booking_confirmation')){
@@ -642,6 +776,9 @@ class Listeo_Core_Emails {
 		$email 		=  $args['email'];
 		$booking_data = $this->get_booking_data_emails($args['booking']);
 		$booking = $args['booking'];
+		if (get_the_author_meta('email_notifications', $booking['bookings_author']) == 'on') {
+			return;
+		}
 		$args = array(
 			'user_name' 	=> get_the_author_meta('display_name',$booking['bookings_author']),
 			'user_mail' 	=> $email,
@@ -654,6 +791,7 @@ class Listeo_Core_Emails {
 			'listing_phone'  => get_post_meta($booking['listing_id'],'_phone',true),
 			'listing_email'  => get_post_meta($booking['listing_id'],'_email',true),
 			'dates' => (isset($booking_data['dates'])) ? $booking_data['dates'] : '',
+			'email_message'  => get_post_meta($booking['listing_id'], '_email_message', true),
 			'details' => (isset($booking_data['details'])) ? $booking_data['details'] : '',
 			'service' => (isset($booking_data['service'])) ? $booking_data['service'] : '',
 			'tickets' => (isset($booking_data['tickets'])) ? $booking_data['tickets'] : '',
@@ -688,6 +826,9 @@ class Listeo_Core_Emails {
 		$email 		=  $args['email'];
 		$booking_data = $this->get_booking_data_emails($args['booking']);
 		$booking = $args['booking'];
+		if (get_the_author_meta('email_notifications', $booking['bookings_author']) == 'on') {
+			return;
+		}
 		$args = array(
 			'user_name' 	=> get_the_author_meta('display_name',$booking['bookings_author']),
 			'user_mail' 	=> $email,
@@ -699,6 +840,7 @@ class Listeo_Core_Emails {
 			'listing_longitude'  => get_post_meta($booking['listing_id'], '_geolocation_long', true),
 			'listing_phone'  => get_post_meta($booking['listing_id'],'_phone',true),
 			'listing_email'  => get_post_meta($booking['listing_id'],'_email',true),
+			'email_message'  => get_post_meta($booking['listing_id'], '_email_message', true),
 			'dates' => (isset($booking_data['dates'])) ? $booking_data['dates'] : '',
 			'details' => (isset($booking_data['details'])) ? $booking_data['details'] : '',
 			'service' => (isset($booking_data['service'])) ? $booking_data['service'] : '',
@@ -734,6 +876,9 @@ class Listeo_Core_Emails {
 		$booking_data = $this->get_booking_data_emails($args['booking']);
 
 		$booking = $args['booking'];
+		if (get_the_author_meta('email_notifications', $booking['bookings_author']) == 'on') {
+			return;
+		}
 		$args = array(
 			'user_name' 	=> get_the_author_meta('display_name',$booking['bookings_author']),
 			'user_mail' 	=> $email,
@@ -782,10 +927,13 @@ class Listeo_Core_Emails {
 		$email 		=  $args['email'];
 		$booking_data = $this->get_booking_data_emails($args['booking']);
 		$booking = $args['booking'];
+		if (get_the_author_meta('email_notifications', $booking['bookings_author']) == 'on') {
+			return;
+		}
 		$args = array(
 			'user_name' 	=> get_the_author_meta('display_name',$booking['owner_id']),
 			'user_mail' 	=> $email,
-			'booking_created' => $booking['created'],
+			'booking_date' => $booking['created'],
 			'listing_name' => get_the_title($booking['listing_id']),
 			'listing_url'  => get_permalink($booking['listing_id']),
 			'listing_address'  => get_post_meta($booking['listing_id'],'_address',true),
@@ -793,6 +941,7 @@ class Listeo_Core_Emails {
 			'listing_longitude'  => get_post_meta($booking['listing_id'], '_geolocation_long', true),
 			'listing_phone'  => get_post_meta($booking['listing_id'],'_phone',true),
 			'listing_email'  => get_post_meta($booking['listing_id'],'_email',true),
+			'email_message'  => get_post_meta($booking['listing_id'], '_email_message', true),
 			'dates' => (isset($booking_data['dates'])) ? $booking_data['dates'] : '',
 			'details' => (isset($booking_data['details'])) ? $booking_data['details'] : '',
 			'service' => (isset($booking_data['service'])) ? $booking_data['service'] : '',
@@ -829,10 +978,13 @@ class Listeo_Core_Emails {
 		$email 		=  $args['email'];
 		$booking_data = $this->get_booking_data_emails($args['booking']);
 		$booking = $args['booking'];
+		if (get_the_author_meta('email_notifications', $booking['bookings_author']) == 'on') {
+			return;
+		}
 		$args = array(
 			'user_name' 	=> get_the_author_meta('display_name',$booking['bookings_author']),
 			'user_mail' 	=> $email,
-			'booking_created' => $booking['created'],
+			'booking_date' => $booking['created'],
 			'listing_name' => get_the_title($booking['listing_id']),
 			'listing_url'  => get_permalink($booking['listing_id']),
 			'listing_address'  => get_post_meta($booking['listing_id'],'_address',true),
@@ -840,6 +992,7 @@ class Listeo_Core_Emails {
 			'listing_longitude'  => get_post_meta($booking['listing_id'], '_geolocation_long', true),
 			'listing_phone'  => get_post_meta($booking['listing_id'],'_phone',true),
 			'listing_email'  => get_post_meta($booking['listing_id'],'_email',true),
+			'email_message'  => get_post_meta($booking['listing_id'], '_email_message', true),
 			'dates' => (isset($booking_data['dates'])) ? $booking_data['dates'] : '',
 			'details' => (isset($booking_data['details'])) ? $booking_data['details'] : '',
 			'service' => (isset($booking_data['service'])) ? $booking_data['service'] : '',
@@ -872,39 +1025,63 @@ class Listeo_Core_Emails {
 		if (get_option('listeo_welcome_email_disable')) {
 			return;
 		}
+
 		$email 		=  $args['email'];
+
+		// Check if email was already sent
+		// we dont have user_id here, can we get it by user_email?
+		$user = get_user_by('email', $email);
+		$user_id = $user ? $user->ID : 0;
+
+		$email_sent = get_user_meta($user_id, 'welcome_email_sent', true);
+		if ($email_sent) {
+			return;
+		}
 
 		$args = array(
 			'email'         => $email,
-	        'login'         => $args['login'],
-	        'password'      => $args['password'],
-	        'first_name' 	=> $args['first_name'],
-	        'last_name' 	=> $args['last_name'],
-	        'user_name' 	=> $args['display_name'],
+			'login'         => $args['login'],
+			'password'      => $args['password'],
+			'first_name' 	=> $args['first_name'],
+			'last_name' 	=> $args['last_name'],
+			'user_name' 	=> $args['display_name'],
 			'user_mail' 	=> $email,
 			'login_url' 	=> $args['login_url'],
 			
-			);
+		);
 		$subject 	 = get_option('listeo_listing_welcome_email_subject','Welcome to {site_name}!');
 		$subject 	 = $this->replace_shortcode( $args, $subject );
-
+		
 		$body 	 = get_option('listeo_listing_welcome_email_content','Welcome to {site_name}! You can log in {login_url}, your username: "{login}", and password: "{password}".');
 		
 		$body 	 = $this->replace_shortcode( $args, $body );
 		self::send( $email, $subject, $body );
+
+		// Set email sent flag
+		update_user_meta($user_id, 'welcome_email_sent', true);
 	}
 
 
+	/**
+	 * @param mixed $args 
+	 * @return void 
+	 */
 	function new_conversation_mail($args){
+
+		
+		if (!get_option('listeo_new_conversation_notification')) {
+			return;
+		}
 		$conversation_id = $args['conversation_id']; 
 		//{user_mail},{user_name},{listing_name},{listing_url},{site_name},{site_url}
 		global $wpdb;
 
-        $conversation_data  = $wpdb -> get_results( "
-        SELECT * FROM `" . $wpdb->prefix . "listeo_core_conversations` 
-        WHERE  id = '$conversation_id'
-
-        ");
+		$conversation_data = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT * FROM `{$wpdb->prefix}listeo_core_conversations` WHERE id = %d",
+				(int)$conversation_id
+			)
+		);
 
         $read_user_1 = $conversation_data[0]->read_user_1;
         if($read_user_1==0){
@@ -920,7 +1097,9 @@ class Listeo_Core_Emails {
 
 		$user_to_notify_data   	= 	get_userdata( $user_to_notify ); 
 		$email 		=  $user_to_notify_data->user_email;
-
+		if (get_the_author_meta('email_notifications', $user_to_notify) == 'on') {
+			return;
+		}
 		$user_who_send_data = get_userdata( $user_who_send ); 
 		$sender = $user_who_send_data->first_name;
 		if(empty($sender)){
@@ -943,6 +1122,114 @@ class Listeo_Core_Emails {
 		
 		$body 	 = $this->replace_shortcode( $args, $body );
 		self::send( $email, $subject, $body );
+	}
+
+
+	function mail_to_user_claim_approved($args){
+
+		$user_to_notify_data   	= 	get_userdata($args['user_id']);
+		$email 		=  $user_to_notify_data->user_email;
+	
+
+		$email_args = array(
+			'user_name' 	=> get_the_author_meta('display_name',$args['claim_id']),
+			'user_email' 	=> $email,
+			'first_name' 	=> get_post_meta($args['claim_id'], 'firstname', true),
+			'last_name' 	=> get_post_meta($args['claim_id'], 'lastname', true),
+			'listing_name' 	=> get_the_title($args['listing_id']),
+			'listing_url'  	=> get_permalink($args['listing_id']),
+			'order_id' 		=> $args['order_id'],
+			'payment_url'  	=> $args['payment_url'],
+		);
+	
+		$subject 	 = get_option('listeo_claim_approved_notification_email_subject', 'Your claim was approved');
+		$subject 	 = $this->replace_shortcode($email_args, $subject);
+
+		$body 	 = get_option('listeo_claim_approved_notification_email_content', "Hi {user_name},<br>
+                     Your claim for '{listing_name}' was approved. Please pay for the listing to manage it {payment_url}.
+                    <br>Thank you");
+
+		$body 	 = $this->replace_shortcode($email_args, $body);
+		self::send($email, $subject, $body);
+	}
+
+	function mail_to_user_claim_rejected($args){
+
+		$user_to_notify_data   	= 	get_userdata($args['user_id']);
+		$email 		=  $user_to_notify_data->user_email;
+
+
+		$email_args = array(
+			'user_name' 	=> get_the_author_meta('display_name', $args['claim_id']),
+			'user_email' 	=> $email,
+			'first_name' 	=> get_post_meta($args['claim_id'], 'firstname', true),
+			'last_name' 	=> get_post_meta($args['claim_id'], 'lastname', true),
+			'listing_name' 	=> get_the_title($args['listing_id']),
+			'listing_url'  	=> get_permalink($args['listing_id']),
+		
+		);
+	
+		$subject 	 = get_option('listeo_claim_rejected_notification_email_subject', 'Your claim was rejected');
+		$subject 	 = $this->replace_shortcode($email_args, $subject);
+
+		$body 	 = get_option('listeo_claim_rejected_notification_email_content', "Hi {user_name},<br>
+					 Your claim for '{listing_name}' was rejected. Please contact us for more information.
+					<br>Thank you");
+
+		$body 	 = $this->replace_shortcode($email_args, $body);
+		self::send($email, $subject, $body);
+	}
+
+	function mail_to_user_claim_pending($args){
+
+		$user_to_notify_data   	= 	get_userdata($args['user_id']);
+		$email 		=  $user_to_notify_data->user_email;
+
+
+		$email_args = array(
+			'user_name' 	=> get_the_author_meta('display_name', $args['claim_id']),
+			'user_email' 	=> $email,
+			'first_name' 	=> get_post_meta($args['claim_id'], 'firstname', true),
+			'last_name' 	=> get_post_meta($args['claim_id'], 'lastname', true),
+			'listing_name' 	=> get_the_title($args['listing_id']),
+			'listing_url'  	=> get_permalink($args['listing_id']),
+			//'claim_url'  	=> get_edit_post_link($args['claim_id']),
+		);
+	
+		$subject 	 = get_option('listeo_claim_pending_notification_email_subject', 'Your claim is pending');
+		$subject 	 = $this->replace_shortcode($email_args, $subject);
+
+		$body 	 = get_option('listeo_claim_pending_notification_email_content', "Hi {user_name},<br>
+					 Your claim for '{listing_name}' is pending. We will notify you once it's approved.
+					<br>Thank you");
+
+		$body 	 = $this->replace_shortcode($email_args, $body);
+		self::send($email, $subject, $body);
+	}
+
+	function mail_to_owner_claim_completed($args){
+		
+		$user_to_notify_data   	= 	get_userdata($args['user_id']);
+		$email 		=  $user_to_notify_data->user_email;
+		$email_args = array(
+			'user_name' 	=> get_the_author_meta('display_name', $args['claim_id']),
+			'user_email' 	=> $email,
+			'first_name' 	=> get_post_meta($args['claim_id'], 'firstname', true),
+			'last_name' 	=> get_post_meta($args['claim_id'], 'lastname', true),
+			'listing_name' 	=> get_the_title($args['listing_id']),
+			'listing_url'  	=> get_permalink($args['listing_id']),
+			//'claim_url'  	=> get_edit_post_link($args['claim_id']),
+		);
+	
+		$subject 	 = get_option('listeo_claim_completed_notification_email_subject', 'Your claim is pending');
+		$subject 	 = $this->replace_shortcode($email_args, $subject);
+
+		$body 	 = get_option('listeo_claim_completed_notification_email_content', "Hi {user_name},<br>
+					 Your claim for '{listing_name}' is completed. You can now manage this listing.
+					<br>Thank you");
+
+		$body 	 = $this->replace_shortcode($email_args, $body);
+		self::send($email, $subject, $body);
 	}
 
 	function new_message_mail($id){
@@ -976,6 +1263,9 @@ class Listeo_Core_Emails {
 		if(empty($sender)){
 			$sender = $user_who_send_data->nickname;
 		}
+		if (get_the_author_meta('email_notifications', $user_to_notify) == 'on') {
+			return;
+		}
         // ["id"]=> string(2) "36" ["timestamp"]=> string(10) "1573163130" ["user_1"]=> string(1) "1" ["user_2"]=> string(2) "14" ["referral"]=> string(14) "author_archive" ["read_user_1"]=> string(1) "1" ["read_user_2"]=> string(1) "0" ["last_update"]=> string(10) "1573172773"
 
 		$args = array(
@@ -1006,23 +1296,61 @@ class Listeo_Core_Emails {
 		//mark this converstaito as sent
 		
 	}
+
+	function mail_to_admin_claim_request($args){
+		$email 		=  get_option('admin_email');
+		$email_args = array(
+			'user_name' 	=> get_the_author_meta('display_name',$args['claim_id']),
+			'user_email' 	=> $email,
+			'first_name' 	=> get_post_meta($args['claim_id'], 'firstname', true),
+			'last_name' 	=> get_post_meta($args['claim_id'], 'lastname', true),
+			'listing_name' 	=> get_the_title($args['listing_id']),
+			'listing_url'  	=> get_permalink($args['listing_id']),
+			//'claim_url'  	=> get_edit_post_link($args['claim_id']),
+		);
+		$subject 	 = get_option('listeo_claim_request_notification_email_subject', 'New claim request');
+		$subject 	 = $this->replace_shortcode($email_args, $subject);
+
+		$body 	 = get_option('listeo_claim_request_notification_email_content', "Hi Admin,<br>
+					 There's a new claim request for '{listing_name}' from {first_name} {last_name}. You will be notified when the claim is approved or rejected. 
+					<br>Thank you");
+
+		$body 	 = $this->replace_shortcode($email_args, $body);
+		self::send($email, $subject, $body);
+	}
 	
 
 	function get_booking_data_emails($args){
 
-		$listing_type = get_post_meta($args['listing_id'],'_listing_type',true);
+		$listing_type = listeo_get_booking_type($args['listing_id']);
 		$booking_data = array();
 		
 		switch ($listing_type) {
 			case 'rental':
-				$booking_data['dates'] = date_i18n(get_option( 'date_format' ), strtotime($args['date_start'])) .' - '. date_i18n(get_option( 'date_format' ), strtotime($args['date_end'])); 
+
+				$start_date = $args['date_start'];
+				$end_date = $args['date_end'];
+
+				// Create DateTime objects from the strings
+				$start_time = new DateTime($start_date);
+				$end_time = new DateTime($end_date);
+
+				// Set the timezone to the WordPress timezone
+				$wp_timezone = new DateTimeZone(wp_timezone_string());
+				$start_time->setTimezone($wp_timezone);
+				$end_time->setTimezone($wp_timezone);
+
+				// Format the dates using date_i18n with the timestamps from the DateTime objects
+				$booking_data['dates'] = date_i18n(get_option('date_format'), $start_time->getTimestamp()) . ' - ' . date_i18n(get_option('date_format'), $end_time->getTimestamp());
+
+				//$booking_data['dates'] = date_i18n(get_option( 'date_format' ), strtotime($args['date_start'])) .' - '. date_i18n(get_option( 'date_format' ), strtotime($args['date_end']));
+				// $booking_data['dates'] =
+				// date_i18n(get_option('date_format'), strtotime($args['date_start']) + 86400) .
+				// ' - ' .
+				// date_i18n(get_option('date_format'), strtotime($args['date_end']) + 86400);
 				break;
 			case 'service':
-			// listeo_write_log($args['date_start']);
-			// listeo_write_log( date_i18n(get_option( 'date_format' ), strtotime($args['date_start'])) .__(' at ','listeo_core'). date_i18n(get_option( 'time_format' ), strtotime($args['date_start'])));
-				//$booking_data['dates'] = date_i18n(get_option( 'date_format' ), strtotime($args['date_start'])) .__(' at ','listeo_core'). date_i18n(get_option( 'time_format' ), strtotime($args['date_start']));
-			//$meta_value = get_post_meta($args['listing_id'],'_event_date', true);
-			
+				
 					$meta_value_date = explode(' ', $args['date_start'],2); 
 					// if(!in_array($date_format,array('F j, Y','Y-m-d','m/d/Y','d/m/Y'))) {
 					// 	$meta_value_date[0] = str_replace('/','-',$meta_value_date[0]);
@@ -1053,32 +1381,39 @@ class Listeo_Core_Emails {
 			case 'event':
 					//$booking_data['dates'] = date(get_option( 'date_format' ), strtotime($args['date_start'])).' '.esc_html__(' at ','listeo_core').' '.date(get_option( 'time_format' ), strtotime($args['date_start']));
 					$meta_value = get_post_meta($args['listing_id'],'_event_date', true);
-					
+					$meta_value_timestamp = get_post_meta($args['listing_id'], '_event_date_timestamp', true);
+				
 					$meta_value_date = explode(' ', $meta_value,2); 
-					// if(!in_array($date_format,array('F j, Y','Y-m-d','m/d/Y','d/m/Y'))) {
-					// 	$meta_value_date[0] = str_replace('/','-',$meta_value_date[0]);
-					// }
-					$date_format = get_option( 'date_format' );
 
-					//$meta_value = date_i18n(get_option( 'date_format' ), strtotime($meta_value_date[0])); 
-
-					$meta_value_ = DateTime::createFromFormat(listeo_date_time_wp_format_php(), $meta_value_date[0]);
-					//var_dump($meta_value);
-					if (!is_string($meta_value_)) {
-						$meta_value_stamp = $meta_value_->getTimestamp();
-						$meta_value = date_i18n(get_option('date_format'), $meta_value_stamp);
+					if (!empty($meta_value_timestamp)) {
+						$meta_value = date_i18n(get_option('date_format'), $meta_value_timestamp);
+						
+						if (isset($meta_value_date[1])) {
+							$time = str_replace('-', '', $meta_value_date[1]);
+							$meta_value .= esc_html__(' at ', 'listeo_core');
+							$meta_value .= date_i18n(get_option('time_format'), strtotime($time));
+						}
+						$booking_data['dates'] = $meta_value;
 					} else {
-						$meta_value = $meta_value_date[0];
-					}
 
-					//echo strtotime(end($meta_value_date));
-					//echo date( get_option( 'time_format' ), strtotime(end($meta_value_date)));
-					if (isset($meta_value_date[1])) {
-						$time = str_replace('-', '', $meta_value_date[1]);
-						$meta_value .= esc_html__(' at ', 'listeo_core');
-						$meta_value .= date_i18n(get_option('time_format'), strtotime($time));
+						$meta_value_ = DateTime::createFromFormat(listeo_date_time_wp_format_php(), $meta_value_date[0]);
+						
+						if (!is_string($meta_value_)) {
+							$meta_value_stamp = $meta_value_->getTimestamp();
+							$meta_value = date_i18n(get_option('date_format'), $meta_value_stamp);
+						} else {
+							$meta_value = $meta_value_date[0];
+						}
+
+						//echo strtotime(end($meta_value_date));
+						//echo date( get_option( 'time_format' ), strtotime(end($meta_value_date)));
+						if (isset($meta_value_date[1])) {
+							$time = str_replace('-', '', $meta_value_date[1]);
+							$meta_value .= esc_html__(' at ', 'listeo_core');
+							$meta_value .= date_i18n(get_option('time_format'), strtotime($time));
+						}
+						$booking_data['dates'] = $meta_value;
 					}
-					$booking_data['dates'] = $meta_value;
 				break;
 			
 			default:
@@ -1091,8 +1426,8 @@ class Listeo_Core_Emails {
 		}
 		$booking_details = '';
 		$details = json_decode($args['comment']);
-		if (isset($details->childrens) && $details->childrens > 0) {
-			$booking_data['children'] = sprintf( _n( '%d Child', '%s Children', $details->childrens, 'listeo_core' ), $details->childrens );
+		if (isset($details->children) && $details->children > 0) {
+			$booking_data['children'] = sprintf( _n( '%d Child', '%s Children', $details->children, 'listeo_core' ), $details->children );
 			$booking_details .= $booking_data['children'];
 		}
 		if (isset($details->adults) && $details->adults > 0) {
@@ -1153,6 +1488,9 @@ class Listeo_Core_Emails {
 		return $booking_data;
 		
 	}
+
+
+
 	/**
 	 * general function to send email to agent with specify subject, body content
 	 */
@@ -1199,6 +1537,7 @@ class Listeo_Core_Emails {
 			'listing_longitude'  => '',
 			'listing_phone' => '',
 			'listing_email' => '',
+			'email_message' => '',
 			'site_name' => '',
 			'site_url'	=> '',
 			'payment_url'	=> '',
@@ -1216,6 +1555,7 @@ class Listeo_Core_Emails {
 			'last_name'	=> '',
 			'login_url'	=> '',
 			'sender'	=> '',
+			'claim_url'	=> '',
 			'conversation_url'	=> '',
 			'client_first_name' => '',
 			'client_last_name' => '',
@@ -1227,6 +1567,8 @@ class Listeo_Core_Emails {
 			'billing_country' => '',
 			'price' => '',
 			'expiring' => '',
+			'order_id' => '',
+			'otp' => '',
 		);
 		$tags = array_merge( $tags, $args );
 
@@ -1242,6 +1584,7 @@ class Listeo_Core_Emails {
 						'{listing_longitude}',
 						'{listing_phone}',
 						'{listing_email}',
+						'{email_message}',
 						'{site_name}',
 						'{site_url}',
 						'{payment_url}',
@@ -1259,6 +1602,7 @@ class Listeo_Core_Emails {
 						'{last_name}',
 						'{login_url}',
 						'{sender}',
+						'{claim_url}',
 						'{conversation_url}',
 						'{client_first_name}',
 						'{client_last_name}',
@@ -1270,6 +1614,8 @@ class Listeo_Core_Emails {
 						'{billing_country}',
 						'{price}',
 						'{expiring}',
+						'{order_id}',
+						'{otp}',
 						);
 
 		$values  = array(   $user_mail, 
@@ -1282,6 +1628,7 @@ class Listeo_Core_Emails {
 							$listing_longitude,
 							$listing_phone,
 							$listing_email,
+							$email_message,
 							get_bloginfo( 'name' ) ,
 							get_home_url(), 
 							$payment_url,
@@ -1299,6 +1646,7 @@ class Listeo_Core_Emails {
 							$last_name,
 							$login_url,
 							$sender,
+							$claim_url,
 							$conversation_url,
 							$client_first_name,
 							$client_last_name,
@@ -1310,10 +1658,22 @@ class Listeo_Core_Emails {
 							$billing_country,
 							$price,
 							$expiring,
+							$order_id,
+							$otp,
 		);
 	
 		$message = str_replace($tags, $values, $body);	
 		
+		if(isset($args['listing_id'])) {
+			$custom_field_pattern = '/{custom_field_([^}]+)}/';
+			preg_match_all($custom_field_pattern, $message, $matches);
+			if(!empty($matches[1])) {
+				foreach($matches[1] as $index => $field_name) {
+					$custom_value = get_post_meta($args['listing_id'], '_' . $field_name, true);
+					$message = str_replace($matches[0][$index], $custom_value, $message);
+				}
+			}
+		}
 		$message = nl2br($message);
 		$message = htmlspecialchars_decode($message,ENT_QUOTES);
 

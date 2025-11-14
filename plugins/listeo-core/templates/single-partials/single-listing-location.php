@@ -20,7 +20,7 @@ $address = get_post_meta( $post->ID, '_address', true );
 $disable_address = get_option('listeo_disable_address');
 if(!empty($latitude) && $disable_address) {
 	$dither= '0.001';
-	$latitude = $latitude + (rand(5,15)-0.5)*$dither;
+	$latitude = (int) $latitude + (rand(5,15)-0.5)*$dither;
 }
 if(!empty($latitude)) : 
 

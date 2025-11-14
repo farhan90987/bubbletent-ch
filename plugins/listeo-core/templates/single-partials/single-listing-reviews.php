@@ -4,12 +4,21 @@ global $post;
 global $wpdb;
 
 
-//Gather comments for a specific page/post 
+// Get current page number for pagination
+$page = get_query_var('cpage') ? get_query_var('cpage') : 1;
+
+// Reviews per page setting (filterable for customization)
+$reviews_per_page = apply_filters('listeo_reviews_per_page', 10);
+
+// Get all approved comments for this listing
 $comments = get_comments(array(
 	'post_id' => $post->ID,
-	'status' => 'approve' //Change this to the type of comments to be displayed
+	'status' => 'approve'
 ));
 
+// Get total count
+$total_reviews = count($comments);
+do_action('listeo_before_comments'); 
 // You can start editing here -- including this comment!
 if ($comments) : ?>
 	<div id="listing-reviews" class="listing-section">
@@ -21,7 +30,9 @@ if ($comments) : ?>
 																			?></h3>
 
 		<!-- Rating Overview -->
-		<?php $rating_value = get_post_meta($post->ID, 'listeo-avg-rating', true);
+		<?php 
+		$rating_data = listeo_get_rating_display($post->ID);
+		$rating_value = $rating_data['rating'];
 		if ($rating_value) { ?>
 
 			<div class="rating-overview">
@@ -60,12 +71,16 @@ if ($comments) : ?>
 
 		<!-- Reviews -->
 		<section id="comments" class="comments listing-reviews">
+
 			<ul class="comment-list">
 				<?php
+				// Use WordPress built-in pagination with per_page and page parameters
 				wp_list_comments(array(
 					'style'      	=> 'ul',
 					'short_ping' 	=> true,
 					'callback' 		=> 'listeo_comment_review',
+					'per_page'      => $reviews_per_page,
+					'page'          => $page,
 				), $comments);
 				?>
 			</ul><!-- .comment-list -->
@@ -73,56 +88,73 @@ if ($comments) : ?>
 
 		<!-- Pagination -->
 		<div class="clearfix"></div>
-<?php
-	
-	
-	?>
-		<?php if (get_comment_pages_count($comments) > 1 && get_option('page_comments')) : // Are there comments to navigate through? 
+		<?php
+
+
 		?>
-			<pre><?php //var_dump($comments); ?></pre>
+		<?php
+		// Calculate max pages
+		$max_page = ceil($total_reviews / $reviews_per_page);
+
+		if ($max_page > 1) : // Are there comments to navigate through?
+		?>
+
 			<div class="row">
 				<div class="col-md-12">
 					<!-- Pagination -->
 					<div class="pagination-container margin-top-30">
 						<ul class="pagination">
-							
-								<?php
-								global $wp_rewrite;
-								$page = get_query_var('cpage');
-								if (!$page) {
-									$page = 1;
-								}
-								$max_page = get_comment_pages_count($comments);
-							
-								$defaults = array(
-									//'base'         => add_query_arg('cpage', '%#%'),
-									'format'       => '',
-									'total'        => $max_page,
-									'current'      => $page,
-									'echo'         => true,
-									'type'         => 'list',
-									'prev_text'         => '«',
-									'next_text'         => '»',
-									'add_fragment' => '#comments',
-								);
-								if ($wp_rewrite->using_permalinks()) {
-									$defaults['base'] = user_trailingslashit(trailingslashit(get_permalink()) . $wp_rewrite->comments_pagination_base . '-%#%', 'commentpaged');
-								}
 
-								$args       = wp_parse_args($args, $defaults);
-								$page_links = paginate_links($args); 
-								echo $page_links;
-								?>
-							
-							</ul>
+							<?php
+							global $wp_rewrite;
+
+							$defaults = array(
+								//'base'         => add_query_arg('cpage', '%#%'),
+								'format'       => '',
+								'total'        => $max_page,
+								'current'      => $page,
+								'echo'         => true,
+								'type'         => 'list',
+								'prev_text'         => '«',
+								'next_text'         => '»',
+								'add_fragment' => '#listing-reviews',
+							);
+							if ($wp_rewrite->using_permalinks()) {
+								$defaults['base'] = user_trailingslashit(trailingslashit(get_permalink()) . $wp_rewrite->comments_pagination_base . '-%#%', 'commentpaged');
+							} else {
+								$defaults['base'] = add_query_arg('cpage', '%#%');
+							}
+
+							$page_links = paginate_links($defaults);
+							echo $page_links;
+							?>
+
+						</ul>
 					</div>
 				</div>
 			</div>
 			<div class="clearfix"></div>
 			<!-- Pagination / End -->
-		<?php endif; // Check for comment navigation. 
+		<?php endif; // Check for comment navigation.
 		?>
 	</div>
+
+	<?php if ($max_page > 1) : // Add smooth scroll only if there's pagination ?>
+	<script>
+	jQuery(document).ready(function($) {
+		// Check if we're coming from a pagination link
+		if(window.location.hash === '#listing-reviews') {
+			// Smooth scroll to reviews section
+			setTimeout(function() {
+				$('html, body').animate({
+					scrollTop: $("#listing-reviews").offset().top - 100
+				}, 500);
+			}, 100);
+		}
+	});
+	</script>
+	<?php endif; ?>
+
 <?php endif; // Check for have_comments().
 
 
@@ -164,29 +196,6 @@ else :
 			'post_id' => $post->ID,
 		));
 	}
-
-	if ($usercomment) {
-
-		$show_form = false;
-		//check if has pending
-		$usercomment_pending = get_comments(array(
-			'user_id' => get_current_user_id(),
-			'post_id' => $post->ID,
-			'status'  => 'hold'
-		));
-
-		if ($usercomment_pending) { ?>
-			<div class="notification notice margin-bottom-50 margin-top-50">
-				<p><?php esc_html_e("You've already reviewed this listing, your review is waiting for approval.", 'listeo_core'); ?></p>
-			</div>
-
-		<?php } else { ?>
-			<div class="notification notice margin-bottom-50 margin-top-50">
-				<p><?php esc_html_e("Thank you for your review.", 'listeo_core'); ?></p>
-			</div>
-		<?php }
-	}
-
 	if (get_option('listeo_reviews_only_booked')) {
 
 		$table_name = $wpdb->prefix . 'bookings_calendar';
@@ -215,10 +224,42 @@ else :
 				<div id="add-review" class="notification notice margin-bottom-50 margin-top-50">
 					<p><?php esc_html_e("Only guests who have booked can leave a review.", 'listeo_core'); ?></p>
 				</div>
-		<?php
+			<?php
 			}
 		}
 	}
+
+	// Check for anonymous user pending review (from URL parameters)
+	if (!is_user_logged_in() && isset($_GET['unapproved']) && isset($_GET['moderation-hash'])) {
+		$show_form = false; ?>
+		<div class="notification notice margin-bottom-50 margin-top-50">
+			<p><?php esc_html_e("Thank you for your review! It is now pending approval and will be visible once approved.", 'listeo_core'); ?></p>
+		</div>
+	<?php }
+
+	if ($usercomment) {
+
+		$show_form = false;
+		//check if has pending
+		$usercomment_pending = get_comments(array(
+			'user_id' => get_current_user_id(),
+			'post_id' => $post->ID,
+			'status'  => 'hold'
+		));
+
+		if ($usercomment_pending) { ?>
+			<div class="notification notice margin-bottom-50 margin-top-50">
+				<p><?php esc_html_e("You've already reviewed this listing, your review is waiting for approval.", 'listeo_core'); ?></p>
+			</div>
+
+		<?php } else { ?>
+			<div class="notification notice margin-bottom-50 margin-top-50">
+				<p><?php esc_html_e("Thank you for your review.", 'listeo_core'); ?></p>
+			</div>
+		<?php }
+	}
+
+
 
 
 

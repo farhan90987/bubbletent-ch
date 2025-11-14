@@ -289,32 +289,45 @@ class Coupon {
      * @param string $cart_item_key The cart item key.
      * @param array $values Cart item values.
      */
-    public function add_coupon_info_to_order_item( $item, $cart_item_key, $values ): void {
-        if ( ! empty( $values[ self::DOKAN_COUPON_META_KEY ] ) ) {
-            $total_discount = 0;
-            $limit_reached = false;
-            $coupon_info = $values[ self::DOKAN_COUPON_META_KEY ];
+	public function add_coupon_info_to_order_item( $item, $cart_item_key, $values ): void {
+		if ( ! empty( $values[ self::DOKAN_COUPON_META_KEY ] ) ) {
+			$total_discount = 0.0;
+			$limit_reached = false;
+			$coupon_info = $values[ self::DOKAN_COUPON_META_KEY ];
 
-            foreach ( $coupon_info as $key => $coupon ) {
-                $total_discount += $coupon['discount'];
-                $product = wc_get_product( $item->get_product_id() );
-                $total_product_price = $product->get_price() * $values['quantity'];
+			foreach ( $coupon_info as $key => $coupon ) {
+				// ensure discount is numeric
+				$coupon_discount = isset( $coupon['discount'] ) ? floatval( $coupon['discount'] ) : 0.0;
+				$total_discount += $coupon_discount;
 
-                if ( $limit_reached ) {
-                    $coupon_info[ $key ]['discount'] = 0;
-                }
+				$product = wc_get_product( $item->get_product_id() );
 
-                if ( $total_discount > $total_product_price && $limit_reached === false ) {
-                    $remain_discount = $total_discount - $total_product_price;
-                    $adjusted_discount = max( $coupon['discount'] - $remain_discount, 0 );
-                    $coupon_info[ $key ]['discount'] = $adjusted_discount;
-                    $limit_reached = true;
-                }
-            }
+				// Ensure product price and quantity are numeric before multiplication
+				$product_price = $product ? floatval( $product->get_price() ) : 0.0;
+				$quantity = isset( $values['quantity'] ) ? floatval( $values['quantity'] ) : 0.0;
 
-            $item->add_meta_data( self::DOKAN_COUPON_META_KEY, $coupon_info, true );
-        }
-    }
+				$total_product_price = $product_price * $quantity;
+
+				if ( $limit_reached ) {
+					$coupon_info[ $key ]['discount'] = 0;
+					continue;
+				}
+
+				if ( $total_discount > $total_product_price && $limit_reached === false ) {
+					$remain_discount = $total_discount - $total_product_price;
+					$adjusted_discount = max( $coupon_discount - $remain_discount, 0 );
+					$coupon_info[ $key ]['discount'] = $adjusted_discount;
+					$limit_reached = true;
+				} else {
+					// keep the numeric discount value normalized
+					$coupon_info[ $key ]['discount'] = $coupon_discount;
+				}
+			}
+
+			$item->add_meta_data( self::DOKAN_COUPON_META_KEY, $coupon_info, true );
+		}
+	}
+
 
     /**
      * Remove coupon info from a cart item when a coupon is removed.

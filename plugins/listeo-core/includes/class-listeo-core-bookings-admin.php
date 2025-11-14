@@ -29,7 +29,7 @@ class Bookings_Admin_List extends WP_List_Table {
 	 *
 	 * @return mixed
 	 */
-	public static function get_bookings( $args, $page_number ) {
+	public  function get_bookings( $args, $page_number ) {
 
 		global $wpdb;
 		if(!$page_number) {
@@ -38,11 +38,7 @@ class Bookings_Admin_List extends WP_List_Table {
 		
 		$sql = "SELECT * FROM {$wpdb->prefix}bookings_calendar";
 
-		if ( ! empty( $_REQUEST['orderby'] ) ) {
-			$sql .= ' ORDER BY ' . esc_sql( $_REQUEST['orderby'] );
-			$sql .= ! empty( $_REQUEST['order'] ) ? ' ' . esc_sql( $_REQUEST['order'] ) : ' ASC';
-		}
-
+	
 		$sql .= ' WHERE `status` IS NOT NULL';
 		
 		if( isset($args['listing_id']) && !empty($args['listing_id']) ){
@@ -58,7 +54,46 @@ class Bookings_Admin_List extends WP_List_Table {
 		if( isset($args['status']) && !empty($args['status']) ){
 			$sql .= ' AND `status` = "' . esc_sql( $args['status'] ).'"';
 		}
-
+		if (!empty($_REQUEST['orderby'])) {
+			$orderby = $_REQUEST['orderby'];
+			//get key from the sortable_columns
+			switch ($orderby) {
+				case 'Client':
+					$orderby = "bookings_author";
+					break;
+				case 'Owner':
+					$orderby = "owner_id";
+					break;
+				case 'Listing':
+					$orderby = "listing_id";
+					break;
+				case 'Start date':
+					$orderby = "date_start";
+					break;
+				case 'End date':
+					$orderby = "date_end";
+					break;
+				case 'Type':
+					$orderby = "type";
+					break;
+				case 'Status':
+					$orderby = "status";
+					break;
+				case 'Created':
+					$orderby = "created";
+					break;
+				case 'Price':
+					$orderby = "price";
+					break;
+					
+				
+				default:
+					# code...
+					break;
+			}
+			$sql .= ' ORDER BY ' . esc_sql($orderby);
+			$sql .= !empty($_REQUEST['order']) ? ' ' . esc_sql($_REQUEST['order']) : ' ASC';
+		}
 		if ( isset($args['id']) ) 
 		{			// for single one
 			$sql .= ' AND `ID` = ' . esc_sql( $args['id'] );
@@ -71,8 +106,9 @@ class Bookings_Admin_List extends WP_List_Table {
 			$sql .= ' OFFSET ' . ( $page_number - 1 ) * $args['per_page'];
 
 		}
+	
 
-
+		//'SELECT * FROM wp_bookings_calendar ORDER BY ID desc WHERE `status` IS NOT NULL LIMIT 20 OFFSET 0'
 		$result = $wpdb->get_results( $sql, 'ARRAY_A' );
 
 		return $result;
@@ -284,7 +320,7 @@ class Bookings_Admin_List extends WP_List_Table {
 		}
 
 		?><label class="screen-reader-text" for="date"><?php
-			_e( 'Filter by date', 'wp_theatre' ); 
+			_e( 'Filter by date', 'listeo_core' ); 
 		?></label>
 		<select id="date" name="date"><?php
 			foreach( $options as $key => $value ) {
@@ -509,11 +545,11 @@ class Bookings_Admin_List extends WP_List_Table {
 						//get post type to show proper date
 						$listing_type = get_post_meta($booking[0]['listing_id'],'_listing_type', true);
 
-						if($listing_type == 'rental') { ?>
+						if(listeo_get_booking_type($booking[0]['id']) == 'rental') { ?>
 							<li class="highlighted" id="date"><?php echo date_i18n(get_option( 'date_format' ), strtotime($booking[0]['date_start'])); ?> - <?php echo date_i18n(get_option( 'date_format' ), strtotime($booking[0]['date_end'])); ?></li>
 						
 						<?php } 
-							else if($listing_type == 'service') { 
+							else if(listeo_get_booking_type($booking[0]['id']) == 'service') { 
 						?>
 							<li class="highlighted" id="date">
 								<?php echo date_i18n(get_option( 'date_format' ), strtotime($booking[0]['date_start'])); ?> <?php esc_html_e('at','listeo_core'); ?> 
@@ -572,7 +608,7 @@ class Bookings_Admin_List extends WP_List_Table {
 
 				
 				if (
-				 	(isset($details->childrens) && $details->childrens > 0)
+				 	(isset($details->children) && $details->children > 0)
 				 	||
 				 	(isset($details->adults) && $details->adults > 0)
 				 	||
@@ -582,8 +618,8 @@ class Bookings_Admin_List extends WP_List_Table {
 					<h5><?php esc_html_e('Booking Details:', 'listeo_core'); ?></h5>
 					<ul class="booking-list">
 						<li class="highlighted" id="details">
-						<?php if( isset($details->childrens) && $details->childrens > 0) : ?>
-							<?php printf( _n( '%d Child', '%s Children', $details->childrens, 'listeo_core' ), $details->childrens ) ?>
+						<?php if( isset($details->children) && $details->children > 0) : ?>
+							<?php printf( _n( '%d Child', '%s Children', $details->children, 'listeo_core' ), $details->children ) ?>
 						<?php endif; ?>
 						<?php if( isset($details->adults)  && $details->adults > 0) : ?>
 							<?php printf( _n( '%d Guest', '%s Guests', $details->adults, 'listeo_core' ), $details->adults ) ?>
@@ -842,7 +878,8 @@ $service = json_decode(stripslashes($_POST['comment']['service']));
 				// } 
 				
 			}
-			$booking = Bookings_Admin_List::get_bookings( $args, NULL);
+			$bookings_admin_list = new Bookings_Admin_List();
+			$booking = $bookings_admin_list->get_bookings($args, NULL);
 
 			?>
 			<pre><?php   ?></pre>

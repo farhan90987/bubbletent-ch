@@ -6,6 +6,27 @@
  * @return string
  */
 
+
+remove_action('woocommerce_cart_collaterals', 'woocommerce_cross_sell_display');
+
+add_filter('user_has_cap', 'listeo_order_pay_without_login', 9999, 3);
+
+function listeo_order_pay_without_login($allcaps, $caps, $args)
+{
+    if (isset($caps[0], $_GET['key'])) {
+        if ($caps[0] == 'pay_for_order') {
+            $order_id = isset($args[2]) ? $args[2] : null;
+            $order = wc_get_order($order_id);
+            if ($order) {
+                $allcaps['pay_for_order'] = true;
+            }
+        }
+    }
+    return $allcaps;
+}
+
+add_filter('woocommerce_order_email_verification_required', '__return_false', 9999);
+
 add_filter('woocommerce_enqueue_styles', '__return_empty_array');
 
 add_filter('loop_shop_columns', 'loop_columns', 999);
@@ -59,6 +80,7 @@ add_filter('woocommerce_product_data_store_cpt_get_products_query', 'listeo_excl
 
 function listeo_exclude_listing_booking($query, $query_vars)
 {
+    
     if (!empty($query_vars['exclude_listing_booking'])) {
         $query['tax_query'][] = array(
             'taxonomy' => 'product_type',
@@ -167,13 +189,25 @@ function listeo_remove_packages_pre_get_posts_query($q)
         'operator' => 'NOT IN'
     );
     $tax_query[] = array(
+        'taxonomy' => 'product_type',
+        'field' => 'slug',
+        'terms' => array('listing_package_subscription'), // Don't display products in the clothing category on the shop page.
+        'operator' => 'NOT IN'
+    );
+    $tax_query[] = array(
         'taxonomy' => 'product_cat',
         'field' => 'slug',
         'terms' => array('listeo-booking'), // Don't display products in the clothing category on the shop page.
         'operator' => 'NOT IN'
     );
-    //listeo_write_log($q);
-
+ 
+    $tax_query[] = array(
+        'taxonomy' => 'product_type',
+        'field' => 'slug',
+        'terms' => array('listeo_ad_campaign'), // Don't display products in the clothing category on the shop page.
+        'operator' => 'NOT IN'
+    );
+ 
     $q->set('tax_query', $tax_query);
 }
 add_action('woocommerce_product_query', 'listeo_remove_packages_pre_get_posts_query');
@@ -203,6 +237,27 @@ function exclude_woocommerce_widget_product_categories($widget_args)
 }
 add_filter('woocommerce_product_categories_widget_dropdown_args', 'exclude_woocommerce_widget_product_categories');
 add_filter('woocommerce_product_categories_widget_args', 'exclude_woocommerce_widget_product_categories');
+
+add_filter('get_terms', 'exclude_listeo_booking_from_shop_page', 10, 3);
+function exclude_listeo_booking_from_shop_page($terms, $taxonomies, $args)
+{
+    $new_terms = array();
+    // check if $taxonomies is not NULL
+    if (!is_array($taxonomies)) {
+        return $terms;
+    }
+    // if it is a product category and on the shop page
+    if (in_array('product_cat', $taxonomies) && !is_admin() && is_shop()) {
+        foreach ($terms as $key => $term) {
+            if (!in_array($term->slug, array('listeo-booking'))) { //pass the slug name here
+                $new_terms[] = $term;
+            }
+        }
+        $terms = $new_terms;
+    }
+    return $terms;
+}
+
 
 add_filter('woocommerce_products_widget_query_args', function ($query_args) {
     // Set HERE your product category slugs 

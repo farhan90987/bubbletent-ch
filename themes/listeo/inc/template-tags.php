@@ -389,7 +389,7 @@ function listeo_author_info_box(  ) {
 		if ( ! empty( $display_name ) ) {
 			$author_details .= '<h4>' . $display_name . '</h4>';
 		}
-		$author_details .= '<a href="'. $user_posts .'">'.esc_html__('View all posts by','listeo').' '. $display_name . '</a>';  
+		//$author_details .= '<a href="'. $user_posts .'">'.esc_html__('View all posts by','listeo').' '. $display_name . '</a>';  
 
 		
 		$author_details .= '<p>'.nl2br( $user_description ).'</p>';
@@ -450,6 +450,7 @@ endif;
 
 add_filter( 'get_the_archive_title', 'listeo_archive_titles');
 function listeo_archive_titles( $title ) {
+	
     if( is_post_type_archive('listing') ) {
         $title = get_option('listeo_properties_archive_title','Listings');
     }
@@ -466,6 +467,7 @@ function listeo_archive_titles( $title ) {
 
     return $title;
 };
+
 
 function listeo_set_author_archive_limit( $query ) {
     if ( is_admin() || ! $query->is_main_query() )
@@ -541,32 +543,58 @@ function listeo_date_time_wp_format() {
 
 function listeo_date_time_wp_format_php() {
 	/**
-	 * Add date format into javascript
+	 * Convert WordPress date format to PHP DateTime format
 	 */
 	$dateFormat = get_option('date_format');
 	$dateFromatSeparator = get_option('listeo_date_format_separator','/');
-	$timeFormat = get_option( 'time_format' );
-	$rawFormat = $dateFormat;
-	$dateFormat = explode( '-', $dateFormat);
-
-	preg_match_all( '/[a-zA-Z]+/', $rawFormat, $output );
-
-	foreach ($output[0] as $dataType) 
-
-	{
-
-		switch ( strtolower( $dataType) )
-		{
-			case 'j' : $convertedType[] =  'd'; break;
-			case 'y' : $convertedType[] =  'Y'; break;
-			case 'd' : $convertedType[] =  'd'; break;
-			case 'm' : $convertedType[] =  'm'; break;
-			case 'f' : $convertedType[] =  'm'; break;
-		}
-
-	}
-
-	$convertedData = $convertedType[0] . $dateFromatSeparator . $convertedType[1] . $dateFromatSeparator . $convertedType[2];
 	
-	return $convertedData;
+	// Enhanced WordPress to PHP DateTime format conversion
+	$format_map = array(
+		// Day
+		'd' => 'd', // Day of the month, 2 digits with leading zeros
+		'j' => 'j', // Day of the month without leading zeros
+		'l' => 'l', // Full textual representation of the day of the week
+		'D' => 'D', // Textual representation of a day, three letters
+		'S' => 'S', // English ordinal suffix for the day of the month
+		
+		// Month  
+		'm' => 'm', // Numeric representation of a month, with leading zeros
+		'n' => 'n', // Numeric representation of a month, without leading zeros
+		'F' => 'F', // Full textual representation of a month
+		'M' => 'M', // Short textual representation of a month, three letters
+		
+		// Year
+		'Y' => 'Y', // Full numeric representation of a year, 4 digits
+		'y' => 'y', // 2 digit representation of a year
+		
+		// Time (in case it's included)
+		'g' => 'g', // 12-hour format of an hour without leading zeros
+		'G' => 'G', // 24-hour format of an hour without leading zeros  
+		'h' => 'h', // 12-hour format of an hour with leading zeros
+		'H' => 'H', // 24-hour format of an hour with leading zeros
+		'i' => 'i', // Minutes with leading zeros
+		's' => 's', // Seconds, with leading zeros
+		'a' => 'a', // Lowercase Ante meridiem and Post meridiem
+		'A' => 'A', // Uppercase Ante meridiem and Post meridiem
+	);
+	
+	// Convert WordPress format to PHP format
+	$converted_format = $dateFormat;
+	foreach ($format_map as $wp_format => $php_format) {
+		$converted_format = str_replace($wp_format, $php_format, $converted_format);
+	}
+	
+	// Fallback: only if conversion actually failed (empty result)
+	if (empty($converted_format)) {
+		// Common fallback formats based on date separator
+		if (strpos($dateFormat, '/') !== false) {
+			$converted_format = 'm/d/Y';
+		} elseif (strpos($dateFormat, '-') !== false) {
+			$converted_format = 'Y-m-d';
+		} else {
+			$converted_format = 'd/m/Y';
+		}
+	}
+	
+	return $converted_format;
 }

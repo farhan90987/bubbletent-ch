@@ -164,7 +164,7 @@ if ( $nav ) {
 //              exit;
 // find the ID of our menu names so we can import them into default menu locations and also the widget positions below.
 $menus    = wp_get_post_terms( 'nav_menu' );
-//var_dump($menus);
+
 $menu_ids = array();
 
 foreach ( $menus as $menu ) {
@@ -203,6 +203,24 @@ foreach ( $all_options as $name => $value ) {
 	if ( stristr( $name, 'realteo_property_submit_option' ) ) {
 		$my_options[ $name ] = maybe_unserialize( $value );
 	}
+	if ( stristr( $name, 'pp_body_font' ) ) {
+		$my_options[ $name ] = maybe_unserialize( $value );
+	}
+	if ( stristr( $name, 'pp_headers_font' ) ) {
+		$my_options[ $name ] = maybe_unserialize( $value );
+	}
+	if ( stristr( $name, 'pp_menu_font' ) ) {
+		$my_options[ $name ] = maybe_unserialize( $value );
+	}
+	if ( stristr( $name, 'listeo_side_social_icons' ) ) {
+		$my_options[ $name ] = maybe_unserialize( $value );
+	}
+	if ( stristr( $name, 'pp_footericons' ) ) {
+		$my_options[ $name ] = maybe_unserialize( $value );
+	}
+
+	
+
 	if ( stristr( $name, '_widget_area_manager' ) ) {
 		$my_options[ $name ] = $value;
 	}
@@ -223,6 +241,7 @@ foreach ( $all_options as $name => $value ) {
 		unset($my_options[ $name ]['nav_menu_locations']);
 	}
 	unset($my_options['pp_listeo_sidebar']);
+	unset($my_options['elementor_active_kit']);
 	unset($my_options['listeo_maps_api']);
 	unset($my_options['listeo_maps_api_server']);
 	unset($my_options['listeo_mapbox_access_token']);
@@ -230,9 +249,11 @@ foreach ( $all_options as $name => $value ) {
 	unset($my_options['listeo_recaptcha_sitekey']);
 	unset($my_options['listeo_recaptcha_secretkey']);
 	unset($my_options['listeo_sidebar_search_form_fields']);
+	unset($my_options['listeo_header_form_fields']);
 	unset($my_options['listeo_search_on_half_map_form_fields']);
 	unset($my_options['listeo_search_on_home_page_form_fields']);
 	unset($my_options['listeo_search_on_homebox_page_form_fields']);
+	unset($my_options['_transient__listeo_activation_redirect']);
 }
 
 $my_options['woocommerce_cart_redirect_after_add'] = 'yes';

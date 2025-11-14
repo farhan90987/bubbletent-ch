@@ -72,14 +72,14 @@ function listeo_register_required_plugins() {
 	        'name'                  => 'Listeo Core',
 	        'slug'                  => 'listeo-core',
 	        'source'                => get_template_directory() . '/plugins/listeo-core.zip',
-	        'version'               => '1.8.14',
+	        'version'               => '2.0.6',
 	        'required'              => true,
 	    ),	 	    
 	    array(
 	        'name'                  => 'Listeo Shortcodes',
 	        'slug'                  => 'listeo-shortcodes',
 	        'source'                => get_template_directory() . '/plugins/listeo-shortcodes.zip',
-	        'version'               => '1.5.16',
+	        'version'               => '1.5.22',
 	        'required'              => true,
 	    ),	    
 	 
@@ -87,7 +87,7 @@ function listeo_register_required_plugins() {
 	        'name'                  => 'Listeo Forms and Fields Editor',
 	        'slug'                  => 'listeo-forms-and-fields-editor',
 	        'source'                => get_template_directory() . '/plugins/listeo-forms-and-fields-editor.zip',
-	        'version'               => '1.6.4',
+	        'version'               => '2.0.5',
 	        'required'              => true,
 	    ),	     
 	    array(
@@ -154,49 +154,31 @@ function listeo_register_required_plugins() {
 			'name'      			=> esc_html__('Contact Form 7 - Dynamic Text Extension','listeo' ),
 			'slug'      			=> 'contact-form-7-dynamic-text-extension',
 			'required'  			=> false,
-		),		
-
-
-	);
-
-if(get_option('listeo_page_builder') == 'js_composer'){
-	$plugins[] = 
-		   array(
-	        'name'                  => 'WPBakery Page Builder', // The plugin name
-	        'slug'                  => 'js_composer', // The plugin slug (typically the folder name)
-	        'source'                => get_template_directory() . '/plugins/js_composer.zip', // The plugin source
-	        'required'              => false, // If false, the plugin is only 'recommended' instead of required
-	        'version'               => '6.10.0', // E.g. 1.0.0. If set, the active plugin must be this version or higher, otherwise a notice is presented
-	        'force_activation'      => false, // If true, plugin is activated upon theme activation and cannot be deactivated until theme switch
-	        'force_deactivation'    => false, // If true, plugin is deactivated upon theme switch, useful for theme-specific plugins
-	        'external_url'      => '', // If set, overrides default API URL and points to an external URL
-	    );
-
-	    $plugins[] = array(
-	        'name'                  => 'Listeo VC Bridge',
-	        'slug'                  => 'listeo-vc-bridge',
-	        'source'                => get_template_directory() . '/plugins/listeo-vc-bridge.zip',
-	        'version'               => '1.5.15',
-	        'required'              => true,
-		);
-
-} else {
-
-$plugins[] = 
-	    array(
+		),	
+		 array(
 			'name'      			=> 'Elementor',
 			'slug'      			=> 'elementor',
 			'required'  			=> true,
 		
-	 );
-   $plugins[] = array(
+		 ), array(
 	        'name'                  => 'Listeo Elementor',
 	        'slug'                  => 'listeo-elementor',
 	        'source'                => get_template_directory() . '/plugins/listeo-elementor.zip',
-	        'version'               => '1.4.2',
+	        'version'               => '2.0.4',
 	        'required'              => true,
-	    ); 
-}
+	    )
+		// array(
+		// 	'name'               => 'Listeo SMS Notifications', 
+		// 	'slug'               => 'listeo-sms',
+		// 	'source'             => get_template_directory() . '/plugins/listeo-sms.zip',
+		// 	'required'           => false,
+		// 	'version'            => '1.1.8',
+		// ),
+
+
+	);
+
+
 
 	/*
 	 * Array of configuration settings. Amend each line as needed.

@@ -21,6 +21,55 @@
 
 	}	
 
+	add_action( 'cmb2_admin_init', 'listeo_register_metabox_page_search' );
+	/**
+	 * Hook in and add a demo metabox. Can only happen on the 'cmb2_admin_init' or 'cmb2_init' hook.
+	 */
+	function listeo_register_metabox_page_search() {
+
+		$searchforms = array();
+		if(function_exists('listeo_get_search_forms_dropdown')){
+			
+		
+			$prefix = 'listeo_page_search_';
+			$listeo_page_search_mb = new_cmb2_box( array(
+				'id'            => $prefix . '_fullwidth',
+				'title'         => esc_html__( 'Search Form Selection', 'listeo' ),
+				'object_types'  => array( 'page', ), // Post type
+				'show_on'      => array( 
+				'key' => 'page-template',
+				'value' => 'template-listings-map.php',
+				),
+				'priority'   => 'low',
+			) );
+			$search_forms_full = listeo_get_search_forms_dropdown('fullwidth');
+			$listeo_page_search_mb->add_field( array(
+				'name' => esc_html__( 'Search Form for Page Template', 'listeo' ),
+				'id'   => $prefix . 'search_form',
+				'type' => 'select',
+				'options' => $search_forms_full,
+			) );
+			$listeo_page_search_split_mb = new_cmb2_box( array(
+				'id'            => $prefix . '_split',
+				'title'         => esc_html__( 'Search Form Selection', 'listeo' ),
+				'object_types'  => array( 'page', ), // Post type
+				'show_on'      => array( 
+				'key' => 'page-template',
+				'value' => 'template-split-map.php',
+				) ,
+				'priority'   => 'low',
+			) );
+			$search_forms_split = listeo_get_search_forms_dropdown('split');
+		$listeo_page_search_split_mb->add_field( array(
+				'name' => esc_html__( 'Search Form Split Map Template', 'listeo' ),
+				'id'   => $prefix . 'search_form',
+				'type' => 'select',
+				'options' => $search_forms_split,
+			) );
+		}
+	}
+
+
 	add_action( 'cmb2_admin_init', 'listeo_register_metabox_commingsoon' );
 	/**
 	 * Hook in and add a demo metabox. Can only happen on the 'cmb2_admin_init' or 'cmb2_init' hook.
@@ -75,8 +124,8 @@
 	}
 
 
-	add_action( 'cmb2_admin_init', 'listeo_register_metabox_property' );
-	function listeo_register_metabox_property() {
+	add_action( 'cmb2_admin_init', 'listeo_register_metabox_product' );
+	function listeo_register_metabox_product() {
 		$prefix = 'listeo_';
 		
 		/* get the registered sidebars */
@@ -90,31 +139,33 @@
 		/**
 		 * Sample metabox to demonstrate each field type included
 		 */
-		$listeo_property_mb = new_cmb2_box( array(
-			'id'            => $prefix . 'property_sb_metabox',
-			'title'         => esc_html__( 'Listeo Property Options', 'listeo' ),
-			'object_types'  => array( 'property' ), // Post type
+		$listeo_product_mb = new_cmb2_box( array(
+			'id'            => $prefix . 'product_sb_metabox',
+			'title'         => esc_html__( 'Listeo Package Details', 'listeo' ),
+			'object_types'  => array( 'product' ), // Post type
 			'priority'   => 'high',
 		) );
 
-		$listeo_property_mb->add_field( array( 
-				'name'    => esc_html__( 'Selected Sidebar', 'listeo' ),
-				'id'      => $prefix . 'sidebar_select',
-				'type'    => 'select',
-				'default' => 'sidebar-property',
-				'options' => $sidebars,
-			) );
-		$listeo_property_mb->add_field( array(
-			'name'    => esc_html__( 'Slider Image field', 'listeo' ),
-			'desc'    => esc_html__( 'Upload an image that will be used in Properties slider (recomended min 1920px wide). If not set, Post Thumbnail will be used instead.', 'listeo' ),
-			'id'      => $prefix . 'slider_property_image',
-			'type'    => 'file',
-			// Optional:
-			'options' => array(
-				'url' => false, // Hide the text input for the url
+		$product_group_id = $listeo_product_mb->add_field(array(
+			'id'          => 'package_items_group',
+			'type'        => 'group',
+			'repeatable'  => true,
+			'options'     => array(
+				'group_title'   => 'Item {#}',
+				'add_button'    => 'Add Another Item do this list',
+				'remove_button' => 'Remove Item',
+				'closed'        => true,  // Repeater fields closed by default - neat & compact.
+				'sortable'      => true,  // Allow changing the order of repeated groups.
 			),
-
-		) );
+		));
+		
+		$listeo_product_mb->add_group_field($product_group_id, array(
+			'name' => 'List item title',
+			'desc' => 'Enter the item title.',
+			'id'   => 'title',
+			'type' => 'text',
+		));
+	
 	}
 
 
@@ -232,6 +283,18 @@ $listeo_post_mb->add_field( array(
 		) );
 
 		$listeo_page_mb->add_field( array(
+			'name' => esc_html__('Header with Search Form', 'listeo' ),
+			'desc' => esc_html__( 'Enables header with search form for this page, even if it disabled in global settings', 'listeo' ),
+			'id'   => $prefix . 'full_width_header',
+			'type' => 'select',
+		    'default' => 'use_global',
+		    'options'     => array(
+				'use_global' 	=> esc_html__( 'Use Global setting from Customizer', 'listeo' ),
+				'disable' 		=> esc_html__( 'Disable', 'listeo' ),
+				'enable'     	=> esc_html__( 'Enable, always', 'listeo' ),
+			),
+		) );
+		$listeo_page_mb->add_field( array(
 			'name' => esc_html__( 'Sticky header', 'listeo' ),
 			'desc' => esc_html__( 'Enables sticky header for this page, even if it disabled in global settings', 'listeo' ),
 			'id'   => $prefix . 'sticky_header',
@@ -244,18 +307,18 @@ $listeo_post_mb->add_field( array(
 			),
 		) );
 
-		$listeo_page_mb->add_field( array(
-			'name' => esc_html__( 'Full-width header', 'listeo' ),
-			'desc' => esc_html__( 'Enables full-width header for this page, even if it disabled in global settings', 'listeo' ),
-			'type' => 'select',
-		    'default' => 'use_global',
-		    'options'     => array(
-				'use_global' 	=> esc_html__( 'Use Global setting from Customizer', 'listeo' ),
-				'disable' 		=> esc_html__( 'Disable', 'listeo' ),
-				'enable'     	=> esc_html__( 'Enable, always', 'listeo' ),
-			),
-			//'default' => get_option('listeo_header_layout'),
-		) );
+		// $listeo_page_mb->add_field( array(
+		// 	'name' => esc_html__( 'Full-width header', 'listeo' ),
+		// 	'desc' => esc_html__( 'Enables full-width header for this page, even if it disabled in global settings', 'listeo' ),
+		// 	'type' => 'select',
+		//     'default' => 'use_global',
+		//     'options'     => array(
+		// 		'use_global' 	=> esc_html__( 'Use Global setting from Customizer', 'listeo' ),
+		// 		'disable' 		=> esc_html__( 'Disable', 'listeo' ),
+		// 		'enable'     	=> esc_html__( 'Enable, always', 'listeo' ),
+		// 	),
+		// 	//'default' => get_option('listeo_header_layout'),
+		// ) );
 
 
 

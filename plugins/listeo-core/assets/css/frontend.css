@@ -48,6 +48,93 @@ body .no-slots-information {
  	float: none;
  	width:100%;
  }
+
+/* Next Page Button for Map Container */
+.listeo-next-page-button {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: #fff;
+    color: #222;
+    padding: 10px 15px;
+    border-radius: 50px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    transition: all 0.3s ease;
+
+    border: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#dark-mode .listeo-next-page-button {
+	background: #222; color: #fff;
+}
+
+.listeo-next-page-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.listeo-next-page-button .button-text {
+    flex: 1;
+    line-height: 1.3;
+}
+
+.listeo-next-page-button i {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+/* Responsive design for mobile */
+@media (max-width: 768px) {
+    .listeo-next-page-button {
+        
+    }
+}
+
+/* Ensure button doesn't interfere with map controls */
+#map-container {
+    position: relative;
+}
+
+.listeo-next-page-button:active {
+    transform: translateY(0);
+}
+
+/* Calendar daily prices styling */
+.fc-day-price {
+    position: absolute;
+    bottom: 2px;
+    right: 4px;
+    font-size: 10px;
+    font-weight: bold;
+    color: #666;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 1px 3px;
+    border-radius: 2px;
+    line-height: 1;
+    z-index: 10;
+}
+
+.fc-daygrid-day:hover .fc-day-price {
+    color: #333;
+    background: rgba(255, 255, 255, 1);
+}
+
+/* Responsive price display */
+@media (max-width: 768px) {
+    .fc-day-price {
+        font-size: 9px;
+        bottom: 1px;
+        right: 2px;
+        padding: 1px 2px;
+    }
+}
  a.book-now.button.inactive {
  	background-color:gray; 
  }
@@ -69,7 +156,16 @@ body .no-slots-information {
 }
 
 .add-listing-section .switch_box{
-	min-height: 70px
+	min-height: 67px
+}
+
+.switch_box.inside-switch{
+	height: auto;
+	min-height: auto;
+	position: absolute;
+	right: 21px;
+	top: 5px;	
+	zoom:0.7;
 }
 /* Switch 1 Specific Styles Start */
 
@@ -172,4 +268,700 @@ input[type="checkbox"].switch_1{
 
 .daterangepicker.daterangepicker td.disabled, .daterangepicker.daterangepicker option.disabled {
 	background-color: #f4f4f4;
+}
+
+
+.first-slot-taken:not(.active, .in-range, :hover) {
+	color: #c37979 !important;
+}
+
+.first-slot-taken:not(.active, .in-range, :hover)::before {
+	border-top: 34px solid #ffe9e9;
+	border-right: 32px solid transparent;
+	mix-blend-mode: normal;
+	color: #c37979;
+}
+
+.daterangepicker .calendar-table td.available.second-slot-taken:not(.active, .in-range, :hover) {
+	background: #e0f6dd;
+	color: #6a9664;
+}
+
+.daterangepicker .calendar-table td.available.second-slot-taken:not(.active, .in-range, :hover):before {
+	border-bottom: 34px solid #ffe9e9;
+	border-left: 36px solid transparent;
+	mix-blend-mode: normal;
+}
+
+/* FullCalendar Daily Prices Styles */
+.fc-day-price {
+	position: absolute;
+	bottom: 2px;
+	right: 4px;
+	font-size: 14px;
+	font-weight: 400;
+	background: rgba(76, 175, 80, 0.1);
+	color: #2E7D32;
+	padding: 1px 4px;
+	border-radius: 3px;
+	line-height: 1.2;
+	z-index: 3;
+}
+
+.fc-daygrid-day {
+	position: relative;
+}
+
+.fc-daygrid-day:hover .fc-day-price,
+.fc-day-price:hover {
+	background: rgba(76, 175, 80, 0.1);
+	color: #2E7D32;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+	.fc-day-price {
+		font-size: 10px;
+		padding: 1px 2px;
+		bottom: 1px;
+		right: 2px;
+	}
+}
+
+.fc-toolbar-chunk { filter: grayscale(100%); }
+
+/* Custom Search Fields Grouped Styles */
+.custom-search-fields-container {
+	margin-top: 15px;
+}
+
+.custom-search-group {
+	border: none;
+	width: 100%;
+	border-radius: 4px;
+	margin-bottom: 20px;
+	background: transparent;
+	display: flex;
+	flex-direction: column;
+}
+
+.custom-search-group-header {
+	padding: 0;
+	background: transparent;
+	cursor: pointer;
+	transition: background-color 0.3s ease;
+	position: relative;
+	border-radius: 4px;
+}
+
+.custom-search-group-header:hover {
+
+}
+
+.custom-search-group-title {
+	margin: 0;
+	font-size: 14px;
+	font-weight: 600;
+	color: #333;
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 8px;
+	margin-bottom: 10px;
+}
+
+.custom-search-group-title .toggle-icon {
+	font-size: 14px;
+	transition: transform 0.3s ease;
+	color: var(--listeo-primary-color);
+}
+
+.custom-search-group-content {
+	padding: 15px;
+	background: transparent;
+	border: 1px solid #e0e0e0;
+	border-radius: 5px;
+	padding-bottom: 20px;
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+	opacity:1;
+	transition: opacity 0.2s;
+}
+.custom-search-group-content:not(.collapsed) {
+	
+}
+.custom-search-group-content.collapsed {
+	opacity: 0;
+}
+
+
+.custom-search-field-wrapper {
+	margin-bottom: 15px;
+	float: none;
+	min-height: 45px;
+}
+
+.checkboxes .bootstrap-select li { padding: 0;}
+
+.custom-search-field-wrapper:last-child {
+	margin-bottom: 0;
+}
+
+
+.custom-search-field-wrapper .col-md-12:last-child { margin-bottom: 0; padding-bottom: 0;}
+.custom-search-field-wrapper .col-md-12 { margin: 0; padding: 0;}
+
+.custom-search-field-wrapper  .checkboxes.one-in-row label { margin-top: 2px !important;}
+
+/* Panel-specific styles for split map layout */
+.custom-fields-panel {
+	margin-right: 10px;
+}
+
+.custom-fields-panel a {
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.custom-fields-panel .panel-dropdown-content {
+	min-width: 150px;
+}
+
+.custom-fields-panel .custom-search-field-wrapper {
+	
+/* overflow: hidden; */
+	
+min-height: 75px;
+
+}
+
+.panel-dropdown-content .custom-search-field-wrapper {display: flex;flex-direction: column;}
+.custom-fields-panel {display: flex;flex-direction: column;}
+
+.panel-dropdown-content .custom-search-field-wrapper .checkboxes label:before {
+	top: 0px
+}
+.custom-fields-panel .custom-search-field-wrapper:last-child {
+	border-bottom: none;
+}
+.panel-dropdown  .custom-search-field-wrapper .checkboxes:not('.one-in-row') label::before { top: 20px}
+
+
+.custom-search-field-wrapper .bootstrap-select.btn-group, 
+.custom-search-field-wrapper input, 
+.custom-search-field-wrapper textarea, 
+.custom-search-field-wrapper input, 
+.custom-search-field-wrapper select, 
+.custom-search-field-wrapper.chosen-container {
+	margin-bottom: 0 !important;
+	border-radius: 4px;
+}
+.main-search-inner .custom-search-field-wrapper .bootstrap-select.btn-group { border: 1px solid #e0e0e0; }
+
+	
+.main-search-input  .panel-dropdown .custom-search-field-wrapper  a {
+	line-height: 20px;
+	height: auto;
+	padding: 7px 10px;
+	vertical-align: middle;
+} 
+
+.custom-search-field-label { 
+	font-weight: 600; font-size: 14px; color: #333; 
+}
+
+.custom-search-field-label:not(.panel-dropdown-content .custom-search-field-label) { 
+	margin-top: 12px !important;
+}
+
+.panel-dropdown-content  .custom-search-field-wrapper:first-of-type .custom-search-field-label,
+.custom-search-group-content .custom-search-field-wrapper:first-of-type .custom-search-field-label {
+	margin-top: 0 !important;
+}
+
+#dark-mode .custom-search-field-label {color: #fff; }
+
+/* Dark Mode */
+/* Dark Mode CSS - Color-related properties only */
+
+body#dark-mode #cmb2-metabox-front-end-post-form h5 {
+    border-bottom: 1px solid #333;
+}
+
+body#dark-mode .slider-disabled,
+body#dark-mode .disabled .rangeslider {
+    -webkit-filter: grayscale(100%) brightness(0.7);
+    -moz-filter: grayscale(100%) brightness(0.7);
+    -ms-filter: grayscale(100%) brightness(0.7);
+    -o-filter: grayscale(100%) brightness(0.7);
+}
+
+body#dark-mode .fc-day-price {
+    color: #ccc;
+    background: rgba(40, 40, 40, 0.9);
+}
+
+body#dark-mode .fc-daygrid-day:hover .fc-day-price {
+    color: #fff;
+    background: rgba(60, 60, 60, 1);
+}
+
+body#dark-mode a.book-now.button.inactive {
+    background-color: #555;
+}
+
+body#dark-mode input[type="checkbox"].switch_1 {
+    background: #444;
+}
+
+body#dark-mode input[type="checkbox"].switch_1:after {
+    background: #222;
+}
+
+body#dark-mode #chart-date-range-enabler,
+body#dark-mode #booking-date-range-enabler {
+    background: #333;
+    color: #ccc;
+    background-color: #333;
+}
+
+body#dark-mode .second-slot-taken:not(.disabled)::before {
+    border-bottom: 34px solid #2a2a2a;
+}
+
+body#dark-mode .first-slot-taken:not(.disabled)::before {
+    border-top: 34px solid #2a2a2a;
+}
+
+body#dark-mode .daterangepicker.daterangepicker td.disabled, 
+body#dark-mode .daterangepicker.daterangepicker option.disabled {
+    background-color: #2a2a2a;
+}
+
+body#dark-mode .first-slot-taken:not(.active, .in-range, :hover) {
+    color: #e87979 !important;
+}
+
+body#dark-mode .first-slot-taken:not(.active, .in-range, :hover)::before {
+    border-top: 34px solid #4a2a2a;
+    color: #e87979;
+}
+
+body#dark-mode .daterangepicker .calendar-table td.available.second-slot-taken:not(.active, .in-range, :hover) {
+    background: #2a4a2a;
+    color: #8cc77f;
+}
+
+body#dark-mode .daterangepicker .calendar-table td.available.second-slot-taken:not(.active, .in-range, :hover):before {
+    border-bottom: 34px solid #4a2a2a;
+}
+
+/* FullCalendar Daily Prices Dark Mode */
+body#dark-mode .fc-day-price {
+    background: rgba(76, 175, 80, 0.2);
+    color: #81C784;
+}
+
+body#dark-mode .fc-daygrid-day:hover .fc-day-price,
+body#dark-mode .fc-day-price:hover {
+    background: rgba(76, 175, 80, 0.3);
+    color: #A5D6A7;
+}
+
+body#dark-mode .fc-toolbar-chunk { 
+    filter: grayscale(100%) brightness(0.8); 
+}
+
+/* Custom Search Fields Dark Mode */
+body#dark-mode .custom-search-group-title {
+    color: #e0e0e0;
+}
+
+body#dark-mode .custom-search-group-title .toggle-icon {
+    color: var(--listeo-primary-color, #4CAF50);
+}
+
+body#dark-mode .custom-search-group-content {
+    background: transparent;
+    border: 1px solid #444;
+}
+
+body#dark-mode .main-search-inner .custom-search-field-wrapper .bootstrap-select.btn-group { 
+    border: 1px solid #444; 
+}
+
+/* Additional dark mode improvements */
+body#dark-mode .woocommerce-order-pay.user_not_logged_in .woocommerce-info {
+    background: #333;
+    color: #e0e0e0;
+}
+
+/* Form inputs and selects */
+body#dark-mode .custom-search-field-wrapper input,
+body#dark-mode .custom-search-field-wrapper textarea,
+body#dark-mode .custom-search-field-wrapper select {
+    background: #333;
+    color: #e0e0e0;
+    border-color: #555;
+}
+
+body#dark-mode .custom-search-field-wrapper input::placeholder,
+body#dark-mode .custom-search-field-wrapper textarea::placeholder {
+    color: #999;
+}
+
+/* Bootstrap select dark mode */
+body#dark-mode .bootstrap-select .dropdown-toggle {
+    background: #333;
+    color: #e0e0e0;
+    border-color: #555;
+}
+
+body#dark-mode .bootstrap-select .dropdown-menu {
+    background: #333;
+    border-color: #555;
+}
+
+body#dark-mode .bootstrap-select .dropdown-menu li a {
+    color: #e0e0e0;
+}
+
+body#dark-mode .bootstrap-select .dropdown-menu li a:hover {
+    background: #444;
+    color: #fff;
+}
+
+/* Panel dropdown dark mode */
+body#dark-mode .custom-fields-panel .panel-dropdown-content {
+    background: #333;
+    border-color: #555;
+}
+
+body#dark-mode .custom-fields-panel a {
+    color: #e0e0e0;
+}
+
+/* Checkbox styling for dark mode */
+body#dark-mode .checkboxes label {
+    color: #e0e0e0;
+}
+
+body#dark-mode .sign-in-form label input[type="checkbox"] {
+    background: #333;
+    border-color: #555;
+}
+
+/* User Location Marker Styles */
+.listeo-user-location-marker {
+    background: transparent !important;
+    border: none !important;
+}
+
+.user-location-container {
+    position: relative;
+    z-index: 1000;
+}
+
+.user-location-marker {
+    width: 15px;
+    height: 15px;
+    background: #007cba;
+    border-radius: 50%;
+    box-shadow: 0 2px 10px rgba(0, 124, 186, 0.4);
+    position: relative;
+    animation: userLocationPulse 2s infinite;
+    border: 3px solid white;
+}
+
+/* Pulsing animation for user location marker */
+@keyframes userLocationPulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 2px 10px rgba(0, 124, 186, 0.4);
+    }
+    50% {
+        transform: scale(1.1);
+        box-shadow: 0 4px 20px rgba(0, 124, 186, 0.6);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 2px 10px rgba(0, 124, 186, 0.4);
+    }
+}
+
+/* User location popup styles */
+.user-location-popup {
+    text-align: center;
+    min-width: 200px;
+}
+
+.user-location-popup strong {
+    color: #007cba;
+    font-size: 14px;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.user-location-popup small {
+    color: #666;
+    font-size: 11px;
+}
+
+/* Dark mode styles for user location */
+body#dark-mode .user-location-marker {
+    background: #4a9eff;
+    box-shadow: 0 2px 10px rgba(74, 158, 255, 0.4);
+}
+
+body#dark-mode .user-location-popup strong {
+    color: #4a9eff;
+}
+
+body#dark-mode .user-location-popup small {
+    color: #ccc;
+}
+
+@media (max-width: 768px) {
+    .user-location-marker {
+        width: 12px;
+        height: 12px;
+    }
+}
+
+.listeo-user-location-marker {pointer-events: none !important;}
+
+/* Message Attachments Styling */
+.message-attachment-upload {
+    margin: 15px 0 0 0;
+    padding: 0px 0;
+    border-top: none;
+}
+
+.attachment-label {
+    display: inline-block;
+    padding: 4px 15px;
+    background: #f4f4f4;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.3s;
+    position: relative;
+}
+
+/* Custom tooltip */
+.attachment-label:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 1000;
+    margin-bottom: 5px;
+}
+
+.attachment-label:hover::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #333;
+    margin-bottom: -4px;
+    z-index: 1000;
+}
+
+.attachment-label:hover {
+    background: #e8e8e8;
+}
+
+.attachment-label i {
+    margin-right: 8px;
+    color: #666;
+}
+
+.attachment-info {
+    display: block;
+    font-size: 11px;
+    color: #999;
+    margin-top: 2px;
+    line-height: 1.2;
+}
+
+.attachment-preview {
+    display: inline-block;
+    padding: 8px 12px;
+    background: #e8f4f8;
+    border-radius: 4px;
+    position: relative;
+}
+
+.attachment-preview-name {
+    color: #333;
+    margin-right: 10px;
+}
+
+.remove-attachment {
+    color: #ff6b6b;
+    margin-left: 10px;
+}
+
+.remove-attachment:hover {
+    color: #ff5252;
+}
+
+.attachment-upload-progress {
+    margin-top: 10px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 6px;
+    background: #f0f0f0;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--primary-color, #3498db);
+    width: 0;
+    transition: width 0.3s;
+}
+
+/* Message bubble attachments */
+.message-attachment {
+    margin-top: 10px;
+}
+
+.attachment-link {
+    display: inline-block;
+    padding: 3px 12px;
+    background: #f8f8f8;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    text-decoration: none;
+    color: #333;
+    transition: all 0.3s;
+}
+
+.attachment-link:hover {
+    background: #fff;
+    border-color: var(--primary-color, #3498db);
+    color: var(--primary-color, #3498db);
+    text-decoration: none;
+}
+
+.attachment-link i {
+    margin-right: 8px;
+    font-size: 16px;
+}
+
+.attachment-name {
+    font-weight: 500;
+}
+
+.attachment-size {
+    color: #999;
+    font-size: 12px;
+    margin-left: 5px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .attachment-label span {
+        display: none;
+    }
+
+    .attachment-label i {
+        margin-right: 0;
+    }
+}
+
+/* Load More Button Styles */
+.listeo-load-more-container {
+	text-align: center;
+	padding: 40px 0;
+	clear: both;
+}
+
+.listeo-load-more-container .fa-spinner {
+    margin-right: 0 !important;
+}
+
+.listeo-load-more-button {
+	display: inline-block;
+	background: var(--listeo-primary-color);
+	color: #fff;
+	padding: 7px 20px !important;
+	border-radius: 4px;
+	border: none;
+	font-size: 16px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.3s ease;
+	box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.listeo-load-more-button:hover {
+	background: var(--listeo-primary-color);
+	color: #fff;
+}
+
+#listeo-listings-container .clearfix {display: none;}
+
+/* .listeo-load-more-button:disabled {
+	background: #ccc;
+	cursor: not-allowed;
+	opacity: 0.6;
+}
+
+.listeo-load-more-button:disabled:hover {
+	transform: none;
+	box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+} */
+
+.listeo-load-more-button .button-text {
+	display: inline-block;
+}
+
+.listeo-load-more-button .loading-icon {
+	margin-left: 8px;
+	color: #fff;
+}
+
+.listeo-load-more-button.loading {
+	opacity: 0.8;
+	cursor: wait;
+}
+
+.listeo-load-more-button.loading .loading-icon {
+	color: #fff;
+}
+
+/* Loading state for listings container during append */
+#listeo-listings-container.loading {
+	position: relative;
+}
+
+#listeo-listings-container.loading:after {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(255,255,255,0);
+	z-index: 1;
+}
+
+/* Hide pagination when infinite scroll is active */
+.listeo-infinite-scroll-active .pagination-container {
+	display: none !important;
 }

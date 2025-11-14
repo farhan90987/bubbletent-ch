@@ -6,7 +6,25 @@ if (!defined('ABSPATH')) {
 
 $template_loader = new Listeo_Core_Template_Loader;
 
-get_header(get_option('header_bar_style', 'standard'));
+
+$full_width_header = get_post_meta($post->ID, 'listeo_full_width_header', TRUE);
+if (empty($full_width_header)) {
+	$full_width_header = 'use_global';
+};
+
+
+if ($full_width_header == 'use_global') {
+	$full_width_header = get_option('listeo_full_width_header');
+}
+
+
+if ($full_width_header == 'enable' || $full_width_header == 'true') {
+	get_header('fullwidth');
+} else {
+	get_header(get_option('header_bar_style', 'standard'));
+}
+
+
 
 $layout = get_option('listeo_single_layout', 'right-sidebar');
 $mobile_layout = get_option('listeo_single_mobile_layout', 'right-sidebar');
@@ -49,6 +67,15 @@ if (in_array('option_gallery', $packages_disabled_modules)) {
 	}
 } else {
 	$load_gallery = true;
+}
+
+$load_pricing_menu = false;
+if (in_array('option_pricing_menu', $packages_disabled_modules)) {
+	if ($package && $package->has_listing_pricing_menu() == 1) {
+		$load_pricing_menu = true;
+	}
+} else {
+	$load_pricing_menu = true;
 }
 
 $load_video = false;
@@ -101,38 +128,27 @@ if (have_posts()) :
 						$currency_symbol = Listeo_Core_Listing::get_currency_symbol($currency_abbr);
 
 					?>
-						<span id="classifieds_price"><?php if ($currency_postion == "before") {
-															echo $currency_symbol;
-														}
-														echo get_post_meta($post->ID, '_classifieds_price', true);
-														if ($currency_postion == "after") {
-															echo $currency_symbol;
-														} ?></span>
+						<span id="classifieds_price">
+							<?php
+							$classifieds_price = get_post_meta($post->ID, '_classifieds_price', true);
+							if (is_numeric($classifieds_price) && $currency_postion == "before") {
+								echo $currency_symbol;
+							}
+
+							if (is_numeric($classifieds_price)) {
+								$decimals = get_option('listeo_number_decimals', 2);
+								echo number_format_i18n(get_post_meta($post->ID, '_classifieds_price', true), $decimals);
+							} else {
+								echo $classifieds_price;
+							}
+
+							if (is_numeric($classifieds_price) && $currency_postion == "after") {
+								echo $currency_symbol;
+							} ?>
+						</span>
 					<?php } ?>
 
-					<?php if ($listing_type != 'classifieds') { ?>
-
-
-						<?php if (get_post_meta($post->ID, '_verified', true) == 'on') : ?>
-							<!-- Verified Badge -->
-							<div class="verified-badge with-tip" data-tip-content="<?php esc_html_e('Listing has been verified and belongs to the business owner or manager.', 'listeo_core'); ?>">
-								<i class="sl sl-icon-check"></i> <?php esc_html_e('Verified Listing', 'listeo_core') ?>
-							</div>
-							<?php else :
-
-
-							if (get_option('listeo_claim_page_button')) {
-								$claim_page = get_option('listeo_claim_page'); ?>
-								<div class="claim-badge with-tip" data-tip-content="<?php esc_html_e('Click to claim this listing.', 'listeo_core'); ?>">
-									<?php
-									$link =  add_query_arg('subject', get_permalink(), get_permalink($claim_page)); ?>
-
-									<a href="<?php echo $link; ?>"><i class="sl sl-icon-question"></i> <?php esc_html_e('Not verified. Claim this listing!', 'listeo_core') ?></a>
-								</div>
-						<?php }
-
-						endif; ?>
-					<?php 	} ?>
+					<?php $template_loader->get_template_part('single-partials/single-listing', 'claim');  ?>
 					<?php get_sidebar('listing'); ?>
 					<?php do_action('listeo/single-listing/sidebar-end'); ?>
 				</div>
@@ -154,14 +170,18 @@ if (have_posts()) :
 						<div class="listing-titlebar-title">
 							<div class="listing-titlebar-tags">
 								<?php
+								// First try to display global listing_category
 								$terms = get_the_terms(get_the_ID(), 'listing_category');
 								if ($terms && !is_wp_error($terms)) :
 									$categories = array();
 									foreach ($terms as $term) {
+										// Create URL with only the child term slug, not full hierarchy
+										$term_url = home_url(untrailingslashit(get_option('listeo_listing_category_rewrite_slug', 'listing-category')) . '/' . $term->slug . '/');
 
 										$categories[] = sprintf(
 											'<a href="%1$s">%2$s</a>',
-											esc_url(get_term_link($term->slug, 'listing_category')),
+											esc_url(get_term_link($term->term_id, 'listing_category')),
+
 											esc_html($term->name)
 										);
 									}
@@ -173,39 +193,26 @@ if (have_posts()) :
 									</span>
 								<?php endif; ?>
 								<?php
-								switch ($listing_type) {
-									case 'service':
-										$type_terms = get_the_terms(get_the_ID(), 'service_category');
-										$taxonomy_name = 'service_category';
-										break;
-									case 'rental':
-										$type_terms = get_the_terms(get_the_ID(), 'rental_category');
-										$taxonomy_name = 'rental_category';
-										break;
-									case 'event':
-										$type_terms = get_the_terms(get_the_ID(), 'event_category');
-										$taxonomy_name = 'event_category';
-										break;
-									case 'classifieds':
-										$type_terms = get_the_terms(get_the_ID(), 'classifieds_category');
-										$taxonomy_name = 'classifieds_category';
-										break;
-									case 'region':
-										$type_terms = get_the_terms(get_the_ID(), 'region');
-										$taxonomy_name = 'region';
-										break;
+								// Now get the type-specific taxonomy
+								$taxonomy_name = listeo_get_listing_taxonomy(get_the_ID());
 
-									default:
-										# code...
-										break;
+								// If it's the same as listing_category, we already displayed it
+								if ($taxonomy_name !== 'listing_category') {
+									$type_terms = get_the_terms(get_the_ID(), $taxonomy_name);
+								} else {
+									$type_terms = false;
 								}
 								if (isset($type_terms)) {
 									if ($type_terms && !is_wp_error($type_terms)) :
 										$categories = array();
 										foreach ($type_terms as $term) {
+											// Create URL with only the child term slug, not full hierarchy
+											$taxonomy_base = str_replace('_', '-', $taxonomy_name);
+											$term_url = home_url($taxonomy_base . '/' . $term->slug . '/');
+
 											$categories[] = sprintf(
 												'<a href="%1$s">%2$s</a>',
-												esc_url(get_term_link($term->slug, $taxonomy_name)),
+												esc_url($term_url),
 												esc_html($term->name)
 											);
 										}
@@ -218,9 +225,38 @@ if (have_posts()) :
 								<?php endif;
 								}
 								?>
-								<?php if (get_the_listing_price_range()) : ?>
+
+								<?php
+								// Display region tags
+								$region_terms = get_the_terms(get_the_ID(), 'region');
+								if ($region_terms && !is_wp_error($region_terms)) :
+									$region_categories = array();
+									foreach ($region_terms as $term) {
+										// Create URL with only the child term slug, not full hierarchy
+										$region_url = home_url('region/' . $term->slug . '/');
+
+										$region_categories[] = sprintf(
+											'<a href="%1$s">%2$s</a>',
+											esc_url($region_url),
+											esc_html($term->name)
+										);
+									}
+
+									$region_categories_list = join(", ", $region_categories);
+								?>
+									<span class="listing-tag">
+										<?php echo ($region_categories_list) ?>
+									</span>
+								<?php endif; ?>
+
+								<?php
+
+
+								if (get_the_listing_price_range()) : ?>
 									<span class="listing-pricing-tag"><i class="fa fa-<?php echo esc_attr(get_option('listeo_price_filter_icon', 'tag')); ?>"></i><?php echo get_the_listing_price_range(); ?></span>
 								<?php endif;
+
+
 
 								do_action('listeo/single-listing/tags');
 
@@ -240,14 +276,11 @@ if (have_posts()) :
 
 
 							if (!get_option('listeo_disable_reviews')) {
-								$rating = get_post_meta($post->ID, 'listeo-avg-rating', true);
-								if (!$rating && get_option('listeo_google_reviews_instead')) {
-									$reviews = listeo_get_google_reviews($post);
-									if (!empty($reviews['result']['reviews'])) {
-										$rating = number_format_i18n($reviews['result']['rating'], 1);
-										$rating = str_replace(',', '.', $rating);
-									}
-								}
+								// Use the new combined rating display function
+								$rating_data = listeo_get_rating_display($post->ID);
+								$rating = $rating_data['rating'];
+								$number = $rating_data['count'];
+								
 								if (isset($rating) && $rating > 0) :
 									$rating_type = get_option('listeo_rating_type', 'star');
 									if ($rating_type == 'numerical') { ?>
@@ -256,13 +289,10 @@ if (have_posts()) :
 										<?php } else { ?>
 											<div class="star-rating" data-rating="<?php echo $rating; ?>">
 											<?php } ?>
-											<?php $number = listeo_get_reviews_number($post->ID);
-											if (!get_post_meta($post->ID, 'listeo-avg-rating', true) && get_option('listeo_google_reviews_instead')) {
-												$number = $reviews['result']['user_ratings_total'];
-											}  ?>
 
 											<div class="rating-counter"><a href="#listing-reviews"><strong><?php esc_attr(round($rating, 1));
-																											printf("%0.1f", $rating);  ?></strong> (<?php printf(_n('%s review', '%s reviews', $number, 'listeo_core'), number_format_i18n($number));  ?>)</a></div>
+																											printf("%0.1f", $rating);  ?></strong>
+																											<?php if($number > 0) { ?> (<?php printf(_n('%s review', '%s reviews', $number, 'listeo_core'), number_format_i18n($number));  ?>) <?php } ?></a></div>
 											</div>
 									<?php endif;
 							} ?>
@@ -310,14 +340,20 @@ if (have_posts()) :
 								<?php if (class_exists('WeDevs_Dokan') && get_post_meta(get_the_ID(), '_store_section_status', 1)) : ?><li><a href="#listing-store"><?php esc_html_e('Store', 'listeo_core'); ?></a></li><?php endif; ?>
 								<?php $video = get_post_meta($post->ID, '_video', true);
 								if ($load_video && !empty($video)) :  ?>
-									<li><a href="#listing-video"><?php esc_html_e('Video', 'listeo_core'); ?></a></li>
+									<li id="listing-nav-video"><a href="#listing-video"><?php esc_html_e('Video', 'listeo_core'); ?></a></li>
 								<?php endif;
 								$latitude = get_post_meta($post->ID, '_geolocation_lat', true);
 								if (!empty($latitude)) :  ?>
-									<li><a href="#listing-location"><?php esc_html_e('Location', 'listeo_core'); ?></a></li>
+									<li id="listing-nav-location"><a href="#listing-location"><?php esc_html_e('Location', 'listeo_core'); ?></a></li>
+								<?php
+								endif; ?>
+								<?php
+								$faq_status = get_post_meta($post->ID, '_faq_status', true);
+								if ($faq_status == 'on') : ?>
+									<li id="listing-nav-faq"><a href="#listing-faq"><?php esc_html_e('FAQ', 'listeo_core'); ?></a></li>
 									<?php
 								endif;
-								if ($listing_type != 'classifieds') {
+								if (!listeo_core_listing_type_supports($listing_type, 'classifieds_price')) {
 									if ($load_reviews && !get_option('listeo_disable_reviews')) {
 										$reviews = get_comments(array(
 											'post_id' => $post->ID,
@@ -384,16 +420,24 @@ if (have_posts()) :
 							$template_loader->get_template_part('single-partials/single-listing', 'video');
 						} ?>
 						<?php $template_loader->get_template_part('single-partials/single-listing', 'location');  ?>
+						<?php do_action('listeo/single-listing/after-location'); ?>
 
 						<?php
-						if (in_array($listing_type, array('rental', 'service'))) {
-							if (get_option('listeo_show_calendar_single')) {
-								$template_loader->get_template_part('single-partials/single-listing', 'calendar');
-							}
-						} ?>
+						if (listeo_core_listing_type_supports($listing_type, 'booking') && get_option('listeo_show_calendar_single')) {
+							$template_loader->get_template_part('single-partials/single-listing', 'calendar');
+						}
+						$template_loader->get_template_part('single-partials/single-listing', 'faq');
+						$template_loader->get_template_part('single-partials/single-listing', 'other-listings');
+						?>
 						<?php
 						if (get_option('listeo_related_listings_status')) {
 							$template_loader->get_template_part('single-partials/single-listing', 'related');
+						}
+						?>
+						<?php
+						// Nearby Listings - Separate Independent Feature
+						if (get_option('listeo_nearby_listings_status')) {
+							$template_loader->get_template_part('single-partials/single-listing', 'nearby');
 						}
 						?>
 						<?php $template_loader->get_template_part('single-partials/single-listing', 'google-reviews'); ?>
@@ -414,7 +458,7 @@ if (have_posts()) :
 						<?php
 						$classifieds_price = get_post_meta($post->ID, '_classifieds_price', true);
 
-						if ($listing_type == 'classifieds' && !empty($classifieds_price)) {
+					if ($listing_type == 'classifieds' && !empty($classifieds_price)) {
 
 							$currency_abbr = get_option('listeo_currency');
 							$currency_postion = get_option('listeo_currency_postion');
@@ -422,36 +466,23 @@ if (have_posts()) :
 
 						?>
 							<span id="classifieds_price">
-								<?php if ($currency_postion == "before") {
+								<?php if (is_numeric($classifieds_price) && $currency_postion == "before") {
 									echo $currency_symbol;
 								}
-								$decimals = get_option('listeo_number_decimals', 2);
-								echo number_format_i18n(get_post_meta($post->ID, '_classifieds_price', true), $decimals);
-								if ($currency_postion == "after") {
+								$classifieds_price = get_post_meta($post->ID, '_classifieds_price', true);
+								if (is_numeric($classifieds_price)) {
+									$decimals = get_option('listeo_number_decimals', 2);
+									echo number_format_i18n(get_post_meta($post->ID, '_classifieds_price', true), $decimals);
+								} else {
+									echo $classifieds_price;
+								}
+
+								if (is_numeric($classifieds_price) && $currency_postion == "after") {
 									echo $currency_symbol;
 								} ?>
 							</span>
 						<?php } ?>
-						<?php if ($listing_type != 'classifieds') { ?>
-
-							<?php if (get_post_meta($post->ID, '_verified', true) == 'on') : ?>
-								<!-- Verified Badge -->
-								<div class="verified-badge with-tip" data-tip-content="<?php esc_html_e('Listing has been verified and belongs to the business owner or manager.', 'listeo_core'); ?>">
-									<i class="sl sl-icon-check"></i> <?php esc_html_e('Verified Listing', 'listeo_core') ?>
-								</div>
-								<?php else :
-								if (get_option('listeo_claim_page_button')) {
-									$claim_page = get_option('listeo_claim_page'); ?>
-									<div class="claim-badge with-tip" data-tip-content="<?php esc_html_e('Click to claim this listing.', 'listeo_core'); ?>">
-										<?php
-										$link =  add_query_arg('subject', get_permalink(), get_permalink($claim_page)); ?>
-
-										<a href="<?php echo $link; ?>"><i class="sl sl-icon-question"></i> <?php esc_html_e('Not verified. Claim this listing!', 'listeo_core') ?></a>
-									</div>
-							<?php }
-
-							endif; ?>
-						<?php } ?>
+						<?php $template_loader->get_template_part('single-partials/single-listing', 'claim');  ?>
 						<?php get_sidebar('listing'); ?>
 						<?php do_action('listeo/single-listing/sidebar-end'); ?>
 					</div>

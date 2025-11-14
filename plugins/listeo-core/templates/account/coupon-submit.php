@@ -198,49 +198,60 @@ if (isset($data->coupon_data)) {
 
 					<div class="col-md-12">
 						<p class="form-field customer_email_field ">
-							<label for="customer_email"><?php esc_html_e('Allowed emails', 'listeo_core'); ?></label>
-							<input type="email" class="" style="" name="customer_email" id="customer_email" value="" placeholder="<?php esc_html_e('No restrictions', 'listeo_core'); ?>" multiple="multiple">
+							<label for="customer_email"><?php esc_html_e('Allowed emails ', 'listeo_core'); ?><i class="tip" data-tip-content="<?php esc_html_e('Separate by coma', 'listeo_core'); ?>"></i></label>
+							<?php
+							if (isset($coupon_id) && !empty($coupon_id)) {
+								$customer_emails = get_post_meta($coupon_id, 'customer_email', true);
+							} else {
+								$customer_emails  = array();
+							}
+							if(!is_array($customer_emails)){
+								$customer_emails = explode(',', $customer_emails);
+							}
+							$saved_emails = implode(', ', $customer_emails);
+							?>
+							<input type="text" class="" style="" name="customer_email" id="customer_email" value="<?php echo $saved_emails; ?>" placeholder="<?php esc_html_e('No restrictions', 'listeo_core'); ?>">
 						</p>
 					</div>
 
 				</div>
 			</div>
 
-			<div class="add-listing-section row">
-				<div class="add-listing-headline">
-					<h3><i class="sl sl-icon-doc"></i> <?php esc_html_e('Usage limits', 'listeo_core'); ?></h3>
-				</div>
-				<div id="usage_limit_coupon_data" class="panel woocommerce_options_panel" style="display: block;">
-					<div class="col-md-6">
-						<p class="form-field usage_limit_field ">
-							<label for="usage_limit"><?php esc_html_e('Usage limit per coupon', 'listeo_core'); ?></label>
-							<input type="number" class="short" style="" name="usage_limit" id="usage_limit" value="<?php if (isset($coupon_id)) echo esc_html(get_post_meta($coupon_id, 'usage_limit', true)); ?>" placeholder="<?php esc_html_e('Unlimited usage', 'listeo_core'); ?>" step="1" min="0">
-						</p>
+			<div class=" add-listing-section row">
+						<div class="add-listing-headline">
+							<h3><i class="sl sl-icon-doc"></i> <?php esc_html_e('Usage limits', 'listeo_core'); ?></h3>
+						</div>
+						<div id="usage_limit_coupon_data" class="panel woocommerce_options_panel" style="display: block;">
+							<div class="col-md-6">
+								<p class="form-field usage_limit_field ">
+									<label for="usage_limit"><?php esc_html_e('Usage limit per coupon', 'listeo_core'); ?></label>
+									<input type="number" class="short" style="" name="usage_limit" id="usage_limit" value="<?php if (isset($coupon_id)) echo esc_html(get_post_meta($coupon_id, 'usage_limit', true)); ?>" placeholder="<?php esc_html_e('Unlimited usage', 'listeo_core'); ?>" step="1" min="0">
+								</p>
+							</div>
+
+							<div class="col-md-6">
+								<p class="form-field usage_limit_per_user_field ">
+									<label for="usage_limit_per_user"><?php esc_html_e('Usage limit per user', 'listeo_core'); ?></label>
+									<input type="number" class="short" style="" name="usage_limit_per_user" id="usage_limit_per_user" value="<?php if (isset($coupon_id)) echo esc_html(get_post_meta($coupon_id, 'usage_limit_per_user', true)); ?>" placeholder="<?php esc_html_e('Unlimited usage', 'listeo_core'); ?>" step="1" min="0">
+								</p>
+							</div>
+						</div>
 					</div>
 
-					<div class="col-md-6">
-						<p class="form-field usage_limit_per_user_field ">
-							<label for="usage_limit_per_user"><?php esc_html_e('Usage limit per user', 'listeo_core'); ?></label>
-							<input type="number" class="short" style="" name="usage_limit_per_user" id="usage_limit_per_user" value="<?php if (isset($coupon_id)) echo esc_html(get_post_meta($coupon_id, 'usage_limit_per_user', true)); ?>" placeholder="<?php esc_html_e('Unlimited usage', 'listeo_core'); ?>" step="1" min="0">
-						</p>
-					</div>
-				</div>
-			</div>
+					<div class="divider margin-top-40"></div>
 
-			<div class="divider margin-top-40"></div>
+					<p>
 
-			<p>
+						<input type="hidden" name="listeo_core_form" value="submit_coupon" />
 
-				<input type="hidden" name="listeo_core_form" value="submit_coupon" />
+						<button type="submit" value="Submit Coupon" name="submit_coupon" class="button margin-top-20"><i class="fa fa-arrow-circle-right"></i>
+							<?php if (isset($data->coupon_edit) && $data->coupon_edit) {
+								esc_html_e('Update Coupon', 'listeo_core');
+							} else {
+								esc_html_e('Submit Coupon', 'listeo_core');
+							} ?>
+						</button>
 
-				<button type="submit" value="Submit Coupon" name="submit_coupon" class="button margin-top-20"><i class="fa fa-arrow-circle-right"></i>
-					<?php if (isset($data->coupon_edit) && $data->coupon_edit) {
-						esc_html_e('Update Coupon', 'listeo_core');
-					} else {
-						esc_html_e('Submit Coupon', 'listeo_core');
-					} ?>
-				</button>
-
-			</p>
+					</p>
 
 	</form>

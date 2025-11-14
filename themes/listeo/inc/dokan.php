@@ -24,6 +24,8 @@ function dokan_remove_seller_info_tab($array)
     unset($array['seller']);
     return $array;
 }
+
+//dokan_geolocation_product_dropdown_categories_args
 function listeo_exclude_dokan_listing_booking($query_vars)
 {
 
@@ -161,7 +163,7 @@ function my_categories_widget_register()
 add_action('widgets_init', 'my_categories_widget_register');
 
 
-
+ 
 function listeo_dokan_product_cat_dropdown_args($args){
     $exluded = get_option('listeo_dokan_exclude_categories');   
     if(is_array($exluded)){
@@ -172,5 +174,42 @@ function listeo_dokan_product_cat_dropdown_args($args){
     return $args;
 }
 add_filter('dokan_product_cat_dropdown_args', 'listeo_dokan_product_cat_dropdown_args', 10);
+add_filter('dokan_geolocation_product_dropdown_categories_args', 'listeo_dokan_product_cat_dropdown_args', 10);
+add_filter('woocommerce_product_categories_widget_dropdown_args', 'listeo_dokan_product_cat_dropdown_args', 10);
+add_filter('woocommerce_product_categories_widget_args', 'listeo_dokan_product_cat_dropdown_args', 10);
 
+
+
+add_filter(
+    'woocommerce_products_widget_query_args',
+    function ($query_args) {
+        // Set HERE your product category slugs 
+        $exluded = get_option('listeo_dokan_exclude_categories');
+        if (is_array($exluded)) {
+            $query_args['tax_query'] = array(array(
+                'taxonomy' => 'product_cat',
+                'field'    => 'id',
+                'terms'    => $exluded,
+                'operator' => 'NOT IN'
+            ));
+        }
+        return $query_args;
+    },
+    10,
+    1
+);
+
+
+add_filter('dokan_category_widget', function ($args) {
+    // ID of the category to exclude
+
+    $exluded = get_option('listeo_dokan_exclude_categories');
+    
+    if (is_array($exluded)) {
+        $args['exclude'] = $exluded;
+        return $args;
+    }
+
+    return $args;
+});
 ?>

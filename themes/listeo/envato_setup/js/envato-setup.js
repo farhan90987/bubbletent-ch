@@ -183,13 +183,28 @@ var EnvatoWizard = (function($){
 
                 var $check = $current_node.find('input:checkbox');
                 if($check.is(':checked')) {
-                    console.log("Doing 2 "+current_item);
+                    console.log("ENVATO DEBUG: Starting import for:", current_item);
+                    console.time("ENVATO_IMPORT_" + current_item);
                     // process htis one!
                     jQuery.post(envato_setup_params.ajaxurl, {
                         action: 'envato_setup_content',
                         wpnonce: envato_setup_params.wpnonce,
                         content: current_item
-                    }, ajax_callback).fail(ajax_callback);
+                    }, function(response) {
+                        console.timeEnd("ENVATO_IMPORT_" + current_item);
+                        console.log("ENVATO DEBUG: Response for", current_item, ":", response);
+                        ajax_callback(response);
+                    }).fail(function(xhr, textStatus, errorThrown) {
+                        console.timeEnd("ENVATO_IMPORT_" + current_item);
+                        console.error("ENVATO DEBUG: AJAX FAILED for", current_item, {
+                            status: xhr.status,
+                            statusText: xhr.statusText,
+                            responseText: xhr.responseText,
+                            textStatus: textStatus,
+                            errorThrown: errorThrown
+                        });
+                        ajax_callback(xhr);
+                    });
                 }else{
                     $current_node.find('span').text("Skipping");
                     setTimeout(find_next,300);

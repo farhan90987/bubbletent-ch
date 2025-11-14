@@ -807,6 +807,12 @@ address {
   }
 }
 
+@media (min-width: 1700px) {
+  .container {
+    width: 1360px;
+  }
+}
+
 .container-fluid {
   margin-right: auto;
   margin-left: auto;

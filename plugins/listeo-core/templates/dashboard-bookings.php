@@ -106,6 +106,7 @@ if (isset($data->type)) {
 			<?php } else { ?>
 				<ul id="booking-requests">
 					<?php
+					
 					foreach ($data->bookings as $key => $value) {
 						$value['listing_title'] = get_the_title($value['listing_id']);
 						if ($type == "user") {

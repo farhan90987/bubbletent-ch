@@ -76,9 +76,25 @@
                 'units'    => 'px',
             ),
         ),
-    ) ); 
+    ) );
 
-	listeo_Kirki::add_field( 'listeo', array(
+//Logo Offset
+    listeo_Kirki::add_field( 'listeo', array(
+        'type'        => 'slider',
+        'settings'    => 'header_logo_offset',
+        'label'       => esc_attr__( 'Logo offset (px)', 'listeo' ),
+        'section'     => 'title_tagline',
+        'priority'     => 11,
+        'default'     => 0,
+        'choices'     => array(
+            'min'  => '-200',
+            'max'  => '200',
+            'step' => '1',
+        ),
+    ) ); 
+    //Menu Margins
+
+listeo_Kirki::add_field( 'listeo', array(
         'type'        => 'slider',
         'settings'    => 'header_menu_margin_top',
         'label'       => esc_attr__( 'Menu top margin (px)', 'listeo' ),
@@ -116,7 +132,40 @@
 	    
        
   
-	) );	
+	) );
+listeo_Kirki::add_field('listeo', array(
+    'type'        => 'radio',
+    'settings'    => 'listeo_dark_mode',
+    'label'       => esc_html__('Enable dark mode color', 'listeo'),
+    'section'     => 'colors',
+    'choices'     => array(
+        'enable'  => esc_attr__('Enable', 'listeo'),
+        'disable' => esc_attr__('Disable', 'listeo'),
+    ),
+    'priority'    => 10,
+    'default'     => 'disable',
+    
+));
+
+listeo_Kirki::add_field('listeo', array(
+    'type'        => 'radio',
+    'settings'    => 'listeo_dashboard_color_scheme',
+    'label'       => esc_html__('Listeo Dashboard Color Scheme', 'listeo'),
+    'section'     => 'colors',
+    'choices'     => array(
+        'dark'  => esc_attr__('Dark', 'listeo'),
+        'light' => esc_attr__('Light', 'listeo'),
+    ),
+    'priority'    => 10,
+    'default'     => 'light',
+    'active_callback'  => array(
+        array(
+            'setting'  => 'listeo_dark_mode',
+            'operator' => '==',
+            'value'    => 'disable',
+        ),
+    )
+));
 
 	listeo_Kirki::add_field( 'listeo', array(
 	    'type'        => 'color',
@@ -127,18 +176,153 @@
 	    'priority'    => 10,
 	) );
 
-    listeo_Kirki::add_field( 'listeo', array(
+    listeo_Kirki::add_field('listeo', array(
         'type'        => 'radio',
-        'settings'    => 'listeo_dark_mode',
-        'label'       => esc_html__( 'Enable dark mode color', 'listeo' ),
+        'settings'    => 'listeo_custom_header',
+        'label'       => esc_html__('Enable custom header colors', 'listeo'),
         'section'     => 'colors',
         'choices'     => array(
-            true  => esc_attr__( 'Enable', 'listeo' ),
-            false => esc_attr__( 'Disable', 'listeo' ),
+            'enable'  => esc_attr__('Enable', 'listeo'),
+            'disable' => esc_attr__('Disable', 'listeo'),
         ),
         'priority'    => 10,
-         'default'     => 0,
-    ) );
+        'default'     => 'disable',
+    ));
+
+    listeo_Kirki::add_field('listeo', array(
+        'type'        => 'color',
+        'settings'    => 'listeo_header_bg',
+        'label'       => esc_html__('Select Header color', 'listeo'),
+        'section'     => 'colors',
+        'default'     => '#fff',
+        'priority'    => 10,
+        'active_callback'  => array(
+            array(
+                'setting'  => 'listeo_custom_header',
+                'operator' => '==',
+                'value'    => 'enable',
+            ),
+        )
+    ));
+    listeo_Kirki::add_field('listeo', array(
+        'type'        => 'color',
+        'settings'    => 'listeo_header_text',
+        'label'       => esc_html__('Select Header text color', 'listeo'),
+        'section'     => 'colors',
+        'default'     => '#fff',
+        'priority'    => 10,
+    'active_callback'  => array(
+        array(
+            'setting'  => 'listeo_custom_header',
+            'operator' => '==',
+            'value'    => 'enable',
+        ),
+    )
+    ));
+
+
+listeo_Kirki::add_field('listeo', array(
+    'type'        => 'radio',
+    'settings'    => 'listeo_custom_mobile_menu_colors',
+    'label'       => esc_html__('Enable custom colors for mobile menu', 'listeo'),
+    'section'     => 'colors',
+    'choices'     => array(
+        'enable'  => esc_attr__('Enable', 'listeo'),
+        'disable' => esc_attr__('Disable', 'listeo'),
+    ),
+    'priority'    => 10,
+    'default'     => 'disable',
+));
+
+listeo_Kirki::add_field('listeo', array(
+    'type'        => 'color',
+    'settings'    => 'listeo_custom_mobile_menu_bg',
+    'label'       => esc_html__('Select Mobile menu color', 'listeo'),
+    'section'     => 'colors',
+    'default'     => '#222',
+    'priority'    => 10,
+    'active_callback'  => array(
+        array(
+            'setting'  => 'listeo_custom_mobile_menu_colors',
+            'operator' => '==',
+            'value'    => 'enable',
+        ),
+    )
+));
+listeo_Kirki::add_field('listeo', array(
+    'type'        => 'color',
+    'settings'    => 'listeo_custom_mobile_menu_text',
+    'label'       => esc_html__('Select Mobile menu text color', 'listeo'),
+    'section'     => 'colors',
+    'default'     => '#fff',
+    'priority'    => 10,
+    'active_callback'  => array(
+        array(
+            'setting'  => 'listeo_custom_mobile_menu_colors',
+            'operator' => '==',
+            'value'    => 'enable',
+        ),
+    )
+));
+
+    // Sidebar menu color 
+
+
+    // listeo_Kirki::add_field('listeo', array(
+    //     'type'        => 'color',
+    //     'settings'    => 'listeo_header_hover_text',
+    //     'label'       => esc_html__('Select Header hover text background', 'listeo'),
+    //     'section'     => 'colors',
+    //     'default'     => '#fff',
+    //     'priority'    => 10,
+    // ));
+
+    listeo_Kirki::add_field('listeo', array(
+        'type'        => 'radio',
+        'settings'    => 'listeo_custom_footer',
+        'label'       => esc_html__('Enable custom footer colors', 'listeo'),
+        'section'     => 'colors',
+        'choices'     => array(
+        'enable'  => esc_attr__('Enable', 'listeo'),
+        'disable' => esc_attr__('Disable', 'listeo'),
+        ),
+        'priority'    => 10,
+        'default'     => 'disable',
+    ));
+
+    listeo_Kirki::add_field('listeo', array(
+        'type'        => 'color',
+        'settings'    => 'listeo_footer_bg_color',
+        'label'       => esc_html__('Select Footer color', 'listeo'),
+        'section'     => 'colors',
+        'default'     => '#fff',
+        'priority'    => 10,
+    'active_callback'  => array(
+        array(
+            'setting'  => 'listeo_custom_footer',
+            'operator' => '==',
+            'value'    => 'enable',
+        ),
+    )
+    ));
+    listeo_Kirki::add_field('listeo', array(
+        'type'        => 'color',
+        'settings'    => 'listeo_footer_text_color',
+        'label'       => esc_html__('Select Footer text color', 'listeo'),
+        'section'     => 'colors',
+        'default'     => '#fff',
+        'priority'    => 10,
+    'active_callback'  => array(
+        array(
+            'setting'  => 'listeo_custom_footer',
+            'operator' => '==',
+            'value'    => 'enable',
+        ),
+    )
+    ));
+
+
+   
     listeo_Kirki::add_field( 'theme_config_id', [
         'type'        => 'custom',
         'settings'    => 'listeo_dark_mode_desc',

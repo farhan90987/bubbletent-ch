@@ -54,42 +54,43 @@ class Listeo_Core_iCal {
         $url          = $_POST['url'];
         $force_update = $_POST['force_update'];
 
-        if ( empty( $name ) || empty( $url ) || ! intval( $listing_id ) ) {
+        if (empty($name) || empty($url) || ! intval($listing_id)) {
             $result['type']         = 'error';
-            $result['notification'] = esc_html__( "Please fill the form fields", "listeo_core" );
-            wp_send_json( $result );
+            $result['notification'] = esc_html__("Please fill the form fields", "listeo_core");
+            wp_send_json($result);
             die();
         }
 
-        $extension = pathinfo( $url, PATHINFO_EXTENSION );
+        $extension = pathinfo($url, PATHINFO_EXTENSION);
+        $extension = explode('?', $extension);
+        $name = sanitize_title($name);
 
-        $extension = explode( '?', $extension );
-
-        $name = sanitize_title( $name );
-
-        if ( ! filter_var( $url, FILTER_VALIDATE_URL ) ) {
-
+        if (! filter_var($url, FILTER_VALIDATE_URL)) {
             $result['type']         = 'error';
-            $result['notification'] = esc_html__( "Please provide valid URL", "listeo_core" );
-            wp_send_json( $result );
-
+            $result['notification'] = esc_html__("Please provide valid URL", "listeo_core");
+            wp_send_json($result);
             die();
         }
 
-        if ( ! in_array( $extension[0], array( 'html', 'ical', 'ics', 'ifb', 'icalendar' ) ) ) {
-            if ( strpos( $url, 'calendar' ) !== false || strpos( $url, 'accommodation_id' ) !== false ||
-            strpos($url, 'ical') !== false  ) {
-                //let listeo in
+        // Make URL checking case-insensitive
+        $url_lower = strtolower($url);
+
+        if (! in_array($extension[0], array('html', 'ical', 'ics', 'ifb', 'icalendar'))) {
+            if (
+                strpos($url_lower, 'calendar') !== false ||
+                strpos($url_lower, 'accommodation_id') !== false ||
+                strpos($url_lower, 'ical') !== false ||
+                strpos($url_lower, 'airtable.com') !== false
+            ) { // Add explicit Airtable support
+                //let it in
             } else {
-
                 $result['type']         = 'error';
-                $result['notification'] = esc_html__( "No valid iCal file recognized. Please import 'ical', 'ics', 'ifb' or 'icalendar' file", "listeo_core" );
-                wp_send_json( $result );
-
+                $result['notification'] = esc_html__("No valid iCal file recognized. Please import 'ical', 'ics', 'ifb' or 'icalendar' file", "listeo_core");
+                wp_send_json($result);
                 die();
-
             }
         }
+
 
         $icals_array = array();
         $temp_array  = array();
@@ -360,7 +361,7 @@ END:VEVENT
     public static function get_ical_events( $id ) {
 
         $ical         = false;
-        $listing_type = get_post_meta( $id, '_listing_type', true );
+        $listing_type = listeo_get_booking_type( $id );
         if ( $listing_type == 'rental' || $listing_type == 'service' ) {
 
             $eol  = "\r\n";
@@ -398,7 +399,7 @@ END:VEVENT
 
             ob_start();
             foreach ( $records as $key => $value ) {
-                //var_dump($value['date_start']);
+                
                 echo self::generate_event( $value );
 
             }
@@ -502,7 +503,7 @@ END:VEVENT
         //bookings author ID - 0 by default for backward compatibility
         $bookings_author = $arr['bookings_author'] ?? 0;
 
-        $listing_type = get_post_meta( $listing_id, '_listing_type', true );
+        $listing_type = listeo_get_booking_type( $listing_id );
 
         try {
             $ical = new Listeo_Core_iCal_Reader(
@@ -932,10 +933,7 @@ END:VEVENT
 
         $event_date_start = $event_date_start_datetime->format( 'Y-m-d H:i:s' );
         $event_date_end   = $event_date_end_datetime->add( new DateInterval( 'PT24H00M00S' ) )->format( 'Y-m-d H:i:s' );
-        // listeo_write_log('$event_date_start');
-        // listeo_write_log($event_date_start);
-        // listeo_write_log('$event_date_start');
-        // listeo_write_log($event_date_end);
+      
          /**
          * Force event to use all day (00:00 until 23:59) always
          */

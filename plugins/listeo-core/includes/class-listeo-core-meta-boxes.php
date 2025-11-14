@@ -22,58 +22,114 @@ class Listeo_Core_Meta_Boxes {
 		add_action( 'cmb2_render_datetime', array( $this,'cmb2_render_callback_for_datetime'), 10, 5 );
 		
 		add_action( 'cmb2_render_listeo_package', array( $this,'cmb2_render_callback_for_listeo_package'), 10, 5 );
+
+		// multicheck split
 	
-
-
 		add_filter( 'cmb2_render_opening_hours_listeo', array( $this,'cmb2_render_opening_hours_listeo_field_callback'), 10, 5 );
 
-		add_action( 'listing_category_add_form_fields', array( $this,'listeo_listing_category_add_new_meta_field'), 10, 2 );
-		add_action( 'listing_category_edit_form_fields', array( $this,'listeo_listing_category_edit_meta_field'), 10, 2 );
-		
-		add_action( 'edited_listing_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );  
-		add_action( 'created_listing_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );
-		
-		add_action( 'region_add_form_fields', array( $this,'listeo_listing_category_add_new_meta_field'), 10, 2 );
-		add_action( 'region_edit_form_fields', array( $this,'listeo_listing_category_edit_meta_field'), 10, 2 );
-		
-		add_action( 'edited_region', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );  
-		add_action( 'created_region', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );
+		// add_action( 'listing_category_add_form_fields', array( $this,'listeo_listing_category_add_new_meta_field'), 10, 2 );
+		// add_action( 'listing_category_edit_form_fields', array( $this,'listeo_listing_category_edit_meta_field'), 10, 2 );
+
+		// add_action( 'edited_listing_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );  
+		// add_action( 'created_listing_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );
+
+		// add_action( 'region_add_form_fields', array( $this,'listeo_listing_category_add_new_meta_field'), 10, 2 );
+		// add_action( 'region_edit_form_fields', array( $this,'listeo_listing_category_edit_meta_field'), 10, 2 );
+
+		// add_action( 'edited_region', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );  
+		// add_action( 'created_region', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );
 
 
-		add_action( 'listing_feature_add_form_fields', array( $this,'listeo_listing_category_add_new_meta_field'), 10, 2 );
-		add_action( 'listing_feature_edit_form_fields', array( $this,'listeo_listing_category_edit_meta_field'), 10, 2 );
-		
-		add_action( 'edited_listing_feature', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );  
-		add_action( 'created_listing_feature', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );
+
+		// add_action( 'listing_feature_add_form_fields', array( $this,'listeo_listing_category_add_new_meta_field'), 10, 2 );
+		// add_action( 'listing_feature_edit_form_fields', array( $this,'listeo_listing_category_edit_meta_field'), 10, 2 );
+
+		// add_action( 'edited_listing_feature', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );  
+		// add_action( 'created_listing_feature', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );
 
 
-		add_action( 'event_category_add_form_fields', array( $this,'listeo_listing_category_add_new_meta_field'), 10, 2 );
-		add_action( 'event_category_edit_form_fields', array( $this,'listeo_listing_category_edit_meta_field'), 10, 2 );
-		
-		add_action( 'edited_event_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );  
-		add_action( 'created_event_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );
-	
-		add_action( 'service_category_add_form_fields', array( $this,'listeo_listing_category_add_new_meta_field'), 10, 2 );
-		add_action( 'service_category_edit_form_fields', array( $this,'listeo_listing_category_edit_meta_field'), 10, 2 );
-		
-		add_action( 'edited_service_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );  
-		add_action( 'created_service_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );	
+		// add_action( 'event_category_add_form_fields', array( $this,'listeo_listing_category_add_new_meta_field'), 10, 2 );
+		// add_action( 'event_category_edit_form_fields', array( $this,'listeo_listing_category_edit_meta_field'), 10, 2 );
 
-		add_action( 'rental_category_add_form_fields', array( $this,'listeo_listing_category_add_new_meta_field'), 10, 2 );
-		add_action( 'rental_category_edit_form_fields', array( $this,'listeo_listing_category_edit_meta_field'), 10, 2 );
-		
-		add_action( 'edited_rental_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );  
-		add_action( 'created_rental_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );
+		// add_action( 'edited_event_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );  
+		// add_action( 'created_event_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );
+
+		// add_action( 'service_category_add_form_fields', array( $this,'listeo_listing_category_add_new_meta_field'), 10, 2 );
+		// add_action( 'service_category_edit_form_fields', array( $this,'listeo_listing_category_edit_meta_field'), 10, 2 );
+
+		// add_action( 'edited_service_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );  
+		// add_action( 'created_service_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );	
+
+		// add_action( 'rental_category_add_form_fields', array( $this,'listeo_listing_category_add_new_meta_field'), 10, 2 );
+		// add_action( 'rental_category_edit_form_fields', array( $this,'listeo_listing_category_edit_meta_field'), 10, 2 );
+
+		// add_action( 'edited_rental_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );  
+		// add_action( 'created_rental_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );
 
 
-		add_action('classifieds_category_add_form_fields', array( $this,'listeo_listing_category_add_new_meta_field'), 10, 2 );
-		add_action('classifieds_category_edit_form_fields', array( $this,'listeo_listing_category_edit_meta_field'), 10, 2 );
-		
-		add_action('edited_classifieds_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );  
-		add_action('created_classifieds_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );
+		// add_action('classifieds_category_add_form_fields', array( $this,'listeo_listing_category_add_new_meta_field'), 10, 2 );
+		// add_action('classifieds_category_edit_form_fields', array( $this,'listeo_listing_category_edit_meta_field'), 10, 2 );
+
+		// add_action('edited_classifieds_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );  
+		// add_action('created_classifieds_category', array( $this,'listeo_save_taxonomy_custom_meta'), 10, 2 );
+
+		// Register term meta hooks after all CPTs/Taxonomies are registered.
+		add_action('init', [$this, 'register_listing_term_meta_hooks'], 100);
 
 		add_action( 'cmb2_admin_init', array( $this,'listeo_register_taxonomy_metabox' ) );
 		add_filter( 'cmb2_sanitize_checkbox', array( $this, 'sanitize_checkbox'), 10, 2 );
+
+		//add_action('save_post_listing', array($this, 'save_availability_calendar'), 10, 3);
+	}
+
+	/**
+	 * Attach add/edit/save hooks for all taxonomies registered to the listing CPT.
+	 * If you want to support multiple CPTs, see the commented $post_types example.
+	 */
+	public function register_listing_term_meta_hooks()
+	{
+		if (! is_admin()) {
+			return;
+		}
+
+		// If you later want to cover more CPTs, set e.g.:
+		// $post_types = [ 'listing', 'event', 'service', 'rental', 'classifieds' ];
+		// foreach ( $post_types as $pt ) { $this->attach_term_meta_hooks_for_post_type( $pt ); }
+		$this->attach_term_meta_hooks_for_post_type('listing');
+	}
+
+	/**
+	 * Attach hooks for each taxonomy of a given post type.
+	 */
+	private function attach_term_meta_hooks_for_post_type($post_type)
+	{
+		$tax_objects = get_object_taxonomies($post_type, 'objects');
+		if (empty($tax_objects)) {
+			return;
+		}
+
+		foreach ($tax_objects as $tax_obj) {
+			$tax = $tax_obj->name;
+
+			// Skip hidden/adminless taxonomies if you only want those visible in the UI
+			if (isset($tax_obj->show_ui) && ! $tax_obj->show_ui) {
+				continue;
+			}
+
+			// Add/Edit term form fields (admin)
+			// add_form_fields passes 1 arg: $taxonomy
+			add_action("{$tax}_add_form_fields",  [$this, 'listeo_listing_category_add_new_meta_field'], 10, 1);
+
+			// edit_form_fields passes 2 args: $term, $taxonomy
+			add_action("{$tax}_edit_form_fields", [$this, 'listeo_listing_category_edit_meta_field'], 10, 2);
+
+			// Save term meta on create/edit
+			// created_{$taxonomy} passes 2 args: $term_id, $tt_id
+			add_action("created_{$tax}", [$this, 'listeo_save_taxonomy_custom_meta'], 10, 2);
+
+			// edited_{$taxonomy} passes 2 args in newer WP ($term_id, $tt_id); older WP sometimes 1.
+			add_action("edited_{$tax}",  [$this, 'listeo_save_taxonomy_custom_meta'], 10, 2);
+		}
 	}
 
 	function sanitize_checkbox( $override_value, $value ) {
@@ -82,6 +138,44 @@ class Listeo_Core_Meta_Boxes {
 	
 	    return is_null( $value ) ? '0' : $value;
 	}
+
+
+	public function save_availability_calendar($post_id, $post, $update)
+	{
+		// Verify if this is an auto save routine
+		if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+			return;
+		}
+
+		// Check permissions
+		if (!current_user_can('edit_post', $post_id)) {
+			return;
+		}
+
+		// Check if our nonce is set
+		if (!isset($_POST['listeo_core_meta_nonce'])) {
+			return;
+		}
+
+		// // Verify that the nonce is valid
+		// if (!wp_verify_nonce($_POST['listeo_core_meta_nonce'], 'listeo_core_save_meta')) {
+		// 	return;
+		// }
+
+		// Make sure we have the availability data
+		if (isset($_POST['_availability'])) {
+			// Get the availability data
+			$days = sanitize_text_field($_POST['_availability']);
+
+			// Validate format and clean the data
+			$days_array = array_filter(explode('|', $days));
+			$clean_days = implode('|', $days_array);
+
+			// Save the cleaned availability data
+			update_post_meta($post_id, '_availability', $clean_days);
+		}
+	}
+
 	public function add_meta_boxes( ) {
 		
 		$listing_admin_options = array(
@@ -116,15 +210,10 @@ class Listeo_Core_Meta_Boxes {
 			'id'   => '_listing_type',
 			'type' => 'select',
 			'desc' => __(
-				'Determines booking options',
+				'Determines booking options and available features',
 				'listeo_core'
 			),
-			'options'   => array(
-				'service' => __( 'Service', 'listeo_core' ),
-				'rental' => __( 'Rental', 'listeo_core' ),
-    			'event' => __( 'Event', 'listeo_core' ),
-    			'classifieds' => __( 'Classifieds', 'listeo_core' ),
-			),
+			'options_cb' => array( $this, 'get_dynamic_listing_type_options' ),
 		));  
 
 		$cmb_listing_type->add_field(array(
@@ -180,11 +269,11 @@ class Listeo_Core_Meta_Boxes {
 		$tabs_setting['tabs'] = array(
 			 
 			 // $this->meta_boxes_main_details(),
-			  $this->meta_boxes_location(),
-			  $this->meta_boxes_gallery(),
-			  $this->meta_boxes_contact(),
-			  $this->meta_boxes_event(),
-			  $this->meta_boxes_service(),
+			   $this->meta_boxes_location(),
+			   $this->meta_boxes_gallery(),
+			   $this->meta_boxes_contact(),
+			   $this->meta_boxes_event(),
+			   $this->meta_boxes_service(),
 			  $this->meta_boxes_rental(),
 			  $this->meta_boxes_prices(),
 			  $this->meta_boxes_classifieds(),
@@ -194,6 +283,56 @@ class Listeo_Core_Meta_Boxes {
 			 
 		);
 
+		// Add custom listing type tabs dynamically
+		if (function_exists('listeo_core_custom_listing_types')) {
+			$custom_types_manager = listeo_core_custom_listing_types();
+			$listing_types = $custom_types_manager->get_listing_types(false, true);
+			
+			foreach ($listing_types as $type) {
+				if ($type->is_active && !$type->is_default) {
+					// Check if this custom listing type has fields defined in the editor
+					$custom_fields = apply_filters("listeo_{$type->slug}_fields", array());
+					
+					if (!empty($custom_fields) && isset($custom_fields['fields']) && !empty($custom_fields['fields'])) {
+						$tab_title = sprintf(__('%s Fields', 'listeo_core'), $type->name);
+						
+						// Add show_on_cb to each field for conditional display
+						$fields_with_callback = array();
+						foreach ($custom_fields['fields'] as $field) {
+							$field['show_on_cb'] = array($this, 'listeo_show_on_custom_type_' . $type->slug);
+							$fields_with_callback[] = $field;
+						}
+						
+						$tabs_setting['tabs'][] = array(
+							'id'     => "custom_type_{$type->slug}_fields",
+							'title'  => $tab_title,
+							'fields' => $fields_with_callback,
+						);
+					}
+				}
+			}
+		}
+
+		$custom_terms = get_option('listeo_custom_term_fields', array());
+
+		if (!empty($custom_terms) && is_array($custom_terms)) {
+			foreach ($custom_terms as $taxonomy => $terms) {
+				foreach ($terms as $term_id => $unused) {
+					$term = get_term($term_id, $taxonomy);
+					if (is_wp_error($term) || !$term) {
+						continue;
+					}
+
+					$tab_title = $term->name . ' Fields';
+
+					$tabs_setting['tabs'][] = array(
+						'id'     => "term_{$taxonomy}_{$term_id}_fields",
+						'title'  => $tab_title,
+						'fields' => $this->get_term_custom_fields($taxonomy, $term_id),
+					);
+				}
+			}
+		}
 		// set tabs
 		$cmb_tabs->add_field( array(
 			'id'   => '_tabs',
@@ -410,7 +549,10 @@ class Listeo_Core_Meta_Boxes {
 			'type' => 'checkbox',
 		));
 
-		if (is_woocommerce_activated()) {
+		if (
+			function_exists('is_woocommerce_activated') &&
+			is_woocommerce_activated()
+		) {
 			$args = array(
 			//	'author'        	=>  $current_user->ID,
 				'posts_per_page'   => -1,
@@ -435,6 +577,72 @@ class Listeo_Core_Meta_Boxes {
 			));
 		}
 
+		///////////////
+
+		$otherlistings_box_options = array(
+			'id'           => 'listeo_core_otherlistings_metabox',
+			'title'        => __('My Other Listings Settings', 'listeo_core'),
+			'priority'     => 'core',
+			'object_types' => array('listing'),
+			'show_names'   => true,
+			'show_in_rest' => WP_REST_Server::READABLE,
+		);
+
+		// Setup meta box
+		$cmb_otherlistings = new_cmb2_box($otherlistings_box_options);
+
+		$cmb_otherlistings->add_field(array(
+			'name' => __('My Other Listings Section status', 'listeo_core'),
+			'id'   => '_my_listings_section_status',
+			'type' => 'checkbox',
+		));
+
+		
+		$listings_options = array();
+		// 
+
+		// in wp-admin in post edit page,  get post author  (not currently logged user) from the post the meta box is displayed on
+
+		$current_post_id = get_the_ID();
+		if (isset($_GET['post'])) {
+			$post_author_id = get_post_field('post_author', $_GET['post']);
+		} 
+		
+		$args = array(
+			'post_type' => 'listing',
+			'ignore_sticky_posts' => 1,
+		//	'orderby' => 'rand',
+			'posts_per_page' => 100,
+			'post_status' => 'publish',
+			
+		);
+		if (isset($post_author_id) && !empty($post_author_id)) {
+			$args['author'] = $post_author_id;
+		}
+		
+		$listings = get_posts($args);
+		$listings_options = array();
+		if ($listings) {
+			$listings_options[0] = esc_html__('Select listings', 'listeo_core');
+		}
+		foreach ($listings as $listing) {
+			$listings_options[$listing->ID] = $listing->post_title;
+		}
+		$cmb_otherlistings->add_field(array(
+			'name' => __('Section title', 'listeo_core'),
+			'id'   => '_my_listings_title',
+			'type' => 'text',
+			
+		));
+		$cmb_otherlistings->add_field(array(
+			'name' => __('User listings to display', 'listeo_core'),
+			'id'   => '_my_listings',
+			'type' => 'select_multiple',
+			'options' => $listings_options,
+		));
+		
+
+		///////////////
 
 		$store_box_options = array(
 			'id'           => 'listeo_core_store_metabox',
@@ -453,8 +661,6 @@ class Listeo_Core_Meta_Boxes {
 			'id'   => '_store_section_status',
 			'type' => 'checkbox',
 		));
-
-
 
 		$cmb_store->add_field( array(
 			'name' => __('Show store card widget on listing sidebar', 'listeo_core' ),
@@ -476,7 +682,10 @@ class Listeo_Core_Meta_Boxes {
 			'terms' => array('listing_package'), // Don't display products in the clothing category on the shop page.
 			'operator' => 'NOT IN'
 		);
-		if (is_woocommerce_activated()) {
+		if (
+			function_exists('is_woocommerce_activated') &&
+			is_woocommerce_activated()
+		) {
 			$products = wc_get_products($args);
 			foreach ($products as $product) {
 				$product_options[$product->get_id()] = $product->get_title();
@@ -492,20 +701,102 @@ class Listeo_Core_Meta_Boxes {
 			));
 		}
 
+		$faq_box_options = array(
+			'id'     => 'faq_tab',
+			'title'  => __( 'FAQ', 'listeo_core' ),
+			'priority' => 'core',
+			'object_types' => array( 'listing' ),
+		);
+
+		$cmb_faq = new_cmb2_box( $faq_box_options );
+
+// faq_status checkbox
+		$cmb_faq->add_field( array(
+			'name' => __( 'FAQ Status', 'listeo_core' ),
+			'id'   => '_faq_status',
+			'type' => 'checkbox',
+			'desc' => __( 'Enable to show FAQ section', 'listeo_core' ),
+		));
+
+		$faq_group_field_id = $cmb_faq->add_field( array(
+		
+			'name' => __( 'Add new FAQ', 'listeo_core' ),
+			'id'   => '_faq_list',
+			'type' => 'group',
+			'options'     => array(
+				'group_title'       => __('Faq {#}', 'cmb2'), // since version 1.1.4, {#} gets replaced by row number
+				'add_button'        => __('Add Another Faq', 'cmb2'),
+				'remove_button'     => __('Remove Faq', 'cmb2'),
+				'sortable'          => true,
+				// 'closed'         => true, // true to have the groups closed by default
+				// 'remove_confirm' => esc_html__( 'Are you sure you want to remove?', 'cmb2' ), // Performs confirmation before removing group.
+			),
+			
+				
+		) );
+		$cmb_faq->add_group_field($faq_group_field_id, array(
+			'name' => __( 'Question', 'listeo_core' ),
+			'id'   => 'question',
+			'type' => 'text',
+		));
+		$cmb_faq->add_group_field($faq_group_field_id, array(
+			'name' => __( 'Answer', 'listeo_core' ),
+			'id'   => 'answer',
+			'type' => 'textarea',
+		));
+
 		$booking_box_options = array(
 				'id'           => 'listeo_core_booking_metabox',
 				'title'        => __( 'Booking options', 'listeo_core' ),
 				'priority'     => 'core', 
 				'object_types' => array( 'listing' ),
+				'priority'     => 'core', 
+				'object_types' => array( 'listing' ),
 				'show_names'   => true,
-			'show_in_rest' => WP_REST_Server::READABLE,
+				
 		);
 
 		// Setup meta box
 		$cmb_booking = new_cmb2_box( $booking_box_options );
 
 
-		
+		$group_field_id = $cmb_booking->add_field(array(
+			'id'          => '_mandatory_fees',
+			'type'        => 'group',
+			'description' => __('Mandatory fees (like cleaning fee etc)', 'cmb2'),
+			// 'repeatable'  => false, // use false if you want non-repeatable group
+			'options'     => array(
+				'group_title'       => __('Fee {#}', 'cmb2'), // since version 1.1.4, {#} gets replaced by row number
+				'add_button'        => __('Add Another Fee', 'cmb2'),
+				'remove_button'     => __('Remove Fee', 'cmb2'),
+				'sortable'          => true,
+				// 'closed'         => true, // true to have the groups closed by default
+				// 'remove_confirm' => esc_html__( 'Are you sure you want to remove?', 'cmb2' ), // Performs confirmation before removing group.
+			),
+		));
+
+		// Id's for group's fields only need to be unique for the group. Prefix is not needed.
+		$cmb_booking->add_group_field($group_field_id, array(
+			'name' => 'Fee Title',
+			'id'   => 'title',
+			'type' => 'text',
+			// 'repeatable' => true, // Repeatable fields are supported w/in repeatable groups (for most types)
+		));
+		// Id's for group's fields only need to be unique for the group. Prefix is not needed.
+		$cmb_booking->add_group_field($group_field_id, array(
+			'name' => 'Fee Price',
+			'id'   => 'price',
+			'type' => 'text',
+			// 'repeatable' => true, // Repeatable fields are supported w/in repeatable groups (for most types)
+		));
+
+		$cmb_booking->add_group_field($group_field_id, array(
+			'name' => 'Description',
+			'description' => 'Write a short description for this entry',
+			'id'   => 'description',
+			'type' => 'textarea_small',
+		));
+
 		$cmb_booking->add_field( array(
 			'name' => __( 'External Booking link', 'listeo_core' ),
 			'desc' => __( 'Use only if you want to redirect users to 3rd party site upon clicking Book now button. Does not require Booking Status to be on' , 'listeo_core' ),
@@ -540,9 +831,42 @@ class Listeo_Core_Meta_Boxes {
 		));
 		$cmb_booking->add_field( array(
 			'name' => __( 'Weekend Price', 'listeo_core' ),
-			'id'   => '_weekday_price',
+			'id'   => '_weekday_price', //should be weekend (facepalm)
 			'type' => 'text',
 		));
+
+		// percentage discount for children field
+		$cmb_booking->add_field(
+			array(
+				'name' => __( 'Children - Percentage off regular price', 'listeo_core' ),
+				'id'   => '_children_price',
+				'type' => 'text',
+				'description' => __( 'Enter percentage discount (e.g. 50 for 50% off). Leave empty for no discount.', 'listeo_core' ),
+			)	
+		);
+
+		// Animal fee options
+		$cmb_booking->add_field( array(
+			'name'             => __( 'Pet Fee Type', 'listeo_core' ),
+			'id'               => '_animal_fee_type',
+			'type'             => 'select',
+			'show_option_none' => false,
+			'options'          => array(
+				'none'     => __( 'No pet fee', 'listeo_core' ),
+				'one_time' => __( 'One-time fee per pet', 'listeo_core' ),
+				'per_night' => __( 'Per night fee per pet', 'listeo_core' ),
+			),
+			'default'          => 'none',
+		));
+
+		$cmb_booking->add_field( array(
+			'name' => __( 'Pet Fee Amount', 'listeo_core' ),
+			'id'   => '_animal_fee',
+			'type' => 'text',
+			'description' => __( 'Amount to charge per pet (one-time or per night, based on selected type)', 'listeo_core' ),
+		));
+		// price per anmial:
+	
 		$cmb_booking->add_field( array(
 			'name' => __( 'Reservation Fee', 'listeo_core' ),
 			'id'   => '_reservation_price',
@@ -563,6 +887,26 @@ class Listeo_Core_Meta_Boxes {
 			'id'   => '_count_by_hour',
 			'type' => 'checkbox',
 		));
+		$cmb_booking->add_field( array(
+			'name' => __( 'Enable Stard/End Hours for rental', 'listeo_core' ),
+			'id'   => '_rental_timepicker',
+			'type' => 'checkbox',
+		));
+		// time increment option with dropdown sele
+		$cmb_booking->add_field( array(
+			'name' => __( 'Time increment', 'listeo_core' ),
+			'id'   => '_time_increment',
+			'type' => 'select',
+			'options' => array(
+				'5' => '5 minutes',
+				'10' => '10 minutes',
+				'15' => '15 minutes',
+				'30' => '30 minutes',
+				'60' => '1 hour',
+			),
+			'default' => '15',
+		));
+
 		$cmb_booking->add_field( array(
 			'name' => __( 'Enable End Hour in timepicker', 'listeo_core' ),
 			'id'   => '_end_hour',
@@ -603,6 +947,29 @@ class Listeo_Core_Meta_Boxes {
 				'pattern' => '\d*',
 			),
 		));
+		// add field for enable children and for max children
+		$cmb_booking->add_field(array(
+			'name' => __('Enable children option', 'listeo_core'),
+			'id'   => '_children',
+			'type' => 'checkbox',
+		));
+		
+		$cmb_booking->add_field( array(
+			'name' => __( 'Maximum number of children', 'listeo_core' ),
+			'id'   => '_max_children',
+			'type' => 'text',
+			'attributes' => array(
+				'type' => 'number',
+				'pattern' => '\d*',
+			),
+		));
+
+		$cmb_booking->add_field(array(
+			'name' => __('Enable animals', 'listeo_core'),
+			'id'   => '_animals',
+			'type' => 'checkbox',
+		));
+
 		$cmb_booking->add_field( array(
 			'name' => __( 'Minimum stay (in days)', 'listeo_core' ),
 			'id'   => '_min_days',
@@ -617,6 +984,130 @@ class Listeo_Core_Meta_Boxes {
 			'id'   => '_availability',
 			'type' => 'listeo_calendar',
 		));
+
+
+		// Listing type meta
+		$cmb2_ad_type_options = array(
+			'id'           => 'listing_ad_type',
+			'title'        => __('Ad Campaign Settings', 'listeo_core'),
+			'object_types' => array('listing'),
+			'show_names'   => true,
+			'show_in_rest' => WP_REST_Server::READABLE,
+		);
+		$cmb2_ad_type_options = new_cmb2_box($cmb2_ad_type_options);
+		$cmb2_ad_type_options->add_field(array(
+			'name' => __('Ad ID', 'listeo_core'),
+			'id'   => 'ad_id',
+			'type' => 'text',
+			'desc' => __('Enter your ad ID', 'listeo_core'),
+		));  
+		$cmb2_ad_type_options->add_field(array(
+			'name' => __('Ad Campaign Status', 'listeo_core'),
+			'id'   => 'ad_status',
+			'type' => 'select',
+			'desc' => __(
+				'Determines ad options',
+				'listeo_core'
+			),
+			'options'   => array(
+				'active' => __('Active', 'listeo_core'),
+				'paused' => __('Paused', 'listeo_core'),
+				'expired' => __('Expired', 'listeo_core'),
+				
+			),
+		));  
+		$cmb2_ad_type_options->add_field(array(
+			'name' => __('Ad Type', 'listeo_core'),
+			'id'   => 'ad_type',
+			'type' => 'select',
+			'desc' => __(
+				'Determines ad options',
+				'listeo_core'
+			),
+			'options'   => array(
+				'ppc' => __('Click', 'listeo_core'),
+				'ppv' => __('View', 'listeo_core'),
+				
+			),
+		));  
+		$cmb2_ad_type_options->add_field(array(
+			'name' => __('Ad Placement', 'listeo_core'),
+			'id'   => 'ad_placement',
+			
+			'desc' => __(
+				'Determines placement of ad',
+				'listeo_core'
+			),
+			'type'    => 'multicheck',
+			'options' => array(
+				'home' => 'Home',
+				'search' => 'Search',
+				'sidebar' => 'Sidebar',
+			),
+		));  
+	}
+
+
+	private function get_term_custom_fields($taxonomy, $term_id)
+	{
+		$option_key = "listeo_tax-{$taxonomy}_term_{$term_id}_fields";
+		$fields_data = get_option($option_key, array());
+
+		$fields = array();
+
+		if (!empty($fields_data)) {
+			foreach ($fields_data as $field) {
+				
+				// if field type is header, skip it
+				if ($field['type'] === 'header') {
+					continue;
+				}
+				// You may need to adjust mapping from your saved format to CMB2 field array
+				$fields[] = array(
+					'name' => $field['name'] ?? ucfirst($field['id']),
+					'id'   => $field['id'],
+					'type' => $field['type'], // text, textarea, checkbox, etc.
+					'desc' => $field['description'] ?? '',
+					'options' => $field['options'] ?? array(),
+					'attributes' => isset($field['attributes']) ? $field['attributes'] : array(),
+					'default' => $field['default'] ?? '',
+					'repeatable' => isset($field['repeatable']) ? $field['repeatable'] : false,
+					'after_field' => isset($field['after_field']) ? $field['after_field'] : '',
+					'before_row' => isset($field['before_row']) ? $field['before_row'] : '',
+					'after_row' => isset($field['after_row']) ? $field['after_row'] : '',
+				);
+			}
+		}
+		if (is_array($fields)) {
+			$fields = array_map(array($this, 'listeo_fields_for_cmb2'), $fields);
+		}
+		return $fields;
+	}
+
+	function listeo_fields_for_cmb2($value)
+	{
+			if ($value['type'] == 'select') {
+			$value['show_option_none'] = true;
+		}
+		
+		if (is_admin()) {
+			if ($value['type'] == 'repeatable') {
+				$value['type'] = 'group';
+				$value['group_title'] = $value['name'];
+				$value['add_button'] = __('Add', 'cmb2');
+				$value['remove_button'] = __('Remove', 'cmb2');
+				$value['sortable'] = false;
+				$x = 0;
+				$value['fields'] = array();
+				foreach ($value['options'] as $key => $option) {
+					$value['fields'][$x]['name'] = $option;
+					$value['fields'][$x]['id'] = $key;
+					$value['fields'][$x]['type'] = 'text';
+					$x++;
+				}
+			}
+		}
+		return $value;
 	}
 
 	public static function meta_boxes_location() {
@@ -641,13 +1132,29 @@ class Listeo_Core_Meta_Boxes {
 				),				
 				array(
 					'name' => __( 'Latitude', 'listeo_core' ),
+					'desc' => __( 'Type Google Maps Address and hit enter - lat/long will be populated automatically', 'listeo_core' ),
 					'id'   => '_geolocation_lat',
 					'type' => 'text',
+					'attributes' => array(
+						'type'  => 'number',
+						'step'  => 'any',        // Allows decimal numbers
+						'min'   => '-90',        // Minimum latitude value
+						'max'   => '90',         // Maximum latitude value
+						'placeholder' => __('Enter latitude (-90 to 90)', 'listeo_core'),
+					),
 				),				
 				array(
 					'name' => __( 'Longitude', 'listeo_core' ),
 					'id'   => '_geolocation_long',
+					'desc' => __('Type Google Maps Address and hit enter - lat/long will be populated automatically', 'listeo_core'),
 					'type' => 'text',
+					'attributes' => array(
+						'type'  => 'number',
+						'step'  => 'any',        // Allows decimal numbers
+						'min'   => '-180',       // Minimum longitude value
+						'max'   => '180',        // Maximum longitude value
+						'placeholder' => __('Enter longitude (-180 to 180)', 'listeo_core'),
+					),
 				),
 				array(
 					'name' => __( 'Google Maps Place ID', 'listeo_core' ),
@@ -786,7 +1293,7 @@ class Listeo_Core_Meta_Boxes {
 					'type' => 'text',
 				),
 				array(
-					'name' => __( 'Twitter', 'listeo_core' ),
+					'name' => __( 'x.com', 'listeo_core' ),
 					'id'   => '_twitter',
 					'type' => 'text',
 				),	
@@ -799,9 +1306,10 @@ class Listeo_Core_Meta_Boxes {
 					'name' => __( 'Instagram', 'listeo_core' ),
 					'id'   => '_instagram',
 					'type' => 'text',
-				),array(
-					'name' => __( 'Skype', 'listeo_core' ),
-					'id'   => '_skype',
+				),
+				array(
+					'name' => __( 'TikTok', 'listeo_core' ),
+					'id'   => '_tiktok',
 					'type' => 'text',
 				),
 				array(
@@ -837,18 +1345,18 @@ class Listeo_Core_Meta_Boxes {
 			'id'     => 'rental_tab',
 			'title'  => __( 'Rental fields', 'listeo_core' ),
 			'fields' => array(
-				array(
-					'name' 	=> __( 'Area', 'listeo_core' ),
-					'id'   	=> '_area',
-					'type' 	=> 'text',
-					'invert' => true
-				),					
-				array(
-					'name' 	=> __( 'Rooms', 'listeo_core' ),
-					'id'   	=> '_rooms',
-					'type' 	=> 'text',
-					'invert' => false
-				),			
+				// array(
+				// 	'name' 	=> __( 'Area', 'listeo_core' ),
+				// 	'id'   	=> '_area',
+				// 	'type' 	=> 'text',
+				// 	'invert' => true
+				// ),					
+				// array(
+				// 	'name' 	=> __( 'Rooms', 'listeo_core' ),
+				// 	'id'   	=> '_rooms',
+				// 	'type' 	=> 'text',
+				// 	'invert' => false
+				// ),			
 			)
 		);
 
@@ -866,6 +1374,7 @@ class Listeo_Core_Meta_Boxes {
 					'name' 	=> __( 'Condition', 'listeo_core' ),
 					'id'   	=> '_classifieds_condition',
 					'type' 	=> 'select',
+					'show_option_none' => true,
 					'invert' => true,
 					'options'   => array(
 						'new' => __( 'New', 'listeo_core' ),
@@ -878,7 +1387,8 @@ class Listeo_Core_Meta_Boxes {
 					'type' 	=> 'text',
 					'invert' => true,
 				
-				),					
+				),
+						
 			
 			)
 		);
@@ -933,7 +1443,7 @@ class Listeo_Core_Meta_Boxes {
 
 		
 	function cmb2_render_opening_hours_listeo_field_callback( $field, $escaped_value, $object_id, $object_type, $field_type_object ) {
-		//var_dump($escaped_value);
+		
 		if(is_array($escaped_value)){
 			foreach ($escaped_value as $key => $time) {
 				echo $field_type_object->input( 
@@ -1150,6 +1660,14 @@ class Listeo_Core_Meta_Boxes {
 
 	function listeo_register_taxonomy_metabox() {
 		$prefix = 'listeo_';
+		
+		// Get all taxonomies registered for the listing post type
+		$listing_taxonomies = get_object_taxonomies('listing');
+		
+		// Filter out taxonomies that shouldn't have metaboxes (if any)
+		$excluded_taxonomies = array('region'); // Add any taxonomies to exclude here if needed
+		$listing_taxonomies = array_diff($listing_taxonomies, $excluded_taxonomies);
+		
 	/**
 	 * Metabox to add fields to categories and tags
 	 */
@@ -1157,46 +1675,158 @@ class Listeo_Core_Meta_Boxes {
 		'id'               => $prefix . 'edit',
 		'title'            => esc_html__( 'Listing Taxonomy Meta', 'listeo_core' ), // Doesn't output for term boxes
 		'object_types'     => array( 'term' ), // Tells CMB2 to use term_meta vs post_meta
-		'taxonomies'       => array( 'listing_category' ), // Tells CMB2 which taxonomies should have these fields
+		'taxonomies'       => $listing_taxonomies, // Apply to all listing taxonomies
 			// 'new_term_section' => true, // Will display in the "Add New Category" section
 		'show_in_rest' => WP_REST_Server::READABLE,
 	) );
 
+		$top_layout = get_option('pp_listings_top_layout', 'map');
 
-	$cmb_term->add_field( array(
-		'name'           => 'Assign Features for this Category',
-		'desc'           => 'Features can be created in Listings -> Features',
-		'id'             =>  $prefix . 'taxonomy_multicheck',
-		'taxonomy'       => 'listing_feature', //Enter Taxonomy Slug
-		'type'           => 'taxonomy_multicheck',
-		// Optional :
-		'text'           => array(
-			'no_terms_text' => 'Sorry, no terms could be found.' // Change default text. Default: "No terms"
-		),
-		'remove_default' => 'true' // Removes the default metabox provided by WP core. Pending release as of Aug-10-1
-	) );
 
-	$cmb_term->add_field( array(
-		'name'           => 'Assign Listing Type category for this Category',
-		'desc'           => 'Choose which listing type (rental/service/event) taxonomy will be assigned to that category',
-		'id'             =>  $prefix . 'taxonomy_type',
-		'type'           => 'multicheck_inline',
-		 'options'          => array(
-	        'service'			=> __( 'Service categories', 'cmb2' ),
-	        'rental'   			=> __( 'Rental categories', 'cmb2' ),
-	        'event'     		=> __( 'Event categories', 'cmb2' ),
-			'classifieds'     	=> __('Classifieds categories', 'cmb2' ),
-	    ),
-	
-	) );
+		switch ($top_layout) {
+			case 'search':
+			case 'map_searchform':
+				$search_forms = listeo_get_search_forms_dropdown('fullwidth');
+				break;
 
-	
-		$cmb_term->add_field( array(
-		'name'           => 'Category description',
-        'id'             =>  $prefix . 'taxonomy_content_description',
-		'type'           => 'textarea',
-	) );
+			case 'halfsidebar':
+			case 'half':
+				$search_forms = listeo_get_search_forms_dropdown('split');
+				break;
+
+			default:
+				$search_forms = listeo_get_search_forms_dropdown('all');
+				break;
+		}
+
+		// select search form
+		$cmb_term->add_field(array(
+			'name'           => 'Search Form',
+			'desc'           => 'Select which search form will be used for this category',
+			'id'             =>  $prefix . 'taxonomy_search_form',
+			'type'           => 'select',
+			// 'default'        => 'default',
+			// 'show_option_none' => true,
+			//'options'     => listeo_get_search_forms_dropdown('all')
+			'options_cb' => 'listeo_get_search_form_metabox_cb',
+			'priority'    => 10,
+		));
+
+
+
+
+		// add layout options for category
+		$cmb_term->add_field(array(
+			'name'           => 'Category Archive Layout',
+			'desc'           => 'Choose the general archive layout for this category',
+			'id'             =>  $prefix . 'taxonomy_top_layout',
+			'type'           => 'select',
+			'default'        => get_option('pp_listings_top_layout', 'map'),
+			'show_option_none' => false,
+			'options'     => array(
+				'titlebar' 		=> esc_attr__('Standard titlebar', 'listeo_core'),
+				'search' 		=> esc_attr__('Full width search form', 'listeo_core'),
+				'map_searchform' => esc_attr__('Map with search form', 'listeo_core'),
+				'map' 			=> esc_attr__('Map on top', 'listeo_core'),
+				'half' 			=> esc_attr__('Split Map/Content', 'listeo_core'),
+				'halfsidebar' 	=> esc_attr__('Split Map/Content with sidebar', 'listeo_core'),
+				'disable' 		=> esc_attr__('Disable titlebar', 'listeo_core'),
+
+
+			),
+			'priority'    => 10,
+
+		));
+
+
+		$cmb_term->add_field(array(
+			'name'           => 'Category content layout',
+			'desc'           => 'Choose the general archive layout for this category',
+			'id'             =>  $prefix . 'taxonomy_content_layout',
+			'type'           => 'select',
+			'default_cb'       => function () {
+				$val = get_option('pp_listings_layout', 'list');
+				$allowed = array('list', 'grid', 'compact', 'list_old', 'grid_old');
+				return in_array($val, $allowed, true) ? $val : 'list';
+			},
+			'show_option_none' => false,
+			'options'     => array(
+				'list' 		=> esc_attr__('List', 'listeo_core'),
+				'grid' 		=> esc_attr__('Grid', 'listeo_core'),
+				'compact' 	=> esc_attr__('Grid Compact', 'listeo_core'),
+				'list_old' 		=> esc_attr__('List Classic', 'listeo_core'),
+				'grid_old' 		=> esc_attr__('Grid Classic', 'listeo_core'),
+			),
+
+		));
+
+	// Create separate metabox for "Assign Features" field - exclude listing_feature taxonomy
+	$taxonomies_with_features = array_diff($listing_taxonomies, array('listing_feature'));
+
+	if (!empty($taxonomies_with_features)) {
+		$cmb_term_features = new_cmb2_box( array(
+			'id'               => $prefix . 'edit_features',
+			'title'            => esc_html__( 'Category Features', 'listeo_core' ),
+			'object_types'     => array( 'term' ),
+			'taxonomies'       => $taxonomies_with_features, // Apply to category taxonomies only, not listing_feature
+			'show_in_rest' => WP_REST_Server::READABLE,
+		) );
+
+		// Assign Features for this Category
+		$cmb_term_features->add_field( array(
+			'name'           => 'Assign Features for this Category',
+			'desc'           => 'Features can be created in Listings -> Features',
+			'id'             =>  $prefix . 'taxonomy_multicheck',
+			'taxonomy'       => 'listing_feature', //Enter Taxonomy Slug
+			'type'           => 'taxonomy_multicheck_hierarchical',
+			// Optional :
+			'text'           => array(
+				'no_terms_text' => 'Sorry, no terms could be found.' // Change default text. Default: "No terms"
+			),
+			'remove_default' => 'true' // Removes the default metabox provided by WP core. Pending release as of Aug-10-1
+		) );
 	}
+
+	}
+
+	/**
+	 * Callback to determine if the "Assign Features" field should be shown
+	 * Only show for category taxonomies, not for listing_feature taxonomy itself
+	 */
+	function listeo_show_features_field_callback( $field_args, $field ) {
+		// Get current taxonomy from multiple sources
+		$taxonomy = '';
+
+		// Check URL parameter first
+		if ( isset( $_GET['taxonomy'] ) ) {
+			$taxonomy = sanitize_text_field( $_GET['taxonomy'] );
+		}
+
+		// Check if editing a specific term
+		if ( empty( $taxonomy ) && isset( $_GET['tag_ID'] ) && function_exists( 'get_term' ) ) {
+			$term = get_term( intval( $_GET['tag_ID'] ) );
+			if ( $term && ! is_wp_error( $term ) ) {
+				$taxonomy = $term->taxonomy;
+			}
+		}
+
+		// Check current screen as fallback
+		if ( empty( $taxonomy ) && function_exists( 'get_current_screen' ) ) {
+			$screen = get_current_screen();
+			if ( $screen && isset( $screen->taxonomy ) ) {
+				$taxonomy = $screen->taxonomy;
+			}
+		}
+
+		// Don't show for listing_feature taxonomy itself
+		if ( $taxonomy === 'listing_feature' ) {
+			return false;
+		}
+
+		// Show for all other listing taxonomies (categories, etc.)
+		return true;
+	}
+	
 	/*
 	 * Custom Icon field for Job Categories taxonomy 
 	 **/
@@ -1207,7 +1837,7 @@ class Listeo_Core_Meta_Boxes {
 		?>
 		<div class="form-field">
 	
-			<label for="icon"><?php esc_html_e( 'Category Icon', 'listeo_core' ); ?></label>
+			<label for="icon"><?php esc_html_e( 'Icon', 'listeo_core' ); ?></label>
 				<select class="listeo-icon-select" name="icon" id="icon">
 					
 				<?php 
@@ -1230,7 +1860,7 @@ class Listeo_Core_Meta_Boxes {
 				   		
 				   	}
 
-				   	if(!get_option('listeo_iconsmind')=='hide'){
+				   	if(!get_option('listeo_iconsmind')!='hide'){
 				   		$imicons = vc_iconpicker_type_iconsmind(array());
 				   		
 					   	foreach ($imicons as $key => $icon_array ) {
@@ -1246,13 +1876,14 @@ class Listeo_Core_Meta_Boxes {
 				</select>
 			<p class="description"><?php esc_html_e( 'Icon will be displayed in categories grid view','listeo_core' ); ?></p>
 		</div>
-		<?php //wp_enqueue_media(); ?>
+		<?php wp_enqueue_media(); ?>
 		<div class="form-field">
 			<label for="_cover"><?php esc_html_e( 'Custom Icon (SVG files only)', 'listeo_core' ); ?></label>
 			
 				
 				<input style="width:100px" type="text" name="_icon_svg" id="_icon_svg" value="">
 				<input type='button' class="listeo-custom-image-upload button-primary" value="<?php _e( 'Upload SVG Icon', 'listeo_core' ); ?>" id="uploadimage"/><br />
+				<p class="listeo-admin-test-api">We recommend using outline  or monocolor icons from <a href="https://www.svgrepo.com/">https://www.svgrepo.com/</a></p>
 		</div>
 		<div class="form-field">
 			<label for="_cover"><?php esc_html_e( 'Category Cover', 'listeo_core' ); ?></label>
@@ -1279,7 +1910,7 @@ class Listeo_Core_Meta_Boxes {
 		<tr class="form-field">
 			<th scope="row" valign="top">
 
-				<label for="icon"><?php esc_html_e( 'Category Icon', 'listeo_core' ); ?></label>
+				<label for="icon"><?php esc_html_e( 'Icon', 'listeo_core' ); ?></label>
 
 			<td>
 				<select class="listeo-icon-select" name="icon" id="icon">
@@ -1298,7 +1929,7 @@ class Listeo_Core_Meta_Boxes {
 				   		
 				   	}
 
-				   	if(!get_option('listeo_iconsmind')=='hide'){
+				   	if(get_option('listeo_iconsmind')!='hide'){
 				   		$imicons = vc_iconpicker_type_iconsmind(array());
 				   		
 					   	foreach ($imicons as $key => $icon_array ) {
@@ -1332,7 +1963,7 @@ class Listeo_Core_Meta_Boxes {
 				?>
 				<input style="width:100px" type="text" name="_icon_svg" id="_icon_svg" value="<?php echo $_icon_svg; ?>">
 				<input type='button' class="listeo-custom-image-upload button-primary" value="<?php _e( 'Upload SVG Icon', 'listeo_core' ); ?>" id="uploadimage"/><br />
-				<p>We recommend using outline icons from <a href="https://www.iconfinder.com/search/?price=free&style=outline">iconfinder.com</a></p>
+				<p class="listeo-admin-test-api">We recommend using outline  or monocolor icons from <a href="https://www.svgrepo.com/">https://www.svgrepo.com/</a></p>
 			</td>
 		</tr>	
 
@@ -1456,60 +2087,66 @@ class Listeo_Core_Meta_Boxes {
 		$fields = array(
 				'phone' => array(
 					'id'                => 'phone',
-					'name'              => __( 'Phone', 'realteo' ),
-					'label'             => __( 'Phone', 'realteo' ),
+					'name'              => __( 'Phone', 'listeo_core' ),
+					'label'             => __( 'Phone', 'listeo_core' ),
 					'type'              => 'text',
 					
 				),
 				'header_social' => array(
-					'label'       => __( 'Social', 'realteo' ),
+					'label'       => __( 'Social', 'listeo_core' ),
 					'type'        => 'header',
 					'id'          => 'header_social',
-					'name'        => __( 'Social', 'realteo' ),
+					'name'        => __( 'Social', 'listeo_core' ),
 				),
 				'twitter' => array(
 					'id'                => 'twitter',
-					'name'              => __( '<i class="fa fa-twitter"></i> Twitter', 'realteo' ),
-					'label'             => __( '<i class="fa fa-twitter"></i> Twitter', 'realteo' ),
+					'name'              => __('<i class="fa-brands fa-x-twitter"></i> x.com', 'listeo_core' ),
+					'label'             => __( '<i class="fa-brands fa-x-twitter"></i> x.com', 'listeo_core' ),
 					'type'              => 'text',
+					'placeholder'       => __( 'https://x.com/username', 'listeo_core' ),
 				),
 				'facebook' => array(
 					'id'                => 'facebook',
-					'name'              => __( '<i class="fa fa-facebook-square"></i> Facebook', 'realteo' ),
-					'label'             => __( '<i class="fa fa-facebook-square"></i> Facebook', 'realteo' ),
+					'name'              => __( '<i class="fa fa-facebook-square"></i> Facebook', 'listeo_core' ),
+					'label'             => __( '<i class="fa fa-facebook-square"></i> Facebook', 'listeo_core' ),
 					'type'              => 'text',
+					'placeholder'       => __( 'https://facebook.com/username', 'listeo_core' ),
 				),				
 			
 				'linkedin' => array(
 					'id'                => 'linkedin',
-					'name'              => __( '<i class="fa fa-linkedin"></i> Linkedin', 'realteo' ),
-					'label'             => __( '<i class="fa fa-linkedin"></i> Linkedin', 'realteo' ),
+					'name'              => __( '<i class="fa fa-linkedin"></i> Linkedin', 'listeo_core' ),
+					'label'             => __( '<i class="fa fa-linkedin"></i> Linkedin', 'listeo_core' ),
 					'type'              => 'text',
-					
+					'placeholder'       => __( 'https://linkedin.com/in/username', 'listeo_core' ),
 				),	
 				'instagram' => array(
 					'id'                => 'instagram',
-					'name'              => __( '<i class="fa fa-instagram"></i> Instagram', 'realteo' ),
-					'label'             => __( '<i class="fa fa-instagram"></i> Instagram', 'realteo' ),
+					'name'              => __( '<i class="fa fa-instagram"></i> Instagram', 'listeo_core' ),
+					'label'             => __( '<i class="fa fa-instagram"></i> Instagram', 'listeo_core' ),
 					'type'              => 'text',
+					'placeholder'       => __( 'https://instagram.com/username', 'listeo_core' ),
 				),				
 				'youtube' => array(
 					'id'                => 'youtube',
-					'name'              => __( '<i class="fa fa-youtube"></i> YouTube', 'realteo' ),
-					'label'             => __( '<i class="fa fa-youtube"></i> YouTube', 'realteo' ),
+					'name'              => __( '<i class="fa fa-youtube"></i> YouTube', 'listeo_core' ),
+					'label'             => __( '<i class="fa fa-youtube"></i> YouTube', 'listeo_core' ),
 					'type'              => 'text',
+					'placeholder'       => __( 'https://youtube.com/@channel', 'listeo_core' ),
 				),
-				'skype' => array(
-					'id'                => 'skype',
-					'name'              => __( '<i class="fa fa-skype"></i> Skype', 'realteo' ),
-					'label'             => __( '<i class="fa fa-skype"></i> Skype', 'realteo' ),
+				'tiktok' => array(
+					'id'                => 'tiktok',
+					'name'              => __( '<i class="fa-brands fa-tiktok"></i> TikTok', 'listeo_core' ),
+					'label'             => __( '<i class="fa-brands fa-tiktok"></i> TikTok', 'listeo_core' ),
 					'type'              => 'text',
+					'placeholder'       => __( 'https://tiktok.com/@username', 'listeo_core' ),
 				),
 				'whatsapp' => array(
 					'id'                => 'whatsapp',
-					'name'              => __( '<i class="fa fa-whatsapp"></i> Whatsapp', 'realteo' ),
-					'label'             => __( '<i class="fa fa-whatsapp"></i> Whatsapp', 'realteo' ),
+					'name'              => __( '<i class="fa fa-whatsapp"></i> Whatsapp', 'listeo_core' ),
+					'label'             => __( '<i class="fa fa-whatsapp"></i> Whatsapp', 'listeo_core' ),
 					'type'              => 'text',
+					'placeholder'       => __( 'https://wa.me/1234567890', 'listeo_core' ),
 				),
 			);
 		$fields = apply_filters( 'listeo_user_owner_fields', $fields );
@@ -1523,60 +2160,66 @@ class Listeo_Core_Meta_Boxes {
 		$fields = array(
 				'phone' => array(
 					'id'                => 'phone',
-					'name'              => __( 'Phone', 'realteo' ),
-					'label'             => __( 'Phone', 'realteo' ),
+					'name'              => __( 'Phone', 'listeo_core' ),
+					'label'             => __( 'Phone', 'listeo_core' ),
 					'type'              => 'text',
 					
 				),
 				'header_social' => array(
-					'label'       => __( 'Social', 'realteo' ),
+					'label'       => __( 'Social', 'listeo_core' ),
 					'type'        => 'header',
 					'id'          => 'header_social',
-					'name'        => __( 'Social', 'realteo' ),
+					'name'        => __( 'Social', 'listeo_core' ),
 				),
 				'twitter' => array(
 					'id'                => 'twitter',
-					'name'              => __( '<i class="fa fa-twitter"></i> Twitter', 'realteo' ),
-					'label'             => __( '<i class="fa fa-twitter"></i> Twitter', 'realteo' ),
+					'name'              => __( '<i class="fa-brands fa-x-twitter"></i> x.com', 'listeo_core' ),
+					'label'             => __( '<i class="fa-brands fa-x-twitter"></i> x.com', 'listeo_core' ),
 					'type'              => 'text',
+					'placeholder'       => __( 'https://x.com/username', 'listeo_core' ),
 				),
 				'facebook' => array(
 					'id'                => 'facebook',
-					'name'              => __( '<i class="fa fa-facebook-square"></i> Facebook', 'realteo' ),
-					'label'             => __( '<i class="fa fa-facebook-square"></i> Facebook', 'realteo' ),
+					'name'              => __( '<i class="fa fa-facebook-square"></i> Facebook', 'listeo_core' ),
+					'label'             => __( '<i class="fa fa-facebook-square"></i> Facebook', 'listeo_core' ),
 					'type'              => 'text',
+					'placeholder'       => __( 'https://facebook.com/username', 'listeo_core' ),
 				),				
 			
 				'linkedin' => array(
 					'id'                => 'linkedin',
-					'name'              => __( '<i class="fa fa-linkedin"></i> Linkedin', 'realteo' ),
-					'label'             => __( '<i class="fa fa-linkedin"></i> Linkedin', 'realteo' ),
+					'name'              => __( '<i class="fa fa-linkedin"></i> Linkedin', 'listeo_core' ),
+					'label'             => __( '<i class="fa fa-linkedin"></i> Linkedin', 'listeo_core' ),
 					'type'              => 'text',
-					
+					'placeholder'       => __( 'https://linkedin.com/in/username', 'listeo_core' ),
 				),	
 				'instagram' => array(
 					'id'                => 'instagram',
-					'name'              => __( '<i class="fa fa-instagram"></i> Instagram', 'realteo' ),
-					'label'             => __( '<i class="fa fa-instagram"></i> Instagram', 'realteo' ),
+					'name'              => __( '<i class="fa fa-instagram"></i> Instagram', 'listeo_core' ),
+					'label'             => __( '<i class="fa fa-instagram"></i> Instagram', 'listeo_core' ),
 					'type'              => 'text',
+					'placeholder'       => __( 'https://instagram.com/username', 'listeo_core' ),
 				),				
 				'youtube' => array(
 					'id'                => 'youtube',
-					'name'              => __( '<i class="fa fa-youtube"></i> YouTube', 'realteo' ),
-					'label'             => __( '<i class="fa fa-youtube"></i> YouTube', 'realteo' ),
+					'name'              => __( '<i class="fa fa-youtube"></i> YouTube', 'listeo_core' ),
+					'label'             => __( '<i class="fa fa-youtube"></i> YouTube', 'listeo_core' ),
 					'type'              => 'text',
+					'placeholder'       => __( 'https://youtube.com/@channel', 'listeo_core' ),
 				),
-				'skype' => array(
-					'id'                => 'skype',
-					'name'              => __( '<i class="fa fa-skype"></i> Skype', 'realteo' ),
-					'label'             => __( '<i class="fa fa-skype"></i> Skype', 'realteo' ),
+				'tiktok' => array(
+					'id'                => 'tiktok',
+					'name'              => __( '<i class="fa-brands fa-tiktok"></i> TikTok', 'listeo_core' ),
+					'label'             => __( '<i class="fa-brands fa-tiktok"></i> TikTok', 'listeo_core' ),
 					'type'              => 'text',
+					'placeholder'       => __( 'https://tiktok.com/@username', 'listeo_core' ),
 				),
 				'whatsapp' => array(
 					'id'                => 'whatsapp',
-					'name'              => __( '<i class="fa fa-skype"></i> Whatsapp', 'realteo' ),
-					'label'             => __( '<i class="fa fa-skype"></i> Whatsapp', 'realteo' ),
+					'name'              => __( '<i class="fa fa-whatsapp"></i> Whatsapp', 'listeo_core' ),
+					'label'             => __( '<i class="fa fa-whatsapp"></i> Whatsapp', 'listeo_core' ),
 					'type'              => 'text',
+					'placeholder'       => __( 'https://wa.me/1234567890', 'listeo_core' ),
 				),
 			);
 		$fields = apply_filters( 'listeo_user_guest_fields', $fields );
@@ -1585,8 +2228,67 @@ class Listeo_Core_Meta_Boxes {
 		return $fields;
 	}
 
-	
+	/**
+	 * Get dynamic listing type options for admin meta boxes
+	 */
+	public function get_dynamic_listing_type_options() {
+		$options = array();
+		
+		// Check if custom listing types system is available
+		if (function_exists('listeo_core_custom_listing_types')) {
+			$custom_types_manager = listeo_core_custom_listing_types();
+			$types = $custom_types_manager->get_listing_types(true); // Get active types only
+			
+			if (!empty($types)) {
+				foreach ($types as $type) {
+					$options[$type->slug] = __($type->name, 'listeo_core');
+				}
+			}
+		}
+		
+		// Fallback to default types if custom system not available or no types found
+		if (empty($options)) {
+			$options = array(
+				'service' => __( 'Service', 'listeo_core' ),
+				'rental' => __( 'Rental', 'listeo_core' ),
+				'event' => __( 'Event', 'listeo_core' ),
+				'classifieds' => __( 'Classifieds', 'listeo_core' ),
+			);
+		}
+		
+		return $options;
+	}
 
+	/**
+	 * Magic method to handle dynamic show_on callbacks for custom listing types
+	 */
+	public function __call($method_name, $arguments) {
+		// Handle dynamic show_on callbacks for custom listing types
+		if (strpos($method_name, 'listeo_show_on_custom_type_') === 0) {
+			$type_slug = str_replace('listeo_show_on_custom_type_', '', $method_name);
+			return $this->show_on_custom_listing_type($type_slug, $arguments[0] ?? null);
+		}
+		
+		// For other dynamic methods, trigger a PHP error
+		trigger_error("Call to undefined method " . __CLASS__ . "::{$method_name}()", E_USER_ERROR);
+	}
+
+	/**
+	 * Generic callback to show fields only for specific custom listing type
+	 */
+	public function show_on_custom_listing_type($type_slug, $cmb) {
+		if (!$cmb) {
+			return false;
+		}
+		
+		$post_id = $cmb->object_id();
+		if (!$post_id) {
+			return false;
+		}
+		
+		$listing_type = get_post_meta($post_id, '_listing_type', true);
+		return ($listing_type === $type_slug);
+	}
 
 
 }

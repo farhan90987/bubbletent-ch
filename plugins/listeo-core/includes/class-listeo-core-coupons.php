@@ -23,12 +23,95 @@ class Listeo_Core_Coupons {
 		// /add_action( 'init', array( $this, 'process' ) );
 		add_action( 'wp', array( $this, 'dashboard_coupons_action_handler' ) );
 
-		
+		add_filter('woocommerce_coupon_is_valid', array($this, 'woocommerce_coupon_is_valid_for_product'), 30, 3);
+
+		add_action('before_delete_post', array($this, 'remove_coupon_meta'), 10, 1);
 		
 
 	}
 
+	/**
+	 * Remove coupon meta
+	 *
+	 * @param int $post_id
+	 */
+	public function remove_coupon_meta($post_id) {
+		if (get_post_type($post_id) !== 'shop_coupon') {
 
+			return;
+		}
+
+		global $wpdb;
+
+		// Delete any postmeta where the coupon is referenced as _coupon_for_widget
+
+		$wpdb->query(
+
+			$wpdb->prepare(
+
+				"DELETE FROM {$wpdb->postmeta}
+
+					WHERE meta_key = '_coupon_for_widget'
+
+					AND meta_value = %d",
+
+				$post_id
+
+			)
+		);
+		if ( 'shop_coupon' === get_post_type( $post_id ) ) {
+			$meta = get_post_meta($post_id);
+			if ( ! empty( $meta ) ) {
+				foreach ( $meta as $key => $value ) {
+					delete_post_meta( $post_id, $key );
+				}
+			}
+		}
+	}
+
+
+	/**
+	 * validate vendor coupon
+	 *
+	 * @param boolean $true
+	 * @return abject $coupon
+	 */
+	public function woocommerce_coupon_is_valid_for_product($valid, $coupon, $discount) {
+		
+	
+			$current_coupon = get_post($coupon->get_id());
+			if ($current_coupon->post_author) {
+				
+				// check current coupon author role
+				$author = get_userdata($current_coupon->post_author);
+				$author_roles = $author->roles;
+				// if the role is 'owner' or 'agent' then check if the coupon is valid for the current product author
+				if (in_array('owner', $author_roles)) {
+					$products = $discount->get_items();
+				
+					foreach ($products as  $product) {
+						
+						//$current_product = get_post($product->product->get_id());
+						$current_product = wc_get_product($product->product->get_id());
+
+						// $product->get_type();
+					// check the product type
+						if ($current_product->get_type() == 'listing_booking') {
+
+							return $valid;
+						} else {
+							return false;
+						}
+					}
+					
+					
+
+				}
+
+			}
+		
+		return $valid;
+	}
 
 	/**
 	 * User bookmarks shortcode
@@ -120,8 +203,10 @@ class Listeo_Core_Coupons {
 	public function dashboard_coupons_action_handler() {
 
 		global $post;
-
+		
 		if ( is_page(get_option( 'listeo_coupons_page' ) ) ) {
+
+			
 			if ( isset( $_POST['listeo-coupon-submission'] ) && '1' == $_POST['listeo-coupon-submission'] ) {
 				
 				global $wpdb;
@@ -135,6 +220,14 @@ class Listeo_Core_Coupons {
 			    if ( empty( $coupon_id ) ) {
 					
 					$customer_emails = sanitize_text_field($_POST['customer_email']);
+					// if customer emails are not empty, then explode by comma and remove spaces, it needs to be saved as array
+					if(!empty($customer_emails)){
+						$customer_emails = explode(',', $customer_emails);
+						$customer_emails = array_map('trim', $customer_emails);
+						
+					}
+					// if listing_ids are not empty, then explode by comma and remove spaces, it needs to be saved as array
+					
 
 					if(isset($_POST['listing_ids']) && is_array($_POST['listing_ids'])){
 
@@ -160,8 +253,7 @@ class Listeo_Core_Coupons {
 						$products = $this->get_products_ids_by_listing($listings);
 						$listings = implode(",",$listings);
 					}
-
-				
+					
 				    $data = array(
 			            'discount_type'              => sanitize_text_field($_POST['discount_type']),
 			            'coupon_amount'              => sanitize_text_field($_POST['coupon_amount']), // value
@@ -248,7 +340,11 @@ class Listeo_Core_Coupons {
 				if ( isset( $_POST['listeo-coupon-edit'] ) && '1' == $_POST['listeo-coupon-edit'] ) {
 
 					$customer_emails = sanitize_text_field($_POST['customer_email']);
-
+					
+					if (!empty($customer_emails)) {
+						$customer_emails = explode(',', $customer_emails);
+						$customer_emails = array_map('trim', $customer_emails);
+					}
 					if(isset($_POST['listing_ids']) && is_array($_POST['listing_ids'])){
 
 						$products = $this->get_products_ids_by_listing($_POST['listing_ids']);
@@ -273,8 +369,8 @@ class Listeo_Core_Coupons {
 						$products = $this->get_products_ids_by_listing($listings);
 						$listings = implode(",",$listings);
 					}
-					  
 
+			
 					$data = array(
 			            'discount_type'              => sanitize_text_field($_POST['discount_type']),
 			            'coupon_amount'              => sanitize_text_field($_POST['coupon_amount']), // value
@@ -296,6 +392,7 @@ class Listeo_Core_Coupons {
 			            'customer_email'             => $customer_emails,
 			            'coupon_bg-uploader-id'		 => sanitize_text_field($_POST['listeo_coupon_bg_id']),
 			        );
+				
 				  
 			        // Save the coupon in the database
 			        $coupon = array(

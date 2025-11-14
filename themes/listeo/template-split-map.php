@@ -9,7 +9,13 @@
  *
  * @package Listeo
  */
-get_header('split');?>
+
+$full_width_header = get_option('listeo_full_width_header');
+if ($full_width_header == 'enable' || $full_width_header == 'true') {
+	get_header('fullwidthnosearch');
+} else {
+	get_header('split');
+}?>
 <div class="fs-container">
 
 	<div class="fs-inner-container content">
@@ -21,7 +27,12 @@ get_header('split');?>
 				<a href="#" id="show-map-button" class="show-map-button" data-enabled="<?php  esc_attr_e('Show Map ','listeo'); ?>" data-disabled="<?php  esc_attr_e('Hide Map ','listeo'); ?>"><?php esc_html_e('Show Map ','listeo') ?></a>
 				<div class="row">
 					<div class="col-md-12">
-						<?php echo do_shortcode('[listeo_search_form source="half" more_custom_class="margin-bottom-30"]'); ?>
+						<?php 
+						$source = get_post_meta(get_the_ID(), 'listeo_page_search_search_form', true);
+						if(empty($source)){
+							$source = 'half';
+						}
+						echo do_shortcode('[listeo_search_form source="'.$source.'" more_custom_class="margin-bottom-30"]'); ?>
 						
 					</div>
 				</div>

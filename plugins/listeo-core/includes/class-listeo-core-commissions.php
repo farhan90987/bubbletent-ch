@@ -28,12 +28,80 @@ class Listeo_Core_Commissions {
 	public function __construct() {
 			
 		add_action( 'woocommerce_order_status_changed', array( $this, 'order_status_change' ), 10, 3 );
-		// add_action( 'woocommerce_refund_created', array( $this, 'register_commission_refund' ) );
+		//add_action( 'woocommerce_order_refunded', array( $this, 'register_commission_refund' ), 20, 2 );
 		
 		add_shortcode( 'listeo_wallet', array( $this, 'listeo_wallet' ) );
 
 		
 	}
+
+	function register_commission_refund( $order, $refund) {
+		
+		
+		// $order_id = $order->get_id();
+		// $order = wc_get_order( $order_id );
+		// if(!$order){
+		// 	return;
+		// }
+
+		// // check payment method based on order id
+		// $payment_method = $order->get_payment_method();
+		// //skip if payment method is cod
+		// if($payment_method == 'cod'){
+		// 	return;
+		// }
+		// $processed = $order->get_meta( '_listeo_commissions_processed', true );
+
+		// if ( $processed && $processed == 'yes' ) {
+		// 	return;
+		// }
+
+		
+
+		// $order_data = $order->get_data();
+		
+		
+		// $args['order_id'] = $order_id;
+		// $args['user_id'] = $order->get_meta('owner_id');
+		// $args['booking_id'] = $order->get_meta('booking_id');
+		// $args['listing_id'] = $order->get_meta('listing_id');
+		// $args['rate'] = (float) get_option('listeo_commission_rate',10)/100;
+		
+
+		
+
+		// $connect_processed = $order->get_meta('listeo_stripe_connect_processed', true);
+	
+		// if ($connect_processed) {
+		// 	$args['status'] = 'paid';
+		// } else {
+		// 	$args['status'] = 'unpaid';
+		// }
+
+		// $order_total = $order->get_total();
+		// //get order value before tax
+		// //$order_total = $order_total - $order_data['total_tax'];
+		// $args['amount'] = (float) $order_total * $args['rate'];
+		// $args['type'] = "percentage";	
+
+		// $commission_id = $this->insert_commission( $args );
+		// if($commission_id){
+		// 	$order->add_meta_data( '_listeo_commissions_id', $commission_id, true );
+		// 	$order->add_meta_data( '_listeo_commissions_processed', 'yes', true );
+	    //     $order->save_meta_data();
+		// }
+		// // Mark commissions as processed
+		
+	}
+
+		/**
+	 * Register commissions based on order status
+	 *
+	 * @param $order_id
+	 * @param $old_status
+	 * @param $new_status
+	 */
+	//}
 
 
 	public function order_status_change( $order_id, $old_status, $new_status ) {
@@ -76,6 +144,13 @@ class Listeo_Core_Commissions {
 		if(!$order){
 			return;
 		}
+
+		// check payment method based on order id
+		$payment_method = $order->get_payment_method();
+		//skip if payment method is cod
+		if($payment_method == 'cod'){
+			return;
+		}
 		$processed = $order->get_meta( '_listeo_commissions_processed', true );
 
 		if ( $processed && $processed == 'yes' ) {
@@ -85,13 +160,21 @@ class Listeo_Core_Commissions {
 		
 
 		$order_data = $order->get_data();
-		$order_meta = get_post_meta($order_id);
+		
 		
 		$args['order_id'] = $order_id;
-		$args['user_id'] = get_post_meta($order_id,'owner_id',true);
-		$args['booking_id'] = get_post_meta($order_id,'booking_id',true);
-		$args['listing_id'] = get_post_meta($order_id,'listing_id',true);
-		$args['rate'] = (float) get_option('listeo_commission_rate',10)/100;
+		$args['user_id'] = $order->get_meta('owner_id');
+		$args['booking_id'] = $order->get_meta('booking_id');
+		$args['listing_id'] = $order->get_meta('listing_id');
+
+		$commission = get_user_meta($args['user_id'], 'listeo_commission_rate',true);
+		if(empty($commission)){
+			$commission = get_option('listeo_commission_rate',10);
+		}
+		$args['rate'] = (float) $commission/100;
+		
+		
+
 		
 
 		$connect_processed = $order->get_meta('listeo_stripe_connect_processed', true);
@@ -103,6 +186,8 @@ class Listeo_Core_Commissions {
 		}
 
 		$order_total = $order->get_total();
+		//get order value before tax
+		//$order_total = $order_total - $order_data['total_tax'];
 		$args['amount'] = (float) $order_total * $args['rate'];
 		$args['type'] = "percentage";	
 

@@ -2,6 +2,7 @@
 $ids = '';
 if(isset($data)) :
 	$ids	 	= (isset($data->ids)) ? $data->ids : '' ;
+
 endif; 
 $no_bookmarks = array();
 
@@ -15,6 +16,7 @@ $no_bookmarks = array();
 	<?php
 	$nonce = wp_create_nonce("listeo_core_remove_fav_nonce");
 	foreach ($ids as $listing_id) {
+		if(!is_numeric($listing_id)) continue;
 		if ( get_post_status( $listing_id ) !== 'publish' ) {
 			$no_bookmarks[$listing_id] = true;
 			continue;
@@ -46,15 +48,19 @@ $no_bookmarks = array();
 						<h3><a href="<?php echo get_permalink( $listing ) ?>"><?php echo get_the_title( $listing );?></a></h3>
 						<span><?php the_listing_address($listing); ?></span>
 						
-						<?php $rating = get_post_meta($listing_id, 'listeo-avg-rating', true);
+						<?php 
+						// Use the new combined rating display function
+						$rating_data = listeo_get_rating_display($listing_id);
+						$rating = $rating_data['rating'];
+						$number = $rating_data['count'];
+						
 						if(isset($rating) && $rating > 0 ) : 
 						$rating_type = get_option('listeo_rating_type','star');
 						if($rating_type == 'numerical') { ?>
-	                        <div class="numerical-rating" data-rating="<?php $rating_value = esc_attr(round($rating,1)); printf("%0.1f",$rating_value); ?>">
+	                        <div class="numerical-rating" data-rating="<?php $rating = str_replace(',', '.', $rating); $rating_value = esc_attr(round($rating,1)); printf("%0.1f",$rating_value); ?>">
 	                    <?php } else { ?>
 	                        <div class="star-rating" data-rating="<?php echo $rating; ?>">
 	                    <?php } ?>
-							<?php $number = get_comments_number($listing_id);  ?>
 							<div class="rating-counter">(<?php printf( _n( '%s review', '%s reviews', $number,'listeo_core'), number_format_i18n( $number ) );  ?>)</div>
 						</div>
 						<?php endif; ?>

@@ -16,7 +16,10 @@ $messages = new Listeo_Core_Messages();
 		<ul>
 			<?php 
 			if($ids) { 
+				
 			foreach ($ids as $key => $conversation) {
+				
+				// turn converstation array to object
 				$message_url = add_query_arg( array( 'action' => 'view',  'conv_id' => $conversation->id ), get_permalink( get_option( 'listeo_messages_page' )) );
 
 				$last_msg = $messages->get_last_message($conversation->id);
@@ -38,12 +41,16 @@ $messages = new Listeo_Core_Messages();
 							<div class="message-by">
 								<div class="message-by-headline">
 									<?php
-									if(empty($user_data->first_name) && empty($user_data->last_name)) {
-										$name = $user_data->user_nicename;
+									if (!empty($user_data) && is_object($user_data)) {
+										if (empty($user_data->first_name) && empty($user_data->last_name)) {
+											$name = $user_data->user_nicename;
+										} else {
+											$name = $user_data->first_name . ' ' . $user_data->last_name;
+										}
 									} else {
-										$name = $user_data->first_name .' '.$user_data->last_name;
-									} ?>
-									<h5><?php echo esc_html($name); ?> <?php if($referral) : ?> <span class="mes_referral" style="float:none;"> <?php echo esc_html($referral);  ?></span><?php endif; ?>
+										$name = __('Deleted user', 'listeo_core'); 
+									}?>
+									<h5><?php echo esc_html($name); ?> <?php if($referral) : ?> <span class="mes_referral" style="float:none;"> <?php echo esc_html(strip_tags($referral)); ?></span><?php endif; ?>
 										<?php if(!$if_read) : ?><i><?php esc_html_e('Unread','listeo_core') ?></i><?php endif; ?>
 									</h5>
 									<?php if(isset($last_msg[0]->created_at) && !empty($last_msg[0]->created_at)) : ?><span><?php echo human_time_diff( $last_msg[0]->created_at, current_time('timestamp')  );  ?></span><?php endif; ?>

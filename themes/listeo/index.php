@@ -12,7 +12,16 @@
  * @package listeo
  */
 
-get_header(); ?>
+
+$full_width_header = get_option('listeo_full_width_header');
+
+
+if ($full_width_header == 'enable' || $full_width_header == 'true') {
+	get_header('fullwidth');
+} else {
+	get_header();
+}
+?>
 
 <?php $titlebar_status = get_option('listeo_blog_titlebar_status','show');
 

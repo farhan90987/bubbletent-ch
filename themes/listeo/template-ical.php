@@ -23,6 +23,22 @@ $ical_prod_id          = sprintf('-//%s//iCal Event Maker', get_bloginfo('name')
 $ical_refresh_interval = 'P30M';
 $ical_timezone_string  = wp_timezone_string();
 
+//listing timezone
+$meta_timezone =  get_post_meta($post->ID, '_listing_timezone', true);
+if (substr($meta_timezone, 0, 3) == "UTC") {
+	$offset =  substr($meta_timezone, 3);
+	$meta_timezone = str_replace('UTC', 'Etc/GMT', $meta_timezone);
+	if (0 == $offset) {
+	} elseif ($offset < 0) {
+		$meta_timezone = str_replace('-', '+', $meta_timezone);
+	} else {
+		$meta_timezone = str_replace('+', '-', $meta_timezone);
+	}
+}
+if (!empty($meta_timezone)) {
+	$ical_timezone_string = $meta_timezone;
+}
+
 $zulu_timezone = new DateTimeZone('UTC');
 
 /**
@@ -36,18 +52,31 @@ $ical_timezone_offset = str_replace(':', '', $datetime->format('P'));
  */
 $events_from_datetime = wp_date('Y-m-d H:i:s', strtotime('-1 year'));
 $events_to_datetime   = wp_date('Y-m-d H:i:s', strtotime('+2 years'));
-$events               = $result = $wpdb->get_results(
-	"select * from {$wpdb->prefix}bookings_calendar 
-                where (
-                        ('{$events_from_datetime}' >= date_start and '{$events_from_datetime}' <= date_end) or 
-                        ('{$events_to_datetime}' >= date_start and '{$events_to_datetime}' <= date_end) or
-                        (date_start >= '{$events_from_datetime}' and date_end <= '{$events_to_datetime}')
-                    )
-                  and not comment='owner reservations' 
-                  and status IN ('confirmed','paid','approved','waiting')
-                  and listing_id = {$listing_id}
-                  and type = 'reservation'"
+$listing_id = (int) $listing_id; // Always sanitize input
+
+
+$sql = $wpdb->prepare(
+	"
+    SELECT * FROM {$wpdb->prefix}bookings_calendar 
+    WHERE (
+            (%s >= date_start AND %s <= date_end) OR 
+            (%s >= date_start AND %s <= date_end) OR
+            (date_start >= %s AND date_end <= %s)
+          )
+     AND status IN ('confirmed','paid','approved','waiting','owner_reservations')
+     AND listing_id = %d
+     AND type = 'reservation'
+",
+	$events_from_datetime,
+	$events_from_datetime,
+	$events_to_datetime,
+	$events_to_datetime,
+	$events_from_datetime,
+	$events_to_datetime,
+	$listing_id
 );
+
+$events = $wpdb->get_results($sql);
 
 /**
  * Calendar domain

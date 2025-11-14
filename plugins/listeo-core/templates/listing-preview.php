@@ -100,7 +100,12 @@
 					</a>
 				</span>
 			<?php endif; ?>
-			<?php $rating = get_post_meta($post->ID, 'listeo-avg-rating', true);
+			<?php 
+			// Use the new combined rating display function
+			$rating_data = listeo_get_rating_display($post->ID);
+			$rating = $rating_data['rating'];
+			$number = $rating_data['count'];
+			
 			if (isset($rating) && $rating > 0) :
 				$rating_type = get_option('listeo_rating_type', 'star');
 				if ($rating_type == 'numerical') { ?>
@@ -109,8 +114,10 @@
 					<?php } else { ?>
 						<div class="star-rating" data-rating="<?php echo $rating; ?>">
 						<?php } ?>
-						<?php $number = get_comments_number($post->ID);  ?>
+						<?php if($number > 0){ ?>
+						
 						<div class="rating-counter">(<?php printf(_n('%s review', '%s reviews', $number, 'listeo_core'), number_format_i18n($number));  ?>)</div>
+						<?php } ?>
 						</div>
 					<?php endif; ?>
 					</div>
@@ -139,7 +146,9 @@
 
 			<!-- Description -->
 
+			<?php do_action('listeo/single-listing/before-content'); ?>
 			<?php the_content(); ?>
+			<?php do_action('listeo/single-listing/after-content'); ?>
 			<?php $template_loader->get_template_part('single-partials/single-listing', 'socials');  ?>
 			<?php $template_loader->get_template_part('single-partials/single-listing', 'features');  ?>
 		</div>
@@ -167,7 +176,9 @@
 		endif; ?>
 		<?php $template_loader->get_template_part('single-partials/single-listing', 'opening');  ?>
 		<?php $template_loader->get_template_part('single-partials/single-listing', 'video');  ?>
-		<?php $template_loader->get_template_part('single-partials/single-listing', 'location');  ?>
+		<?php $template_loader->get_template_part('single-partials/single-listing', 'location');
+		$template_loader->get_template_part('single-partials/single-listing', 'faq');
+		//$template_loader->get_template_part('single-partials/single-listing', 'other-listings'); ?>
 
 	</div>
 	<?php if (get_option('listeo_edit_listing_requires_approval')) { ?>

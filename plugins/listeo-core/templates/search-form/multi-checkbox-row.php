@@ -15,7 +15,8 @@ if(isset($data->taxonomy) && !empty($data->taxonomy)) {
 	$groups = array_chunk($data->options, 4, true);
 	if(is_tax($data->taxonomy)){
 		$selected[get_query_var($data->taxonomy)] = 'on';
-	}	
+	}
+	
 	?>
 	<div class="panel-checkboxes-container">
 	<?php
@@ -26,14 +27,25 @@ if(isset($data->taxonomy) && !empty($data->taxonomy)) {
 		$selected_arr[$selected] = 'on';
 		$selected = $selected_arr;
 	}
+	
 
 	foreach ($groups as $group) { ?>
 		
 	
-	<?php foreach ($group as $key => $value) { 	?>
-
+	<?php foreach ($group as $key => $value) { 
+		// check if $selected array has keys as number or text
+		if (array_key_exists($value['slug'], $selected)) {
+			$checked = 'checked="checked"';
+		} elseif (in_array($value['slug'], $selected)) {
+			$checked = 'checked="checked"';
+		} else {
+			$checked = '';
+		}
+		
+		?>
+		
 		<div class="panel-checkbox-wrap">
-			<input <?php if ( array_key_exists ($value['slug'], $selected) ) { echo 'checked="checked"'; } ?> id="<?php echo esc_html($value['slug']) ?>-<?php echo esc_attr($data->name); ?>" value="<?php echo esc_html($value['slug']) ?>" type="checkbox" name="<?php echo $data->name.'['.esc_html($value['slug']).']'; ?>">
+			<input <?php  echo $checked;  ?> id="<?php echo esc_html($value['slug']) ?>-<?php echo esc_attr($data->name); ?>" value="<?php echo esc_html($value['slug']) ?>" type="checkbox" name="<?php echo $data->name.'['.esc_html($value['slug']).']'; ?>">
 			<label for="<?php echo esc_html($value['slug']) ?>-<?php echo esc_attr($data->name); ?>"><?php echo esc_html($value['name']) ?></label>	
 		</div>
 	<?php } ?>

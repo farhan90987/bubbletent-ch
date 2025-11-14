@@ -1,5 +1,6 @@
 <?php 
 $flag_enabled = false;
+
 if(isset($_GET[$data->name.'_min']) && !empty($_GET[$data->name.'_min']) && $_GET[$data->name.'_min'] != 'NaN') {
 	$min = sanitize_text_field($_GET[''.$data->name.'_min']);
 	$min = (int)preg_replace('/[^0-9]/', '', $min);
@@ -51,4 +52,9 @@ if(isset($_GET[$data->name.'_max']) && !empty($_GET[$data->name.'_max']) && $_GE
 		<input name="<?php echo esc_attr($data->name); ?>" class="distance-radius" type="range" min="<?php echo esc_attr($data->min); ?>" max="<?php echo esc_attr($data->max); ?>" step="1" value="<?php echo get_option('listeo_maps_default_radius'); ?>" data-title="<?php echo esc_html($data->placeholder) ?>">
 	</div>
 
+	<?php
+	
+	if( isset($data->place) && $data->place != 'panel' ) { ?>
+		<span class="panel-disable" data-disable="<?php echo esc_attr_e( 'Disable Radius', 'listeo_core' ); ?>" data-enable="<?php echo esc_attr_e( 'Enable Radius', 'listeo_core' ); ?>"><?php esc_html_e('Disable Radius', 'listeo_core'); ?></span>
+	<?php } ?>
 </div>

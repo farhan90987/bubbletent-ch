@@ -91,7 +91,7 @@ class Listeo_Core_Shortcodes {
 	
 		$get_listings['featured'] = $featured;
 		$listeo_core_query = Listeo_Core_Listing::get_real_listings( apply_filters( 'listeo_core_output_defaults_args', $get_listings ));
-		
+	
 		?>
 
 			<div class="row margin-bottom-25">
@@ -99,37 +99,115 @@ class Listeo_Core_Shortcodes {
 				<?php do_action( 'listeo_before_archive', $style, $list_top_buttons ); ?>
 			</div>
 		<?php
+
 		
-		if ( $listeo_core_query->have_posts() ) { 
-			$style_data = array(
-				'style' 		=> $style, 
-				'class' 		=> $custom_class, 
-				'in_rows' 		=> $in_rows, 
-				'grid_columns' 	=> $grid_columns,
-				'per_page' 		=> $per_page,
-				'max_num_pages'	=> $listeo_core_query->max_num_pages, 
-				'counter'		=> $listeo_core_query->found_posts,
-				'ajax_browsing' => $ajax_browsing,
-				);
+		$style_data = array(
+			'style' 		=> $style,
+			'class' 		=> $custom_class,
+			'in_rows' 		=> $in_rows,
+			'grid_columns' 	=> $grid_columns,
+			'per_page' 		=> $per_page,
+			'max_num_pages'	=> $listeo_core_query->max_num_pages,
+			'counter'		=> $listeo_core_query->found_posts,
+			'ajax_browsing' => $ajax_browsing,
+		);
+
+			
+			
 			
 			$search_data = array_merge($style_data,$get_listings);
-			$template_loader->set_template_data( $search_data )->get_template_part( 'listings-start' ); 
-			
+			$template_loader->set_template_data( $search_data )->get_template_part( 'listings-start' );
+			$category = get_query_var('tax-listing_category');
+			//check if it's a category  archive page
+			if (is_tax('listing_category')) {
+				$term = get_queried_object();
+				$category = $term->slug;
+			}
+			$region = get_query_var('tax-region');
+			if (is_tax('region')) {
+				$term = get_queried_object();
+				$region = $term->slug;
+			}
+			$feature = get_query_var('tax-listing_feature');
+			if (is_tax('listing_feature')) {
+				$term = get_queried_object();
+				$feature = $term->slug;
+			}
+
+
+			$ad_filter = array(
+				'listing_category' 	=> $category,
+				'listing_feature'	=> $region,
+				'region' 			=> $feature,
+			);
+
+			// get posts from ad
+			$ads = listeo_get_ids_listings_for_ads('search', $ad_filter);
+
+			// if no ads, don't show them
+			if (!empty($ads)) {
+
+
+				$ad_posts_count = count($ads);
+				$ad_posts_index = 0;
+
+				$ads_args = array(
+					'post_type' => 'listing',
+					'post_status' => 'publish',
+					'posts_per_page' => 2,
+					'orderby' => 'rand',
+					'post__in' => $ads,
+				);
+				$ads_query = new \WP_Query($ads_args);
+			} /* Start the Loop */
+
+			if ($listeo_core_query->have_posts()) {
+			if (!empty($ads)) {
+				if ($ads_query->have_posts()) {
+					while ($ads_query->have_posts()) {
+						$ads_query->the_post();
+						$ad_posts_index++;
+						$ad_data = array(
+							'ad' => true,
+							'ad_id' => get_the_ID(),
+						);
+						// merge ad data with style data
+						$ad_data = array_merge($style_data, $ad_data);
+						$style = str_replace('_', '-', $style);
+						$template_loader->set_template_data($ad_data)->get_template_part('content-listing', $style); 	
+						
+					}
+				}
+				// reset post data
+				wp_reset_postdata();
+			}
 			// Loop through listings
 			while ( $listeo_core_query->have_posts() ) {
 				// Setup listing data
 				$listeo_core_query->the_post();
-				
-				$template_loader->set_template_data( $style_data )->get_template_part( 'content-listing',$style ); 	
+				// if in $style there's any _ change it to -
+				$style = str_replace('_', '-', $style);
+				$template_loader->set_template_data( $style_data )->get_template_part( 'content-listing', $style ); 	
 			
 			}
 			
-			if($style_data['ajax_browsing'] == 'on'){?>
+			if($style_data['ajax_browsing'] == 'on'){
+				$infinite_scroll = get_option('listeo_listeo_infinite_scroll', 'off');
+				?>
 			</div>
-			<div class="pagination-container margin-top-20 margin-bottom-20 ajax-search">
-				<?php
-				echo listeo_core_ajax_pagination( $listeo_core_query->max_num_pages, 1 ); ?>
-			</div>
+			<?php if( $infinite_scroll == 'on' && $listeo_core_query->max_num_pages > 1 ) : ?>
+				<div class="listeo-load-more-container">
+					<button class="listeo-load-more-button button loading" data-next-page="2">
+						<span class="button-text"><?php esc_html_e('Loading...', 'listeo_core'); ?></span>
+						<i class="fa fa-spinner fa-spin loading-icon" style="margin-left: 8px;"></i>
+					</button>
+				</div>
+			<?php else : ?>
+				<div class="pagination-container margin-top-20 margin-bottom-20 ajax-search">
+					<?php
+					echo listeo_core_ajax_pagination( $listeo_core_query->max_num_pages, 1 ); ?>
+				</div>
+			<?php endif; ?>
 			<?php } else {
 				$template_loader->set_template_data( $style_data )->get_template_part( 'listings-end' ); 
 			}

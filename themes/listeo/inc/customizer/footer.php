@@ -8,7 +8,19 @@ listeo_Kirki::add_section( 'footer', array(
     'theme_supports' => '', // Rarely needed.
 ) );
 
-  
+$footer_icons = array();
+$footer_brand_icons = array();
+$faicons = listeo_fa_icons_list();
+foreach ($faicons as $key => $value) {
+    $footer_icons['fa fa-' . $key] = $key . ' (Font Awesome)';;
+}
+$brandicons = listeoBrandIcons();
+
+foreach ($brandicons as $key => $value) {
+    // uppercase first letter of key
+    $footer_icons['icon-brand-' . $key] = $value;
+    $footer_brand_icons[$key] = $value;
+}
 
 
 	listeo_Kirki::add_field( 'listeo', array(
@@ -55,6 +67,34 @@ listeo_Kirki::add_section( 'footer', array(
             'light'  => esc_attr__( 'Light', 'listeo' ),
             'dark'  => esc_attr__( 'Dark', 'listeo' ),
         ),
-    ) );      
+    ) );
 
+listeo_Kirki::add_field('listeo', array(
+    'type'        => 'repeater',
+    'label'       => esc_html__('Social Icons', 'kirki'),
+    'section'     => 'footer',
+    'priority'    => 10,
+    'row_label' => array(
+        'type'  => 'text',
+        'value' => esc_html__('Icon', 'kirki'),
+    ),
+    'button_label' => esc_html__('"Add new" social icon ', 'kirki'),
+    'settings'     => 'pp_footericons',
+
+    'fields' => array(
+        'icons_service' => array(
+            'type'        => 'select',
+            'label'       => esc_html__('Select Social Site', 'kirki'),
+            //'description' => esc_html__( 'This will be the label for your link', 'kirki' ),
+            'default'     => '',
+            'choices'     => $footer_brand_icons
+        ),
+        'icons_url'  => array(
+            'type'        => 'text',
+            'label'       => esc_html__('URL to  page', 'kirki'),
+            //'description' => esc_html__( 'This will be the link URL', 'kirki' ),
+            'default'     => '',
+        ),
+    )
+));
 ?>

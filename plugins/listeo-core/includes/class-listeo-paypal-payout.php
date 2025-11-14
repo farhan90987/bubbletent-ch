@@ -9,6 +9,7 @@ require __DIR__ . '/../vendor/autoload.php';
 //use Sample\PayPalClient;
 use PaypalPayoutsSDK\Core\PayPalHttpClient;
 use PaypalPayoutsSDK\Core\SandboxEnvironment;
+use PaypalPayoutsSDK\Core\ProductionEnvironment;
 use PaypalPayoutsSDK\Payouts\PayoutsPostRequest;
 use PayPalHttp\HttpException;
 use PaypalPayoutsSDK\Payouts\PayoutsGetRequest;
@@ -32,7 +33,17 @@ class ListeoPayPalSandboxClient
      */
     public static function environment($client_id, $client_secret)
     {
-        return new SandboxEnvironment($client_id, $client_secret);
+        $env = esc_attr(get_option('listeo_payout_environment'));
+        if (empty($env)) {
+            $env = 'sandbox';
+        }
+
+        if ($env === 'sandbox') {
+            return new SandboxEnvironment($client_id, $client_secret);
+        } else {
+            return new ProductionEnvironment($client_id, $client_secret);
+        }
+        
     }
 }
 
@@ -83,7 +94,7 @@ class ListeoPayPalPayOut
         }
 
         $amount = (float) $amount;
-        $amount = number_format($amount, 2);
+        $amount = number_format($amount, 2, '.', '');
 
         return json_decode(
             '{
@@ -135,8 +146,8 @@ class ListeoPayPalPayOut
             // @todo: need to check -- Error can be on ProductionEnvironment
             $clientId = esc_attr(get_option('listeo_payout_live_client_id'));
             $clientSecret = esc_attr(get_option('listeo_payout_live_client_secret'));
+            self::$client = new PayPalHttpClient(new ProductionEnvironment($clientId, $clientSecret));
 
-            self::$client = new \PaypalPayoutsSDK\Core\ProductionEnvironment($clientId, $clientSecret);
         }
     }
 
@@ -179,11 +190,9 @@ class ListeoPayPalPayOut
             return $response;
         } catch (HttpException $e) {
             //Parse failure response
-            echo $e->getMessage() . "\n";
             $error = json_decode($e->getMessage());
-            echo $error->message . "\n";
-            echo $error->name . "\n";
-            echo $error->debug_id . "\n";
+            listeo_plugin_logs('PayPal API Error: ' . $error->message);
+            return false;
         }
     }
 }
@@ -191,6 +200,11 @@ class ListeoPayPalPayOut
 if (! function_exists('listeo_send_commission_to_listing_owners')){
     add_action('woocommerce_order_status_changed', 'listeo_send_commission_to_listing_owners', 999, 4);
     function listeo_send_commission_to_listing_owners($order_id, $from, $to, $order_obj){
+        $is_payout_feature_active = esc_attr(get_option('listeo_payout_activation'));
+
+        if ($is_payout_feature_active != 'yes') {
+            return;
+        }
 
         global $wpdb;
         
@@ -233,7 +247,10 @@ if (! function_exists('listeo_send_commission_to_listing_owners')){
                 
                 
         $owner_email = esc_attr(get_user_meta($owner_id, 'listeo_paypal_payout_email', true));
-
+        $payment_type = get_user_meta($owner_id, 'listeo_core_payment_type', true);
+        if($payment_type != "paypal_payout"){
+            return;
+        }
         if (! is_email($owner_email)){
             listeo_plugin_logs('Unable to send payout (commission) to listing owner `User ID: ('.$owner_id.')` because the PayPal Payout email address is not a valid email. Provided PayPal Payout Email address is `'.$owner_email.'`');
             return false;
@@ -247,7 +264,12 @@ if (! function_exists('listeo_send_commission_to_listing_owners')){
         $db_email_message = esc_attr(get_option('listeo_payout_email_message'));
 
         $total_price = $p_data['total'];
-        $listeo_commission_rate = esc_attr(get_option('listeo_commission_rate'));
+        
+        $listeo_commission_rate = get_user_meta($owner_id, 'listeo_commission_rate', true);
+        if (empty($listeo_commission_rate)) {
+            $listeo_commission_rate = get_option('listeo_commission_rate', 10);
+        }
+       
         $commission_rate = apply_filters('listeo_commission_rate', $listeo_commission_rate, $owner_id);
 
         $owner_earning = $total_price - ( ($commission_rate / 100) * $total_price);
@@ -255,8 +277,9 @@ if (! function_exists('listeo_send_commission_to_listing_owners')){
 
         // Run the payout script here.
         $response = ListeoPayPalPayOut::CreatePayout($owner_email, $sender_item_id, $owner_earning , $currency, $note, $db_email_subject, $db_email_message);
-listeo_plugin_logs($response);
+
         if ($response !== false){
+            
             if ($response->statusCode >= 200 && $response->statusCode < 300){
 
                 $batchId = $response->result->batch_header->payout_batch_id;
@@ -264,7 +287,7 @@ listeo_plugin_logs($response);
                 // get PayOut items
                 $request = new PayoutsGetRequest($batchId);
                 $payout_item_response = (new ListeoPayPalPayOut())->get_pp_client()->execute($request);
-                listeo_plugin_logs('czy my tu jestesmy');
+                
                 if (isset($payout_item_response->result->items) && isset($payout_item_response->result->items[0])){
 
                     $item = $payout_item_response->result->items[0];
@@ -341,23 +364,26 @@ listeo_plugin_logs($response);
 
                     if (! $is_updated){
 
-                        $msg = 'Unable to update commission table `'.$commission_table.'`. Reason Unknown!!!';
-                        $msg .= PHP_EOL . 'Following was the data at this stage: ' . PHP_EOL . PHP_EOL;
-                        $msg .= var_export($pp_data, true);
-                        $msg .= PHP_EOL . PHP_EOL;
-
-                        listeo_plugin_logs($msg);
+                        listeo_plugin_logs('Failed to update commission table for Order ID: ' . $order_id);
                         return false;
                     }else if (strtolower($trx_status) === 'success'){
                         // update the payout table.
                         $commission_payout_table = $wpdb->prefix . 'listeo_core_commissions_payouts';
 
-                        $row = $wpdb->get_row("SELECT * FROM {$commission_table} WHERE order_id = $order_id");
-                        $p_user_id = $row->user_id;
+                        // Ensure $order_id is cast to integer
+                        $order_id = (int) $order_id;
+
+                        $row = $wpdb->get_row(
+                            $wpdb->prepare("SELECT * FROM {$commission_table} WHERE order_id = %d", $order_id)
+                        );
+
+                        $p_user_id = isset($row->user_id) ? (int) $row->user_id : 0;
 
                         $payout_rows = $wpdb->get_results(
-                            "SELECT id FRoM {$commission_payout_table} WHERE user_id = $p_user_id", ARRAY_A
+                            $wpdb->prepare("SELECT id FROM {$commission_payout_table} WHERE user_id = %d", $p_user_id),
+                            ARRAY_A
                         );
+
 
                         $counter = count($payout_rows);
 
@@ -380,15 +406,14 @@ listeo_plugin_logs($response);
                 }
             }else {
 
-                $msg = 'PayPal Create Payout response was not OK (Success).';
-                $msg .= PHP_EOL . 'Following was the response data at this stage: ' . PHP_EOL . PHP_EOL;
-                $msg .= var_export($response, true);
-                $msg .= PHP_EOL . PHP_EOL;
+                listeo_plugin_logs('PayPal Create Payout response was not OK (Success). Response: ' . json_encode($response));
 
-                listeo_plugin_logs($msg);
                 return false;
             }
 
+            update_post_meta($order_id, 'listeo_payout_processed', 'yes');
+        } else {
+            listeo_plugin_logs('PayPal Payout failed for Order ID: ' . $order_id);
             update_post_meta($order_id, 'listeo_payout_processed', 'yes');
         }
 
@@ -573,7 +598,9 @@ if (! function_exists('listeo_plugin_logs')){
             $key = wp_generate_password(10, false, false);
             update_option('listeo_debug_key', $key);
         }
-
+        if(is_object($err_msg) || is_array($err_msg)){
+            $err_msg = json_encode($err_msg);
+        }
         $pluginlog = LISTEO_PLUGIN_DIR . 'debug-' . $key .'.log';
         $message = PHP_EOL . '----' . PHP_EOL . 'SOME ERROR: '. $err_msg . PHP_EOL . 'DATE: ' . date('d-m-Y H:i:s') . PHP_EOL . '----' . PHP_EOL;
         error_log($message, 3, $pluginlog);

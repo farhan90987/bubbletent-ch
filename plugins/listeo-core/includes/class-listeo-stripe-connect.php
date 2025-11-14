@@ -34,27 +34,30 @@ class ListeoStripeConnect
 
 
 
-        if ($stripe_connect_activation && function_exists('is_plugin_active')) {
-            $plugin_dependency_active = is_plugin_active('woocommerce-gateway-stripe/woocommerce-gateway-stripe.php');
-            if (!$plugin_dependency_active) {
+        if ($stripe_connect_activation) {
 
-                add_action('admin_notices', array($this, 'missing_stripe_notice'));
+            $stripe_mode = get_option('listeo_stripe_connect_mode');
 
+            $this->testmode       = (!empty($stripe_mode) && 'test' === $stripe_mode) ? true : false;
+
+            if ($this->testmode) {
+                $client_id = get_option('listeo_stripe_connect_test_client_id');
             } else {
+                $client_id = get_option('listeo_stripe_connect_live_client_id');
+            }
+
+            $secret_key           = 'listeo_stripe_connect_' . ($this->testmode ? 'test_' : 'live_') . 'secret_key';
+
+            $this->secret         = !empty(get_option($secret_key)) ? get_option($secret_key) : false;
+	 
+            $webhook_secret_key   = 'listeo_stripe_connect_' . ($this->testmode ? 'test_' : 'live_') . 'webhook_secret';
+            $this->webhook_secret    =!empty(get_option($webhook_secret_key)) ? get_option($webhook_secret_key) : false;
                 
-                $stripe_settings      = get_option('woocommerce_stripe_settings', []);
-                $this->testmode       = (!empty($stripe_settings['testmode']) && 'yes' === $stripe_settings['testmode']) ? true : false;
-                $secret_key           = ($this->testmode ? 'test_' : '') . 'secret_key';
-                $this->secret         = !empty($stripe_settings[$secret_key]) ? $stripe_settings[$secret_key] : false;
-            
-                $webhook_secret_key           = ($this->testmode ? 'test_' : '') . 'webhook_secret';
-                $this->webhook_secret         = !empty($stripe_settings[$webhook_secret_key]) ? $stripe_settings[$webhook_secret_key] : false;
-                
-                if($this->testmode) {
-                    $this->client_id = get_option('listeo_stripe_connect_test_client_id');
-                } else {
-                    $this->client_id = get_option('listeo_stripe_connect_live_client_id');
-                }
+            if($this->testmode) {
+                $this->client_id = get_option('listeo_stripe_connect_test_client_id');
+            } else {
+                $this->client_id = get_option('listeo_stripe_connect_live_client_id');
+            }
                 
                 add_action('woocommerce_api_wc_stripe', array($this, 'check_for_webhook'), 9);
                 add_action('wp_ajax_listeo_disconnect_stripe', array($this, 'ajax_listeo_disconnect_stripe'));
@@ -62,7 +65,6 @@ class ListeoStripeConnect
 
                 add_action('wp_enqueue_scripts', array($this, 'listeo_stripe_scripts'));
             }
-        }
        
 
     }
@@ -134,12 +136,12 @@ class ListeoStripeConnect
         $request_body = file_get_contents('php://input');
         $request_headers = array_change_key_case($wc_stripe_webhook_handler->get_request_headers(), CASE_UPPER);
         // New function call:
-
-        if (!$this->webhook_for_this_site($request_body)) {
-            WC_Stripe_Logger::log('Listeo Stripe Connect: Incoming webhook is not for this site: ' . print_r($request_body, true));
-            status_header(200);
-            exit;
-        }
+        //SKIP IT FOR NOW
+        // if (!$this->webhook_for_this_site($request_body)) {
+        //     WC_Stripe_Logger::log('Listeo Stripe Connect: Incoming webhook is not for this site: ' . print_r($request_body, true));
+        //     status_header(200);
+        //     exit;
+        // }
 
         // Validate it to make sure it is legit.
 
@@ -283,7 +285,7 @@ class ListeoStripeConnect
             list($success, $result_message, $transfer) = $this->transfer_to_owner($request_body);
            
             if ($success) {
-                WC_Stripe_Logger::log('Listeo Stripe Connect: Trasnfer to owner success: ' . print_r($transfer, true));
+                WC_Stripe_Logger::log('Listeo Stripe Connect: Transfer to owner success: ' . print_r($transfer, true));
             } else {
                 WC_Stripe_Logger::log('Listeo Stripe Connect: Payment error: ' . print_r($result_message, true));
                 error_log("Listeo Split Payment error {$result_message}");
@@ -373,10 +375,7 @@ class ListeoStripeConnect
         if ($event_data) {
             try {
                 $stripe_test_mode = $data_keys['stripeTestMode'] == 'yes';
-                $listeo_commission_rate = esc_attr(get_option('listeo_commission_rate'));
-                $commission_rate = apply_filters('listeo_commission_rate', $listeo_commission_rate);
-
-                $default_percentage = $commission_rate / 100;
+          
                 // Order details
 
                 $order_id = $event_data['wc_order_id'];
@@ -408,34 +407,39 @@ class ListeoStripeConnect
                 $post = get_post($p_data['product_id']);
 
                 $_product = wc_get_product($p_data['product_id']);
-                
-                if (!$_product->is_type('listing_booking')) {
-                    $result_message = 'Product is not Booking type.';
+
+                if (!$_product || !$_product->is_type('listing_booking')) {
+                    $result_message = 'Product is not Booking type or does not exist.';
                     return array($success, $result_message, $transfer);
                 }
 
                 $listing_id =  $order->get_meta('listing_id');
                 $owner_id = get_post_field('post_author', $listing_id);
-                
-                
+
+                $listeo_commission_rate = get_user_meta($owner_id, 'listeo_commission_rate', true);
+                if (empty($commission)) {
+                    $listeo_commission_rate = get_option('listeo_commission_rate', 10);
+                }
+                $commission_rate = apply_filters('listeo_commission_rate', $listeo_commission_rate);
+
+                $default_percentage = $commission_rate / 100;
+
                 $stripe_user_id = get_user_meta($owner_id, 'stripe_user_id', true);
-                
-                
+
                 if (empty($stripe_user_id)){
                     $result_message = esc_html_e('User is not connected to Stripe Connect.', 'listeo_core');
                     return array($success, $result_message, $transfer);
                 }
 
                 $total_price = $p_data['total'];
-           
+
                 $transfer_amount = $total_price - ($default_percentage * $total_price);
+                $transfer_amount = round($transfer_amount, 2); // Round to 2 decimal places
                 $transfer_amount = $transfer_amount * 100;
                 if (!$transfer_amount) {
                     $result_message = esc_html_e('Error calculating split payment transfer amount.','listeo_core');
                     return array($success, $result_message, $transfer);
                 }
-
-                
              
                 \Stripe\Stripe::setApiKey($data_keys['secret']);
 

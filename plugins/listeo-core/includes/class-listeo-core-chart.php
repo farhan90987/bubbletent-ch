@@ -45,7 +45,7 @@ class Listeo_Core_Chart
     public function get_labels()
     {
 
-        $days = absint(get_option('listeo_stats_default_stat_days', 5)) +1;
+        $days = absint(get_option('listeo_stats_default_stat_days', 5)) + 1;
         $dates = array();
         $date_from  = strtotime(date_i18n('Y-m-d', strtotime('-' . $days . 'days')));
         $date_to    = strtotime(date_i18n('Y-m-d'));
@@ -168,32 +168,48 @@ class Listeo_Core_Chart
 
 
 
-    /**
-     * Query Stats Data From Database in Simple Array
-     */
-    public function get_raw_stats($args)
-    {
-        global $wpdb;
+ 
+/**
+ * Query Stats Data From Database in Simple Array - FIXED VERSION
+ */
+public function get_raw_stats($args)
+{
+    global $wpdb;
 
+    $where = array();
+    $current_user_id = get_current_user_id();
 
-        /* SQL */
-        $where = array();
-        if (isset($args['stat_id'])) {
-            $where[] = "AND stat_id IN ( '" . $args['stat_id'] . "' )";
-        }
-        if (isset($args['post_ids'])) {
-            $where[] = "AND post_id IN ( '" . implode("','", $args['post_ids']) . "' )";
-        }
-        if ($args['date_from'] && $args['date_to']) {
-            $where[] = $wpdb->prepare('AND stat_date between %s and %s', $args['date_from'], $args['date_to']);
-        }
-        $where = implode(' ', $where);
-
-        $data = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}listeo_core_stats WHERE 1=1 {$where}");
-
-
-        return apply_filters('listeo_stats_data_raw_stats', $data, $args);
+    // Validate stat_id
+    if (isset($args['stat_id']) && is_scalar($args['stat_id'])) {
+        $where[] = $wpdb->prepare('AND s.stat_id = %d', (int) $args['stat_id']);
     }
+
+    // Validate post_ids as array of integers AND ensure they belong to current user
+    if (!empty($args['post_ids']) && is_array($args['post_ids'])) {
+        $post_ids = array_map('intval', $args['post_ids']);
+        $placeholders = implode(',', array_fill(0, count($post_ids), '%d'));
+        $where[] = $wpdb->prepare("AND s.post_id IN ($placeholders)", ...$post_ids);
+    }
+
+    // Safe date range
+    if (!empty($args['date_from']) && !empty($args['date_to'])) {
+        $where[] = $wpdb->prepare('AND s.stat_date BETWEEN %s AND %s', $args['date_from'], $args['date_to']);
+    }
+
+    $where_sql = implode(' ', $where);
+
+    // JOIN with posts table to ensure only current user's posts are included
+    $sql = "SELECT s.* FROM {$wpdb->prefix}listeo_core_stats s 
+            INNER JOIN {$wpdb->posts} p ON s.post_id = p.ID 
+            WHERE p.post_author = %d 
+            AND p.post_type = 'listing' 
+            {$where_sql}";
+    
+    $data = $wpdb->get_results($wpdb->prepare($sql, $current_user_id));
+
+    return apply_filters('listeo_stats_data_raw_stats', $data, $args);
+}
+
 
 
     /**
@@ -381,74 +397,90 @@ class Listeo_Core_Chart
         );
         return $listings;
     }
+
     function ajax_listeo_chart_refresh()
-    {
+{ // Add this at the beginning of ajax_listeo_chart_refresh()
+      
+    // Add security check
+    if (!is_user_logged_in()) {
+        wp_die('Unauthorized');
+    }
 
-        $date_start = $_POST['date_start'];
-        $date_end = $_POST['date_end'];
-        $type = $_POST['stat_type'];
-        $listing = (isset($_POST['listing'])) ? $_POST['listing'] : false;
+    $date_start = sanitize_text_field($_POST['date_start']);
+    $date_end = sanitize_text_field($_POST['date_end']);
+    $type = sanitize_text_field($_POST['stat_type']);
+    $listing = (isset($_POST['listing'])) ? sanitize_text_field($_POST['listing']) : false;
 
-        if (!empty($listing)) {
-            if ($listing == 'show_all') {
-                $post_ids = $this->post_ids();
-            } else {
-                $post_ids = explode(" ", $listing);
-            }
+    // Always ensure we only get current user's posts
+    $current_user_post_ids = $this->post_ids(); // This already filters by current user
+
+    if (!empty($listing)) {
+        if ($listing == 'show_all') {
+            $post_ids = $current_user_post_ids;
         } else {
-            $post_ids = $this->post_ids();
+            $requested_ids = explode(" ", $listing);
+            $requested_ids = array_map('intval', $requested_ids);
+            // Only allow post IDs that belong to current user
+            $post_ids = array_intersect($requested_ids, $current_user_post_ids);
         }
+    } else {
+        $post_ids = $current_user_post_ids;
+    }
 
-        global $wpdb;
-
-        // setting dates to MySQL style
-        $date_start = esc_sql(date("Y-m-d H:i:s", strtotime($wpdb->esc_like($date_start))));
-        $date_end = esc_sql(date("Y-m-d H:i:s", strtotime($wpdb->esc_like($date_end))));
-
-        $args = array(
-            'date_from'  => $date_start,
-            'date_to'    => $date_end,
-            'post_ids'   => $post_ids,
-            'stat_id'   => $type
-        );
-
-        $data = $this->get_raw_stats($args);
-
-
-
-        $dates = array();
-        $date_from  = strtotime($date_start);
-        $date_to    = strtotime($date_end);
-
-        while ($date_from <= $date_to) {
-            $key = date_i18n('Y-m-d', $date_from);
-            $dates[$key] = date_i18n(get_option('date_format'), $date_from);
-            $date_from = strtotime('+1 day', $date_from);
-        }
-
-
-        $labels =  $dates;
-
-        $postdata_raw = $this->get_posts_datasets($data, $labels);
-        $postdata = array();
-        $i = 0;
-        foreach ($postdata_raw as $key => $dataset) {
-            /* Colors */
-            $colors = $this->chart_colors();
-            $i++;
-            $color = isset($colors[$i]) ? $colors[$i] : mt_rand(0, 255) . ',' . mt_rand(0, 255) . ',' . mt_rand(0, 255);
-            $dataset['backgroundColor'] = 'rgba(' . $color . ',0.08)';
-            $dataset['borderColor'] = 'rgba(' . $color . ',1)';
-            $postdata[] = $dataset;
-        }
-
-        $result = array(
-            'data' => $postdata,
-            'labels' => $labels,
-        );
-        wp_send_json($result);
+    // If no valid post IDs, return empty result
+    if (empty($post_ids)) {
+        wp_send_json(array('data' => array(), 'labels' => array()));
         die();
     }
+
+    global $wpdb;
+
+    // setting dates to MySQL style
+    $date_start = esc_sql(date("Y-m-d H:i:s", strtotime($date_start)));
+    $date_end = esc_sql(date("Y-m-d H:i:s", strtotime($date_end)));
+
+    $args = array(
+        'date_from'  => $date_start,
+        'date_to'    => $date_end,
+        'post_ids'   => $post_ids,
+        'stat_id'    => $type
+    );
+
+    $data = $this->get_raw_stats($args);
+
+    $dates = array();
+    $date_from  = strtotime($date_start);
+    $date_to    = strtotime($date_end);
+
+    while ($date_from <= $date_to) {
+        $key = date_i18n('Y-m-d', $date_from);
+        $dates[$key] = date_i18n(get_option('date_format'), $date_from);
+        $date_from = strtotime('+1 day', $date_from);
+    }
+
+    $labels = $dates;
+
+    $postdata_raw = $this->get_posts_datasets($data, $labels);
+    $postdata = array();
+    $i = 0;
+    foreach ($postdata_raw as $key => $dataset) {
+        /* Colors */
+        $colors = $this->chart_colors();
+        $i++;
+        $color = isset($colors[$i]) ? $colors[$i] : mt_rand(0, 255) . ',' . mt_rand(0, 255) . ',' . mt_rand(0, 255);
+        $dataset['backgroundColor'] = 'rgba(' . $color . ',0.08)';
+        $dataset['borderColor'] = 'rgba(' . $color . ',1)';
+        $postdata[] = $dataset;
+    }
+
+    $result = array(
+        'data' => $postdata,
+        'labels' => $labels,
+    );
+    wp_send_json($result);
+    die();
+}
+
 
 
 
@@ -480,7 +512,7 @@ class Listeo_Core_Chart
                                 <div class="sort-by-select">
                                     <select data-placeholder="Default order" class="select2-bookings" id="listing_id">
                                         <option value="show_all"><?php echo esc_html__('All listings', 'listeo_core') ?></option>
-                                        <?php
+                                        <?php 
                                         $listings = $this->get_listings_ids();
                                         foreach ($listings->posts as $listing_id) { ?>
                                             <option value="<?php echo $listing_id; ?>"><?php echo get_the_title($listing_id); ?></option>
@@ -490,10 +522,13 @@ class Listeo_Core_Chart
                             </div>
                             <div class="sort-by-status chart-sort-by">
                                 <div class="sort-by-select">
+                                    <?php
+                                    $stats_type = get_option('listeo_stats_type', array('unique', 'booking_click')); ?>
                                     <select data-placeholder="<?php esc_attr_e('Visits', 'listeo_core') ?>" class="select2-bookings-status" id="stat_type">
                                         <option value="visits"><?php echo esc_html__('All Visits', 'listeo_core') ?></option>
                                         <option value="unique"><?php echo esc_html__('Unique Visits', 'listeo_core') ?></option>
-                                        <option value="booking_click"><?php echo esc_html__('Booking form clicks', 'listeo_core') ?></option>
+                                        <?php if (in_array('booking_click', $stats_type)) { ?><option value="booking_click"><?php echo esc_html__('Booking form clicks', 'listeo_core') ?></option> <?php } ?>
+                                        <?php if (in_array('contact_click', $stats_type)) { ?><option value="contact_click"><?php echo esc_html__('Contact form clicks', 'listeo_core') ?></option><?php } ?>
                                     </select>
                                 </div>
                             </div>

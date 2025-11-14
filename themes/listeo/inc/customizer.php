@@ -8,22 +8,27 @@
 /**
  * Add the theme configuration
  */
-listeo_Kirki::add_config( 'listeo', array(
-    'option_type' => 'option',
-    'capability'  => 'edit_theme_options',
-) );
-    
-    
-require get_template_directory() . '/inc/customizer/var.php';
-require get_template_directory() . '/inc/customizer/header.php';
-require get_template_directory() . '/inc/customizer/home.php';
-require get_template_directory() . '/inc/customizer/listings.php';
-require get_template_directory() . '/inc/customizer/general.php';
-require get_template_directory() . '/inc/customizer/shop.php';
-require get_template_directory() . '/inc/customizer/typography.php';
-require get_template_directory() . '/inc/customizer/blog.php';
-require get_template_directory() . '/inc/customizer/footer.php';
 
+ function loadKirkiOptions(){
+
+    listeo_Kirki::add_config('listeo', array(
+        'option_type' => 'option',
+        'capability'  => 'edit_theme_options',
+    ));
+
+
+    require get_template_directory() . '/inc/customizer/var.php';
+    require get_template_directory() . '/inc/customizer/header.php';
+    require get_template_directory() . '/inc/customizer/home.php';
+    require get_template_directory() . '/inc/customizer/listings.php';
+    require get_template_directory() . '/inc/customizer/author.php';
+    require get_template_directory() . '/inc/customizer/general.php';
+    require get_template_directory() . '/inc/customizer/shop.php';
+    require get_template_directory() . '/inc/customizer/typography.php';
+    require get_template_directory() . '/inc/customizer/blog.php';
+    require get_template_directory() . '/inc/customizer/footer.php';
+ }
+add_action('init', 'loadKirkiOptions', 12);
 
 
 
@@ -53,13 +58,83 @@ add_action( 'customize_preview_init', 'listeo_customize_preview_js' );
  */
 function listeo_custom_styles() {
     $maincolor = get_option('pp_main_color','#f30c0c' ); 
-    $maincolor_rgb = implode(",",sscanf($maincolor, "#%02x%02x%02x"));
-    
+    //$maincolor_rgb = implode(",",sscanf($maincolor, "#%02x%02x%02x"));
+    $maincolor_temp = ltrim($maincolor, '#');
+    $maincolor_rgb = array(
+        hexdec(substr($maincolor_temp, 0, 2)),
+        hexdec(substr($maincolor_temp, 2, 2)),
+        hexdec(substr($maincolor_temp, 4, 2))
+    );
+    $maincolor_rgb = implode(",", $maincolor_rgb);
     $video_color = get_option('listeo_video_search_color','rgba(22,22,22,0.4)');
     $font_main = get_option('pp_body_font');
-
    
+    $header_color = get_option('listeo_header_bg');
+    $header_text_color = get_option('listeo_header_text');
+    
+    $footer_color = get_option('listeo_footer_bg_color');
+    $footer_text_color = get_option('listeo_footer_text_color');
+
+    $mobile_menu_colors = get_option('listeo_custom_mobile_menu_bg');
+    $mobile_menu_text = get_option('listeo_custom_mobile_menu_text');
+   $close_text = '"'.esc_html__( 'Close', 'listeo' ).'"';
     $custom_css = "
+.drilldown-menu:not(.fs-container .drilldown-menu) .menu-toggle.dd-active:after {
+	content: $close_text;
+}
+
+        .custom-menu-colors .mobile-navigation-wrapper, 
+.custom-menu-colors #mobile-nav .open-submenu > .sub-menu { background: {$mobile_menu_colors}; }
+.custom-menu-colors  .mobile-navigation-list li a, 
+.custom-menu-colors #mobile-nav .sub-menu-back-btn, 
+.custom-menu-colors .textwidget { color: {$mobile_menu_text}; }
+
+
+/* Header Background Color  */
+body.light-dashboard.page-template-template-dashboard .dashboard #header.custom-header,
+#header.custom-header.cloned,
+#header.custom-header {
+  background-color: {$header_color};
+}
+
+/* Header Font Color */
+
+#header.custom-header .user-name,
+#header.custom-header #navigation.style-1>ul>li>a {
+  color: {$header_text_color};
+}
+#header.custom-header button.button.border,
+#header.custom-header a.button.border {
+    color: {$header_text_color};
+    border-color: {$header_text_color};
+}
+/* Header Hover Color */
+
+#header.custom-header #navigation.style-1 > ul > li.current-menu-ancestor > a, #header.custom-header #navigation.style-1 > ul > li.current-menu-item > a, #header.custom-header #navigation.style-1 > ul > li:hover > a {
+    
+    color: {$header_text_color};
+}
+
+/* Footer Background Color */
+#footer.custom-footer {
+  background: {$footer_color};
+}
+/* Footer Headliens Color */
+#footer.custom-footer ul.menu li:before,
+#footer.custom-footer h4 { color: {$footer_text_color}; }
+
+/* Footer Text Color */
+#footer.custom-footer ul.menu li a,
+#footer.custom-footer, #footer.custom-footer a, #footer.custom-footer .copyrights{ color: {$footer_text_color}; }
+#footer.custom-footer .new-footer-social-icons li a,
+#footer.custom-footer .textwidget, 
+#footer.custom-footer .footer-new-bottom-left { color: {$footer_text_color}; }
+
+.card {
+    --background-checkbox: {$maincolor}; 
+    --card-shadow: {$maincolor};
+}
+
 input[type='checkbox'].switch_1:checked,
 .time-slot input:checked ~ label:hover,
 div.datedropper:before,
@@ -85,6 +160,7 @@ div.datedropper .pick-lg-b .pick-wke,
 div.datedropper .pick-btn,
 #listeo-coupon-link,
 .total-discounted_costs span,
+body.light-dashboard.page-template-template-dashboard .dashboard-nav ul li a i,
 .widget_meta ul li a:hover, .widget_categories ul li a:hover, .widget_archive ul li a:hover, .widget_recent_comments ul li a:hover, .widget_recent_entries ul li a:hover,
 .booking-estimated-discount-cost span {
   color: {$maincolor} !important;
@@ -96,6 +172,8 @@ div.datedropper .pick-btn,
 .style-2 .trigger.active a,
 .style-2 .ui-accordion .ui-accordion-header-active:hover,
 .style-2 .ui-accordion .ui-accordion-header-active,
+.fp-accordion .accordion h3.ui-accordion-header-active i.fa-angle-down,
+.trigger.active a, .ui-accordion .ui-accordion-header-active:hover, .ui-accordion .ui-accordion-header-active,
 #posts-nav li a:hover,
 .plan.featured .listing-badge,
 .post-content h3 a:hover,
@@ -157,8 +235,34 @@ vc_tta.vc_tta-style-tabs-style-1 .vc_tta-tab.vc_active a,.vc_tta.vc_tta-style-ta
 .time-slot input ~ label:hover,
 .time-slot label:hover span,
 #titlebar.listing-titlebar span.listing-tag a, 
+.rating-box-footer h5 a:hover,
+.panel-wrapper .drilldown-menu .menu-toggle:before,
+ .drilldown-menu .menu-item:hover .arrow,
+ .drilldown-menu .menu-item:hover .arrow:before,
+ .drilldown-menu .menu-item.selected:after,
+ .category-item:hover .category-name,
+.category-item.active .category-name,
+.category-item i.sl,
+.category-item.active i.sl,
+.category-item:hover  i.sl,
+.category-item i.fa,
+.category-item.active i.fa,
+.category-item:hover  i.fa,
 .booking-loading-icon {
     color: {$maincolor};
+}
+:root { 
+--primary-color: {$maincolor};
+--listeo-primary-color: {$maincolor};
+--listeo-primary-color-light: {$maincolor}1A;
+--light-pink-bg: {$maincolor}10;
+--msf-color-primary:  {$maincolor};
+  --msf-color-primary-light-bg:  {$maincolor}10;
+   }
+
+.category-item:hover,
+.category-item.active {
+  background-color: {$maincolor}0f;
 }
 
 
@@ -166,8 +270,26 @@ vc_tta.vc_tta-style-tabs-style-1 .vc_tta-tab.vc_active a,.vc_tta.vc_tta-style-ta
     background-color: {$maincolor}26;
     color: {$maincolor};
 }
+.child-category:hover .child-category-icon-container,
+ .drilldown-menu .menu-item:hover {
+    background-color: {$maincolor}10;
+  color:{$maincolor};
+  }
+
+.listing-features.checkboxes li.feature-has-icon.faicon i {
+  color: {$maincolor};
+}
  
 
+:root {
+  --wp-components-color-accent: {$maincolor}; /* Your custom accent color */
+}
+
+
+body .feature-svg-icon svg g,
+body .feature-svg-icon svg circle,
+body .feature-svg-icon svg rect,
+body .feature-svg-icon svg path,
 body .icon-box-2 svg g,
 body .icon-box-2 svg circle,
 body .icon-box-2 svg rect,
@@ -231,6 +353,10 @@ input:checked + .slider,
 #sign-in-dialog .mfp-close:hover,
 .button.listeo-booking-widget-apply_new_coupon:before,
 #small-dialog .mfp-close:hover,
+#claim-dialog .mfp-close:hover,
+.numInputWrapper span:hover,
+.enable-filters-button i,
+.enable-filters-button span,
 .daterangepicker td.end-date.in-range.available,
 .radio input[type='radio'] + label .radio-label:after,
 .radio input[type='radio']:checked + label .radio-label,
@@ -243,8 +369,8 @@ input:checked + .slider,
 span.blog-item-tag ,
 .testimonial-carousel .slick-slide.slick-active .testimonial-box,
 .listing-item-container.list-layout span.tag,
-.tip,
-.search .panel-dropdown.active a,
+.tip:not(.inside-switch),
+.search .panel-dropdown.active a:not(.dropdown-menu a),
 #getDirection:hover,
 .home-search-slide h3 a:before, .home-search-slide h3 strong:before,
 .loader-ajax-container,
@@ -318,8 +444,7 @@ a.button.border {
 .trigger.active a,
 .ui-accordion .ui-accordion-header-active:hover,
 .ui-accordion .ui-accordion-header-active {
-    background-color: {$maincolor};
-    border-color: {$maincolor};
+   
 }
 
 .numbered.color ol > li::before {
@@ -458,6 +583,7 @@ body .woocommerce input.button.alt:hover,
 .payment-tab-trigger > input:checked ~ label::after { background-color: {$maincolor}; }
 #navigation.style-1 > ul > li.current-menu-ancestor > a,
 #navigation.style-1 > ul > li.current-menu-item > a,
+
 #navigation.style-1 > ul > li:hover > a { 
     background: rgba({$maincolor_rgb}, 0.06);
     color: {$maincolor};
@@ -532,7 +658,7 @@ box-shadow: 0 0 0 8px rgb({$maincolor_rgb}, 0.1);
     }
 
 .transparent-header #header:not(.cloned) #navigation.style-1 > ul > li.current-menu-ancestor > a, 
-.transparent-header #header:not(.cloned) #navigation.style-1 > ul > li.current-menu-item > a, 
+.transparent-header #header:not(.cloned) #navigation.style-1 > ul > li.current-menu-item:first-child > a, 
 .transparent-header #header:not(.cloned) #navigation.style-1 > ul > li:hover > a {
     background: {$maincolor};
 }
@@ -545,14 +671,35 @@ box-shadow: 0 0 0 8px rgb({$maincolor_rgb}, 0.1);
 .transparent-header.user_not_logged_in #header:not(.cloned) .header-widget .sign-in:hover {
     background: {$maincolor};
 }
-
+.best-value-plan .pricing-package-header span,
+.best-value-plan .pricing-package-header h4,
+.owned-packages label input:checked+span i:before,
 .category-small-box-alt i,
 .category-small-box i {
     color: {$maincolor};
 }
-
+.best-value-plan .pricing-package-header,
+.owned-packages label input:checked+span i{
+    background-color: rgba({$maincolor_rgb}, 0.08);
+}
+.best-value-plan,
+#listeo_otp-inputs input:focus  {
+    border-color: {$maincolor};
+}
 .account-type input.account-type-radio:checked ~ label {
     background-color: {$maincolor};
+}
+
+.msf-loader-spinner circle,
+.pricing-package-details ul li svg path{
+    stroke: {$maincolor};
+}
+.pricing-package-details ul li svg circle{
+    fill: rgba({$maincolor_rgb}, 0.08);
+}
+.pricing-package [type='radio']:checked+label {
+    background-color: {$maincolor};
+    border-color: {$maincolor};
 }
 
 .category-small-box:hover {
@@ -644,7 +791,21 @@ border-color:{$maincolor};
 .bookable-services input[type='checkbox']:checked + label .single-service-price {
     color: {$maincolor};
 }
+.taxonomy-box-wrapper:hover .taxonomy-box-right {
+        border-color: {$maincolor};
+    background:  rgba({$maincolor_rgb}, 0.1);
+}
+.taxonomy-box-wrapper:hover .taxonomy-box-right path {
+    fill:{$maincolor};
+}
 
+
+.bootstrap-select .dropdown-menu li.selected a span.check-mark:before { color:#f91942; }
+.dropdown-menu>li>a:hover, .dropdown-menu>.active>a, .dropdown-menu>.active>a:hover {
+    color: {$maincolor};
+    background-color:  rgba({$maincolor_rgb}, 0.1);
+}
+.bootstrap-select .dropdown-menu li.selected a span.check-mark:before, .bootstrap-select .dropdown-menu li.selected:hover a span.check-mark:before {  color: {$maincolor}; }
 
 input[type='submit'].dokan-btn-theme:hover, a.dokan-btn-theme:hover, .dokan-btn-theme:hover, input[type='submit'].dokan-btn-theme:focus, a.dokan-btn-theme:focus, .dokan-btn-theme:focus, input[type='submit'].dokan-btn-theme:active, a.dokan-btn-theme:active, .dokan-btn-theme:active, input[type='submit'].dokan-btn-theme.active, a.dokan-btn-theme.active, .dokan-btn-theme.active, .open .dropdown-toggleinput[type='submit'].dokan-btn-theme, .open .dropdown-togglea.dokan-btn-theme, .open .dropdown-toggle.dokan-btn-theme {
     
@@ -677,8 +838,12 @@ body #dokan-store-listing-filter-wrap .right .toggle-view .active {
 .dokan-store-products-ordeby-select .select2-container--default .select2-selection--single .select2-selection__arrow b:after {   color: {$maincolor};}
 ";
     if (!empty($font_main) && is_array($font_main)) {
-        $font_main = $font_main['font-family'];
-        $custom_css .= 'body, h1, h2, h3, h4, h5, h6, input[type="text"], input[type="password"], input[type="email"], textarea, select, input[type="button"], input[type="submit"], button,  button.button, a.button { font-family: ' . $font_main . ' !important; }';
+        if (isset($font_main['font-family'])) {
+            $font_main = $font_main['font-family'];
+        } else {
+            $font_main = 'Raleway';
+        }
+        $custom_css .= 'body, h1, h2, h3, h4, h5, h6, input[type="text"], input[type="password"], input[type="email"], textarea, select, input[type="button"], input[type="submit"], button,  button.button, a.button, #tiptip_content { font-family: ' . $font_main . '  }';
     }
     if (get_option('listeo_home_banner_text_align') == 'center') {
         $custom_css .= '.main-search-inner {
@@ -708,6 +873,13 @@ background: rgba({$homecolor_rgb},{$correct_opactity}) ;
 }
 
 ";
+    $booking_conf = get_option('listeo_booking_confirmation_page');
+    if($booking_conf){
+        $custom_css .= "
+.page-id-".$booking_conf." #listeo-registration-btn { display: none; }
+";
+    }
+
 
     if (get_option('listeo_home_banner_text_align') == 'center') {
         $custom_css .= '.main-search-inner {
@@ -715,8 +887,20 @@ background: rgba({$homecolor_rgb},{$correct_opactity}) ;
                     }';
     }
 
+    $exluded = get_option('listeo_dokan_exclude_categories');
+    if (is_array($exluded)) {
+        foreach ($exluded as $key => $value) {
+            $custom_css .= '  li.dokan-product-category-li[data-term-id="'.$value.'"] {
+                                display: none !important;  
+                            }';
+        }
+     
+
+    }
+    
+
 $custom_dark_css = '';
-if(get_option('listeo_dark_mode')){
+if(get_option('listeo_dark_mode') == 'enable'){
 
     $custom_dark_css.="
     body#dark-mode #navigation.style-1 > ul > li.current-menu-ancestor > a,
@@ -724,6 +908,8 @@ if(get_option('listeo_dark_mode')){
     body#dark-mode #navigation.style-1 > ul > li.current-menu-ancestor > a, 
     body#dark-mode #navigation.style-1 > ul > li.current-menu-item > a,
     body#dark-mode #navigation.style-1 > ul > li:hover > a,
+    body #navigation.style-1 ul li:hover ul li.current_page_item > a,
+    body#dark-mode #navigation.style-1 > ul > li.current_page_item > a,
     body#dark-mode .slick-current .testimonial-author h4 span,
     body#dark-mode .layout-switcher a.active,
     body#dark-mode .time-slot input:checked ~ label,
@@ -794,6 +980,10 @@ $custom_css.="
 @media (min-width: 1240px) { #header:not(.sticky) ul.menu, #header:not(.sticky) .header-widget { margin-top: {$header_menu_margin_top}px; margin-bottom: {$header_menu_margin_bottom}px; } }
 ";
 
+$header_logo_offset = get_option('header_logo_offset',0);
+$custom_css.=" #logo img { transform: translate3d(0,".$header_logo_offset."px,0); } ";
+
+
 if(get_option('listeo_disable_reviews')){ 
     $custom_css .= ' .infoBox .listing-title { display: none; }';
 }
@@ -803,6 +993,30 @@ $custom_css.="
 .range-output:after {
     content: '$radius_scale';
 }";
+
+$currency = get_option('listeo_radius_unit');
+$currency_abbr = get_option('listeo_currency');
+$currency_postion = get_option('listeo_currency_postion');
+if(class_exists('Listeo_Core_Listing')){
+    $currency_symbol = Listeo_Core_Listing::get_currency_symbol($currency_abbr);
+    
+} else {
+    $currency_symbol = '$';
+}
+    $currency_symbol = html_entity_decode($currency_symbol);
+if($currency_postion == 'left'){
+    $custom_css.="
+    .budget-range-output:before {
+        content: \"$currency_symbol\";
+    }";
+} else {
+    $custom_css.="
+    .budget-range-output:after {
+        content: \"$currency_symbol\";
+    }";
+}
+
+
 
 $ordering = get_option( 'pp_shop_ordering' ); 
 if($ordering == 'hide') {
@@ -837,7 +1051,7 @@ if(get_option('listeo_home_slider_background') == 'svg'){
     $custom_css .= '.template-file.main-search-container.plain-color { '.$svg.' } ';
 }
 
-wp_add_inline_style( 'listeo-style', $custom_css );
+wp_add_inline_style( 'listeo-style', str_replace(array("\r", "\n"), '', $custom_css) );
 
 wp_add_inline_style( 'listeo-dark', $custom_dark_css );
 }

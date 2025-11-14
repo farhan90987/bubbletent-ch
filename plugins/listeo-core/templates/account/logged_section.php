@@ -15,7 +15,9 @@ if (true == $my_account_display) : ?>
 		}
 	?>
 		<div class="user-menu">
-			<div class="user-name"><span><?php echo get_avatar($current_user->user_email, 32); ?></span><?php esc_html_e('My Account', 'listeo_core') ?></div>
+			<div class="user-name"><span><?php echo get_avatar($current_user->user_email, 32); ?></span>
+				<div class="usrname"><?php esc_html_e('My Account', 'listeo_core') ?></div>
+			</div>
 			<ul>
 
 
@@ -30,7 +32,7 @@ if (true == $my_account_display) : ?>
 					if (class_exists('WeDevs_Dokan')) :  ?>
 						<?php $store_page = get_option('dokan_pages');
 						if (isset($store_page['dashboard'])) : ?>
-							<li><a href="<?php echo esc_url(get_permalink($store_page['dashboard'])); ?>"><i class="sl sl-icon-handbag"></i> <?php esc_html_e('Store Dashboard', 'listeo_core'); ?></a></li>
+							<li><a href="<?php echo esc_url(get_permalink($store_page['dashboard'])); ?>/?path=%2Fanalytics%2FOverview"><i class="sl sl-icon-handbag"></i> <?php esc_html_e('Store Dashboard', 'listeo_core'); ?></a></li>
 				<?php
 						endif;
 					endif;
@@ -54,12 +56,12 @@ if (true == $my_account_display) : ?>
 					<?php endif; ?>
 				<?php endif; ?>
 
-				
-					<?php $bookmarks_page = get_option('listeo_bookmarks_page');
-					if ($bookmarks_page) : ?>
-						<li><a href="<?php echo esc_url(get_permalink($bookmarks_page)); ?>"><i class="sl sl-icon-heart"></i> <?php esc_html_e('Bookmarks', 'listeo_core'); ?></a></li>
-					<?php endif; ?>
-				
+
+				<?php $bookmarks_page = get_option('listeo_bookmarks_page');
+				if ($bookmarks_page) : ?>
+					<li><a href="<?php echo esc_url(get_permalink($bookmarks_page)); ?>"><i class="sl sl-icon-heart"></i> <?php esc_html_e('Bookmarks', 'listeo_core'); ?></a></li>
+				<?php endif; ?>
+
 
 				<?php $messages_page = get_option('listeo_messages_page');
 				if ($messages_page) : ?>
@@ -117,7 +119,7 @@ if (true == $my_account_display) : ?>
 		$role = array_shift($roles);
 	?>
 		<?php if (in_array($role, array('administrator', 'admin', 'owner', 'seller'))) : ?>
-			<?php $submit_page = get_option('listeo_submit_page');
+			<?php $submit_page = apply_filters('listeo_submit_page', get_option('listeo_submit_page'));
 			if ($submit_page) : ?>
 				<a href="<?php echo esc_url(get_permalink($submit_page)); ?>" class="button border with-icon"><?php esc_html_e('Add Listing', 'listeo_core'); ?> <i class="sl sl-icon-plus"></i></a>
 			<?php endif; ?>
@@ -129,7 +131,8 @@ if (true == $my_account_display) : ?>
 		<?php endif; ?>
 	<?php } else { ?>
 
-		<?php $submit_page = get_option('listeo_submit_page');
+		<?php
+		$submit_page = apply_filters('listeo_submit_page_anonymous', get_option('listeo_submit_page'));
 		if ($submit_page) : ?>
 			<a href="<?php echo esc_url(get_permalink($submit_page)); ?>" class="button border with-icon"><?php esc_html_e('Add Listing', 'listeo_core'); ?> <i class="sl sl-icon-plus"></i></a>
 		<?php endif; ?>

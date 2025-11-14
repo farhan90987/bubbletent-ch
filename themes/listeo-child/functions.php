@@ -40,9 +40,9 @@ function wc_getproductdetails(){
 }
 add_filter( 'woocommerce_get_image_size_thumbnail', function( $size ) {
 	return array(
-		'width'  => 'auto',
-		'height' => 'auto',
-		'crop'   => 1,
+        'width'  => 0,
+        'height' => 0,
+        'crop'   => 1,
 	);
 } );
 

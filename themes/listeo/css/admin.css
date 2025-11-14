@@ -128,17 +128,18 @@
 }
 .license-notification { margin-bottom: -15px; }
 .license-notification p { margin: 0; }
-
+.wp-core-ui #listeo-core-ui a.button-primary.license-deactivate-btn,
 input.license-deactivate-btn,
 input.activate-license-btn {
     font-size: 15px !important;
     font-weight: 500;
     padding: 5px 15px !important;
 }
-
+.wp-core-ui #listeo-core-ui a.button-primary.license-deactivate-btn,
 input.license-deactivate-btn {
     color: #e12f2f !important;
     background: #e12f2f1c !important;
+    border-color:#ff9494
 }
 .license-validation-popup ul {
     list-style: inside;

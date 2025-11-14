@@ -68,4 +68,40 @@ jQuery(document).ready(function($) {
         return false;
     });
 
+    /***** CAPTCHA Fields Conditional Display *****/
+    function toggleCaptchaFields() {
+        // Hide all captcha API key fields
+        $('input[name="listeo_recaptcha_sitekey"], input[name="listeo_recaptcha_secretkey"]').closest('tr').hide();
+        $('input[name="listeo_recaptcha_sitekey3"], input[name="listeo_recaptcha_secretkey3"]').closest('tr').hide();
+        $('input[name="listeo_hcaptcha_sitekey"], input[name="listeo_hcaptcha_secretkey"]').closest('tr').hide();
+        $('input[name="listeo_turnstile_sitekey"], input[name="listeo_turnstile_secretkey"]').closest('tr').hide();
+        
+        // Get selected captcha version
+        var selectedCaptcha = $('select[name="listeo_recaptcha_version"]').val();
+        
+        // Show relevant fields based on selection
+        switch(selectedCaptcha) {
+            case 'v2':
+                $('input[name="listeo_recaptcha_sitekey"], input[name="listeo_recaptcha_secretkey"]').closest('tr').show();
+                break;
+            case 'v3':
+                $('input[name="listeo_recaptcha_sitekey3"], input[name="listeo_recaptcha_secretkey3"]').closest('tr').show();
+                break;
+            case 'hcaptcha':
+                $('input[name="listeo_hcaptcha_sitekey"], input[name="listeo_hcaptcha_secretkey"]').closest('tr').show();
+                break;
+            case 'turnstile':
+                $('input[name="listeo_turnstile_sitekey"], input[name="listeo_turnstile_secretkey"]').closest('tr').show();
+                break;
+        }
+    }
+    
+    // Initial toggle on page load
+    toggleCaptchaFields();
+    
+    // Toggle when captcha version changes
+    $('select[name="listeo_recaptcha_version"]').on('change', function() {
+        toggleCaptchaFields();
+    });
+
 });

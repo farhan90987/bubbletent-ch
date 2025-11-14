@@ -44,7 +44,7 @@ if( isset( $_GET["action"]) && $_GET["action"] == 'view' )  {
 		?>
 		<div class="messages-container margin-top-0">
 			<div class="messages-headline">
-				<h4><?php echo esc_html($name); ?><?php if($referral) : ?> <span><?php echo esc_html($referral);  ?></span><?php endif; ?></h4>
+				<h4><?php echo esc_html($name); ?><?php if($referral) : ?> <span><?php echo ($referral);  ?></span><?php endif; ?></h4>
 				<a href="?action=delete&conv_id=<?php echo esc_attr($conversation_id); ?>" class="message-action" id="message-delete"><i class="sl sl-icon-trash"></i> <?php esc_html_e('Delete Conversation', 'listeo_core' ); ?></a>
 			</div>
 
@@ -91,7 +91,7 @@ if( isset( $_GET["action"]) && $_GET["action"] == 'view' )  {
 											<span><?php echo human_time_diff( $last_msg[0]->created_at, current_time('timestamp')  );  ?></span>
 											</div>
 											<p>
-												<?php if($referral) : echo esc_html($referral); endif; ?>
+												<?php if($referral) : echo esc_html(strip_tags($referral)); endif; ?>
 												<?php 
 											//echo $last_msg[0]->message;
 											 ?></p>
@@ -111,11 +111,42 @@ if( isset( $_GET["action"]) && $_GET["action"] == 'view' )  {
 					<div class="message-bubbles">
 						<?php
 							$conversation = $messages->get_single_conversation($current_user_id,$conversation_id);
-							foreach ($conversation as $key => $message) { 
+							foreach ($conversation as $key => $message) {
 								?>
 								<div class="message-bubble <?php if($current_user_id == (int) $message->sender_id ) echo esc_attr('me'); ?>">
 									<div class="message-avatar"><a href="<?php echo esc_url(get_author_posts_url($message->sender_id)); ?>"><?php echo get_avatar($message->sender_id, '70') ?></a></div>
-									<div class="message-text"><?php echo wpautop(esc_html($message->message)); ?></div>
+									<div class="message-text">
+										<?php if (!empty($message->message)) : ?>
+											<?php echo wpautop(esc_html($message->message)); ?>
+										<?php endif; ?>
+										<?php if (!empty($message->attachment_id)) :
+											$attachment_url = admin_url('admin-ajax.php?action=listeo_download_attachment&attachment_id=' . $message->attachment_id . '&message_id=' . $message->id);
+											$file_ext = pathinfo($message->attachment_name, PATHINFO_EXTENSION);
+											$file_icon = 'fa-file';
+											// Set icon based on file type
+											if (in_array($file_ext, ['jpg', 'jpeg', 'png', 'gif'])) {
+												$file_icon = 'fa-file-image';
+											} elseif ($file_ext == 'pdf') {
+												$file_icon = 'fa-file-pdf';
+											} elseif (in_array($file_ext, ['doc', 'docx'])) {
+												$file_icon = 'fa-file-word';
+											} elseif (in_array($file_ext, ['xls', 'xlsx'])) {
+												$file_icon = 'fa-file-excel';
+											} elseif (in_array($file_ext, ['zip', 'rar'])) {
+												$file_icon = 'fa-file-archive';
+											}
+											?>
+											<div class="message-attachment">
+												<a href="<?php echo esc_url($attachment_url); ?>" class="attachment-link" target="_blank">
+													<i class="fa <?php echo esc_attr($file_icon); ?>"></i>
+													<span class="attachment-name"><?php echo esc_html($message->attachment_name); ?></span>
+													<?php if ($message->attachment_size) : ?>
+														<span class="attachment-size">(<?php echo size_format($message->attachment_size); ?>)</span>
+													<?php endif; ?>
+												</a>
+											</div>
+										<?php endif; ?>
+									</div>
 								</div>
 							<?php }
 						?>
@@ -125,10 +156,31 @@ if( isset( $_GET["action"]) && $_GET["action"] == 'view' )  {
 					<!-- Reply Area -->
 					<div class="clearfix"></div>
 					<div class="message-reply">
-						<form action="" id="send-message-from-chat">
-							<textarea cols="40" id="contact-message" name="message" required rows="3" placeholder="<?php esc_html_e('Your Message', 'listeo_core'); ?>"></textarea>
+						<form action="" id="send-message-from-chat" enctype="multipart/form-data">
+							<textarea cols="40" id="contact-message" name="message" rows="3" placeholder="<?php esc_html_e('Your Message', 'listeo_core'); ?>"></textarea>
+
+							<?php if (get_option('listeo_message_attachments', 'on') === 'on') : ?>
+							<!-- File attachment input -->
+							<div class="message-attachment-upload">
+								<label for="message-attachment" class="attachment-label" data-tooltip="<?php esc_attr_e('Formats: JPG, PNG, GIF, PDF, DOC, DOCX, XLS, XLSX, TXT, ZIP, RAR. Max: 10MB', 'listeo_core'); ?>">
+									<i class="fa fa-paperclip"></i>
+									<span><?php esc_html_e('Attach file', 'listeo_core'); ?></span>
+									<input type="file" id="message-attachment" name="attachment" accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar" style="display:none;">
+								</label>
+								<div class="attachment-preview" style="display:none;">
+									<span class="attachment-preview-name"></span>
+									<a href="#" class="remove-attachment"><i class="fa fa-times"></i></a>
+								</div>
+								<div class="attachment-upload-progress" style="display:none;">
+									<div class="progress-bar"><div class="progress-fill"></div></div>
+								</div>
+							</div>
+							<?php endif; ?>
+
 							<input type="hidden" id="conversation_id" name="conversation_id" value="<?php echo esc_attr($_GET["conv_id"]) ?>">
 							<input type="hidden" id="recipient" name="recipient" value="<?php echo esc_attr($adversary) ?>">
+							<input type="hidden" id="attachment_id" name="attachment_id" value="">
+							<?php wp_nonce_field('listeo_messages_nonce', 'messages_nonce'); ?>
 							<button class="button"><?php esc_html_e('Send Message', 'listeo_core'); ?></button>
 						</form>
 					</div>
