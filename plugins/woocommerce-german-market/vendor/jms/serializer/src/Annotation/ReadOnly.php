@@ -1,0 +1,12 @@
+<?php
+/**
+ * @license MIT
+ *
+ * Modified by MarketPress GmbH on 16-October-2024 using {@see https://github.com/BrianHenryIE/strauss}.
+ */
+
+declare(strict_types=1);
+
+use MarketPress\German_Market\JMS\Serializer\Annotation\DeprecatedReadOnly;
+
+class_alias(DeprecatedReadOnly::class, 'MarketPress\German_Market\JMS\Serializer\Annotation\ReadOnly');

@@ -1,0 +1,3 @@
+.wp-block-woocommerce-checkout-totals-block .wc-block-components-checkout-return-to-cart-button{ display: none; }
+.wp-block-woocommerce-checkout-totals-block button.wc-block-components-checkout-place-order-button{ width: 100%; }
+.wp-block-woocommerce-checkout-fields-block button.wc-block-components-checkout-place-order-button{ display: none; }

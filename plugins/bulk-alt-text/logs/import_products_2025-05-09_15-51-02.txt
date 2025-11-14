@@ -1,0 +1,12 @@
+Import started at 2025-05-09 15:51:02
+[2025-05-09 15:51:03] Successfully updated post ID: 27925
+[2025-05-09 15:51:03] Successfully updated post ID: 222556
+[2025-05-09 15:51:04] Successfully updated post ID: 229049
+[2025-05-09 15:51:04] Successfully updated post ID: 229448
+[2025-05-09 15:51:04] Successfully updated post ID: 229450
+[2025-05-09 15:51:04] Successfully updated post ID: 229524
+[2025-05-09 15:51:05] Successfully updated post ID: 229668
+[2025-05-09 15:51:05] Successfully updated post ID: 229813
+[2025-05-09 15:51:05] Successfully updated post ID: 230107
+[2025-05-09 15:51:05] Successfully updated post ID: 230130
+[2025-05-09 15:51:05] Import completed. Total records processed: 10

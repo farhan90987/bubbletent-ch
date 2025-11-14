@@ -1,0 +1,3 @@
+.woocommerce_options_panel p.form-field .fullwidth_field{
+    width: calc(100% - 25px);
+}
