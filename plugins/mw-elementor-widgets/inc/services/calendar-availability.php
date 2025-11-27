@@ -213,6 +213,11 @@ class Calendar_Availability{
             $busy_dates[] = self::get_busy_days($product_id, true);
         }
 
+        $busy_dates = $busy_dates ?? [];
+        $busy_dates = array_filter($busy_dates, 'is_array');
+        if (empty($busy_dates)) {
+            return [];
+        }
         return array_unique(array_merge(...$busy_dates));
     }
 
