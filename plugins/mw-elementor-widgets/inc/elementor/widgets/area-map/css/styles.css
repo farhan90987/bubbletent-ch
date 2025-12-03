@@ -153,7 +153,6 @@
     width: 8px;
     height: 8px;
     margin: 0 5px;
-    background: #fff !important;
     border-radius: 50%;
     opacity: 0.6;
     transition: all 0.3s ease;
@@ -161,7 +160,6 @@
   
   .mw-bubble-carousel-items .owl-dot.active {
     width: 24px;
-    background: #fff;
     opacity: 1;
     border-radius: 10px;
   }
@@ -218,15 +216,16 @@
     align-content: flex-end;
 }
 
-.mw-item-inner {
-    padding: 5px 20px;
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-
-    img {
-        width: 16px !important;
-        height: 16px !important;
+.mw-bubble-carousel {
+    .mw-item-inner {
+        padding: 5px 20px;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        img {
+            width: 25px !important;
+            height: 25px !important;
+        }
     }
 }
 
@@ -249,8 +248,8 @@ span.mw-feature {
     border: 1px solid #fff;
     color: #fff;
     border-radius: 20px;
-    padding: 7px 10px;
-    backdrop-filter: blur(2px);
+    padding: 8px 10px;
+    /* backdrop-filter: blur(2px); */
     background: #00000047;
 }
 
@@ -311,3 +310,22 @@ span.mw-feature {
   height: 6px;
   border-radius: 50%;
 }
+
+.mw-bubble-carousel {
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+}
+
+.mw-bubble-carousel .mw-bubble-carousel-wrapper {
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 15px;
+  padding-right: 15px;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+

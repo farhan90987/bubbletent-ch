@@ -195,29 +195,33 @@ class Calendar_Availability{
 		return $days;
     }
 
-    public static function get_busy_dates_by_order_id($order_id){
+    public static function get_busy_dates_by_order_id($order_id) {
 
-        if ( ! $order_id || ! is_numeric( $order_id ) ) {
+        if (!$order_id || !is_numeric($order_id)) {
             return [];
         }
 
-        $order = wc_get_order( $order_id );
+        $order = wc_get_order($order_id);
 
-        if ( ! $order || ! $order->get_items() ) {
+        if (!$order || empty($order->get_items())) {
             return [];
         }
 
         $busy_dates = [];
-        foreach ( $order->get_items() as $item_id => $item ) {
+
+        foreach ($order->get_items() as $item) {
+
             $product_id = $item->get_product_id();
-            $busy_dates[] = self::get_busy_days($product_id, true);
+            $dates = self::get_busy_days($product_id, true);
+            if (is_array($dates) && !empty($dates)) {
+                $busy_dates[] = $dates;
+            }
         }
 
-        $busy_dates = $busy_dates ?? [];
-        $busy_dates = array_filter($busy_dates, 'is_array');
         if (empty($busy_dates)) {
             return [];
         }
+        
         return array_unique(array_merge(...$busy_dates));
     }
 

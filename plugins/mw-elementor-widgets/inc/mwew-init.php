@@ -4,9 +4,11 @@ namespace MWEW\Inc;
 use MWEW\Inc\Admin\Admin_Init;
 use MWEW\Inc\Database\Listing_Maps_DB;
 use MWEW\Inc\Elementor\Elementor_Init;
+use MWEW\Inc\Google_Tags\Google_Tags_Init;
 use MWEW\Inc\Logger\Logger;
-use MWEW\Inc\Orders\Order_Meta_Init;
 use MWEW\Inc\Shortcodes\Shortcodes_Init;
+use MWEW\Inc\Helper\Carousel_Linker;
+use MWEW\Inc\Orders\Order_Meta_Init;
 use MWEW\Inc\Services\Calendar_Availability;
 
 class Mwew_Init {
@@ -15,6 +17,10 @@ class Mwew_Init {
         new Elementor_Init();
         new Admin_Init();
         new Shortcodes_Init();
+        new Google_Tags_Init();
+
+        new Carousel_Linker();
+
         new Order_Meta_Init();
 
         $this->load_hooks();
@@ -48,14 +54,7 @@ class Mwew_Init {
         wp_enqueue_style( 'mw-owl-carousel', MWEW_PATH_URL.'assets/css/owl.carousel.min.css' );
         wp_enqueue_style( 'mw-owl-carousel-theme', MWEW_PATH_URL.'assets/css/owl.theme.default.min.css' );
 
-        wp_register_style( 'mw-hero-slider', MWEW_PATH_URL . 'inc/elementor/widgets/hero-slider/css/mw-slider.css', [], wp_rand(), 'all' );
 
-        
-        wp_register_style('mw-country-map', MWEW_PATH_URL . 'inc/elementor/widgets/area-map/css/styles.css', [], wp_rand(), 'all');
-        
-        wp_register_style('mw-listing-grid', MWEW_PATH_URL . 'inc/elementor/widgets/listing-grid/css/listing-grid.css', [], wp_rand(), 'all');
-
-        
         wp_enqueue_style(
             'mwew-plugin-style', 
             MWEW_PATH_URL . 'assets/css/style.css',
@@ -68,15 +67,31 @@ class Mwew_Init {
 
     public function load_scripts() {
 
-        wp_enqueue_script( 'mw-owl-carousel',  MWEW_PATH_URL .'assets/js/owl.carousel.min.js', array('jquery'), '1.0', true );
-        
-        wp_enqueue_script( 'mw-easepick',  'https://cdn.jsdelivr.net/npm/@easepick/bundle@1.2.1/dist/index.umd.min.js', array(), '1.2.1', true );
+        wp_enqueue_script( 'mw-owl-carousel',  MWEW_PATH_URL .'assets/js/owl.carousel.min.js', ['jquery'], '1.0', true );
+        wp_enqueue_script( 'mw-easepick',  'https://cdn.jsdelivr.net/npm/@easepick/bundle@1.2.1/dist/index.umd.min.js', [], '1.2.1', true );
 
-        wp_register_script('mw-hero-slider', MWEW_PATH_URL .'inc/elementor/widgets/hero-slider/js/widgets.js', ['jquery'], wp_rand(), false);
+        wp_register_script('mwew-date-keeper', MWEW_PATH_URL . 'assets/js/date-keeper.js', [], wp_rand(), 'all');
 
-        wp_register_script('mw-country-map', MWEW_PATH_URL . 'inc/elementor/widgets/area-map/js/main.js', [], wp_rand());
+        wp_register_script('mwew-listing-filter', MWEW_PATH_URL . 'assets/js/listing-filter.js', [], wp_rand(), 'all');
         
-        wp_register_script('mw-listing-grid', MWEW_PATH_URL . 'inc/elementor/widgets/listing-grid/js/listing-grid.js', [], wp_rand());
+        $settings = get_option( 'mwew_gtm_ga4_settings', [] );
+
+        if ( is_singular( 'listing' ) && ! empty( $settings['enable_event_tracking'] )) {
+            wp_enqueue_script('mwew-date-keeper');
+        }
+
+        if ( is_post_type_archive( 'listing' ) ) {
+            wp_enqueue_script( 'mwew-listing-filter' );
+        }
+
+        wp_enqueue_script(
+            'mwew-easepick-picker',
+            MWEW_PATH_URL . 'assets/js/easepick-picker.js',
+            ['jquery','mw-easepick'],
+            wp_rand(), 
+            true
+        );
+
 
         wp_enqueue_script(
             'mwew-plugin-script',
@@ -89,7 +104,8 @@ class Mwew_Init {
         $localized_data = [
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce'    => wp_create_nonce('mwew_plugin_nonce'),
-            'plugin_url' => MWEW_PATH_URL
+            'plugin_url' => MWEW_PATH_URL,
+            'mw_busy_dates' => []
         ];
 
         wp_localize_script('mwew-plugin-script', 'mwewPluginData', $localized_data);
@@ -149,6 +165,8 @@ class Mwew_Init {
         if (!in_array($hook, $allowed_hooks)) {
             return;
         }
+
+        
 
         wp_enqueue_script(
             'mwew-tailwind',
@@ -233,9 +251,9 @@ class Mwew_Init {
     }
 
     public static function uninstall() {
-        // if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
-        //     die; // Exit if this is not a valid uninstall request
-        // }
+        if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
+            die; // Exit if this is not a valid uninstall request
+        }
         Listing_Maps_DB::drop_table();
         
         delete_option( 'mwew_plugin_activated' );

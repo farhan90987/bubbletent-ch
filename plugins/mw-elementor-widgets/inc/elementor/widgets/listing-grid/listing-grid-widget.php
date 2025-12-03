@@ -5,7 +5,12 @@ use \Elementor\Controls_Manager;
 use \Elementor\Group_Control_Typography;
 use \Elementor\Group_Control_Background;
 use \Elementor\Group_Control_Border;
-class Listing_Grid_Widget extends \Elementor\Widget_Base {
+use MWEW\Inc\Logger\Logger;
+use MWEW\Inc\Services\Listing_Repo;
+use \Elementor\Widget_Base;
+use \Elementor\Repeater;
+
+class Listing_Grid_Widget extends Widget_Base {
 
     public function get_name() {
         return 'listing_grid_widget';
@@ -33,12 +38,70 @@ class Listing_Grid_Widget extends \Elementor\Widget_Base {
             ]
         );
 
+        $repeater = new Repeater();
+
+        $repeater->add_control(
+            'feature',
+            [
+                'label' => __('Feature', 'mwew'),
+                'type' => Controls_Manager::SELECT2,
+                'options' => Listing_Repo::get_listing_features_posts(),
+                'label_block' => true,
+            ]
+        );
+
+        $this->add_control(
+            'selected_posts_repeater',
+            [
+                'label' => __('Select and Sort Features', 'mwew'),
+                'type' => Controls_Manager::REPEATER,
+                'fields' => $repeater->get_controls(),
+                'title_field' => '{{ feature }}',
+            ]
+        );
+
+
+
+        $country_repeater = new Repeater();
+
+        $country_repeater->add_control(
+            'country',
+            [
+                'label' => __('Country', 'mwew'),
+                'type' => Controls_Manager::SELECT2,
+                'options' => Listing_Repo::get_countries_by_region(),
+                'label_block' => true,
+            ]
+        );
+
+        $this->add_control(
+            'selected_countries_repeater',
+            [
+                'label' => __('Select and Sort Countries', 'mwew'),
+                'type' => Controls_Manager::REPEATER,
+                'fields' => $country_repeater->get_controls(),
+                'title_field' => '{{{ country }}}',
+            ]
+        );
+
+
+
+
         $this->add_control(
             'title_text',
             [
                 'label' => __('Section Title', 'mwew'),
                 'type' => Controls_Manager::TEXT,
                 'default' => __('Bubble Tent With Sauna', 'mwew'),
+            ]
+        );
+
+        $this->add_control(
+            'all_text',
+            [
+                'label' => __('All Button Text', 'mwew'),
+                'type' => Controls_Manager::TEXT,
+                'default' => __('All', 'mwew'),
             ]
         );
 
@@ -133,6 +196,7 @@ class Listing_Grid_Widget extends \Elementor\Widget_Base {
                 'type' => Controls_Manager::COLOR,
                 'selectors' => [
                     '{{WRAPPER}} .listing-grid-title, {{WRAPPER}} .mw-loading' => 'color: {{VALUE}};',
+                    '{{WRAPPER}} .listing-grid-title, {{WRAPPER}} .mwew-not-found' => 'color: {{VALUE}};',
                 ],
             ]
         );
@@ -167,6 +231,16 @@ class Listing_Grid_Widget extends \Elementor\Widget_Base {
                 'tab' => Controls_Manager::TAB_STYLE,
             ]
         );
+
+        $this->add_group_control(
+            Group_Control_Typography::get_type(),
+            [
+                'name'     => 'grid_title_typography',
+                'label'    => __( 'Title Typography', 'mwew' ),
+                'selector' => '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-title',
+            ]
+        );
+
 
         $this->add_responsive_control(
             'grid_gap',
@@ -208,7 +282,7 @@ class Listing_Grid_Widget extends \Elementor\Widget_Base {
             'image_height',
             [
                 'label' => __( 'Image Height', 'mwew' ),
-                'type' => \Elementor\Controls_Manager::SLIDER,
+                'type' => Controls_Manager::SLIDER,
                 'size_units' => [ 'px', 'em', 'rem', 'vh' ],
                 'range' => [
                     'px' => [
@@ -258,7 +332,8 @@ class Listing_Grid_Widget extends \Elementor\Widget_Base {
                 'label' => __('Text Color', 'mwew'),
                 'type' => Controls_Manager::COLOR,
                 'selectors' => [
-                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-tag' => 'color: {{VALUE}};',
+                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-feature' => 'color: {{VALUE}};',
+                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-country' => 'color: {{VALUE}};',
                 ],
             ]
         );
@@ -269,7 +344,8 @@ class Listing_Grid_Widget extends \Elementor\Widget_Base {
                 'label' => __('Background Color', 'mwew'),
                 'type' => Controls_Manager::COLOR,
                 'selectors' => [
-                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-tag' => 'background-color: {{VALUE}};',
+                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-feature' => 'background-color: {{VALUE}};',
+                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-country' => 'background-color: {{VALUE}};',
                 ],
             ]
         );
@@ -278,7 +354,8 @@ class Listing_Grid_Widget extends \Elementor\Widget_Base {
             Group_Control_Border::get_type(),
             [
                 'name' => 'tag_normal_border',
-                'selector' => '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-tag',
+                'selector' => '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-feature,
+                    {{WRAPPER}} .mwew-listing-grid-wrapper .listing-country',
             ]
         );
 
@@ -298,7 +375,8 @@ class Listing_Grid_Widget extends \Elementor\Widget_Base {
                 'label' => __('Text Color', 'mwew'),
                 'type' => Controls_Manager::COLOR,
                 'selectors' => [
-                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-tag:hover' => 'color: {{VALUE}};',
+                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-feature:hover' => 'color: {{VALUE}};',
+                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-country:hover' => 'color: {{VALUE}};',
                 ],
             ]
         );
@@ -309,7 +387,8 @@ class Listing_Grid_Widget extends \Elementor\Widget_Base {
                 'label' => __('Background Color', 'mwew'),
                 'type' => Controls_Manager::COLOR,
                 'selectors' => [
-                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-tag:hover' => 'background-color: {{VALUE}};',
+                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-feature:hover' => 'background-color: {{VALUE}};',
+                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-country:hover' => 'background-color: {{VALUE}};',
                 ],
             ]
         );
@@ -318,7 +397,8 @@ class Listing_Grid_Widget extends \Elementor\Widget_Base {
             Group_Control_Border::get_type(),
             [
                 'name' => 'tag_hover_border',
-                'selector' => '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-tag:hover',
+                'selector' => '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-feature:hover, 
+                {{WRAPPER}} .mwew-listing-grid-wrapper .listing-country:hover',
             ]
         );
 
@@ -338,7 +418,8 @@ class Listing_Grid_Widget extends \Elementor\Widget_Base {
                 'label' => __('Text Color', 'mwew'),
                 'type' => Controls_Manager::COLOR,
                 'selectors' => [
-                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-tag.active' => 'color: {{VALUE}};',
+                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-feature.active' => 'color: {{VALUE}};',
+                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-country.active' => 'color: {{VALUE}};',
                 ],
             ]
         );
@@ -349,7 +430,12 @@ class Listing_Grid_Widget extends \Elementor\Widget_Base {
                 'label' => __('Background Color', 'mwew'),
                 'type' => Controls_Manager::COLOR,
                 'selectors' => [
-                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-tag.active' => 'background-color: {{VALUE}};',
+                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-feature.active' => 'background-color: {{VALUE}};',
+                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-country.active' => 'background-color: {{VALUE}};',
+                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-feature.active:before' => 'background-color: {{VALUE}};',
+                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-country.active:before' => 'background-color: {{VALUE}};',
+                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-feature.active:after' => 'background-color: {{VALUE}};',
+                    '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-country.active:after' => 'background-color: {{VALUE}};',
                 ],
             ]
         );
@@ -358,7 +444,8 @@ class Listing_Grid_Widget extends \Elementor\Widget_Base {
             Group_Control_Border::get_type(),
             [
                 'name' => 'tag_active_border',
-                'selector' => '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-tag.active',
+                'selector' =>  '{{WRAPPER}} .mwew-listing-grid-wrapper .listing-feature.active, 
+                {{WRAPPER}} .mwew-listing-grid-wrapper .listing-country.active',
             ]
         );
 
@@ -368,6 +455,7 @@ class Listing_Grid_Widget extends \Elementor\Widget_Base {
         $this->end_controls_section();
 
     }
+
 
     public function get_style_depends() {
         return [ 'mw-listing-grid' ];
@@ -386,31 +474,64 @@ class Listing_Grid_Widget extends \Elementor\Widget_Base {
         $tab_columns = $settings['tab_columns'] ?? '3';
         $mobile_columns = $settings['mobile_columns'] ?? '2';
 
+        $selected_post = $settings['selected_posts_repeater'] ?? [];
+
+        $selected_countries = $settings['selected_countries_repeater'] ?? [];
+
         ?>
 
         <div class="mwew-listing-grid-wrapper">
             <div class="listing-grid-title"><?php echo esc_html($title); ?></div>
 
-            <div class="listing-tags">
-                <?php
-                    $terms = get_terms([
-                        'taxonomy' => 'listing_location',
-                        'hide_empty' => false,
-                        'number' => $max_feature,
-                    ]);
+            <div class="mwew-listing-grid-tabs">
+                <div class="listing-tags">
+                    <?php
+                        if ( ! empty( $selected_post ) ) {
+                            $first = true;
+                            $current_lang = function_exists('apply_filters') ? apply_filters('wpml_current_language', null) : null;
 
-                    if (!empty($terms) && !is_wp_error($terms)) {
-                        $first = true;
-                        foreach ($terms as $term) {
-                            $active_class = $first ? 'active' : '';
-                            echo '<span class="listing-tag ' . $active_class . '" data-slug="' . esc_attr($term->slug) . '">' . esc_html(ucfirst($term->name)) . '</span>';
-                            $first = false;
+                            foreach ( $selected_post as $item ) {
+                                $original_id = $item['feature'] ?? null;
+
+                                if ( $original_id ) {
+                                    $translated_id = function_exists( 'apply_filters' )
+                                        ? apply_filters( 'wpml_object_id', $original_id, 'features', false, $current_lang )
+                                        : $original_id;
+
+                                    $post = get_post( $translated_id );
+
+                                    if ( $post && $post->post_type === 'features' ) {
+                                        $active_class = $first ? 'active' : '';
+                                        echo '<span class="listing-feature ' . esc_attr( $active_class ) . '" data-id="' . esc_attr( $translated_id ) . '">'. esc_html( get_the_title( $translated_id ) ) . '</span>';
+                                        $first = false;
+                                    }
+                                }
+                            }
+
+                            echo '<span class="listing-feature" data-id="all">' . esc_html( $settings['all_text'] ) . '</span>';
+                        } else {
+                            echo '<span class="mwew-not-found">' . esc_html__( 'No features selected', 'mwew' ) . '</span>';
                         }
-                        echo '<span class="listing-tag" data-slug="all">'.__('All', 'mwew').'</span>';
+                    ?>
+                </div>
+
+                <div class="listing-countries" style="flex:1; text-align: right;">
+                    <?php
+                    if ( ! empty( $selected_countries ) ) {
+                        foreach ( $selected_countries as $country_item ) {
+                            $term_id = $country_item['country'] ?? null;
+                            if ( $term_id ) {
+                                $term = get_term( $term_id );
+                                if ( $term && ! is_wp_error( $term ) ) {
+                                    echo '<span class="listing-country country-item" data-id="' . esc_attr( $term->term_id ) . '">' . esc_html( $term->name ) . '</span> ';
+                                }
+                            }
+                        }
                     } else {
-                        echo '<span>'.esc_html__('No feature found', 'mwew').'</span>';
+                        echo '<span class="mwew-not-found">' . esc_html__( 'No countries selected', 'mwew' ) . '</span>';
                     }
-                ?>
+                    ?>
+                </div>
             </div>
 
             <div class="listing-grid" data-loading="<?php echo __("Loading Listing", "mwew"); ?>" data-max="<?php echo esc_attr($max_posts); ?>" style="--desktop-grid:<?php echo esc_attr($desktop_columns); ?>; --tab-grid: <?php echo esc_attr($tab_columns); ?>; --mobile-grid: <?php echo esc_attr($mobile_columns); ?>;">
