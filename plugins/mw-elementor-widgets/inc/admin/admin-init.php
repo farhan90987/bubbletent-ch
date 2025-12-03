@@ -9,6 +9,8 @@ class Admin_Init{
         new New_Map_Builder();
         new Map_Image_Field();
         new Map_Builder_Actions();
+
+        new GTM_GA4_Settings();
     }
 }
 

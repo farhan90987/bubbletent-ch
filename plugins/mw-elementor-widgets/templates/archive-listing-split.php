@@ -14,7 +14,6 @@ $template_loader = new Listeo_Core_Template_Loader;
 					<div class="col-md-12">
 
 						<?php echo do_shortcode('[mwew_search_form]'); ?>
-
 						<?php //echo do_shortcode('[listeo_search_form source="half" more_custom_class="margin-bottom-30"]'); ?>
 
 					</div>
@@ -88,14 +87,7 @@ $template_loader = new Listeo_Core_Template_Loader;
 					}
 
 					$data = '';
-					if ($content_layout == 'grid') {
-						// if ( $sidebar_side == 'full-width'){
-						// 	$data .= 'data-grid_columns="3"';
-						// } else {
-						//	$data .= 'data-grid_columns="2"';
-						//}
 
-					}
 					$data .= ' data-region="' . get_query_var('region') . '" ';
 					$data .= ' data-category="' . get_query_var('listing_category') . '" ';
 					$data .= ' data-feature="' . get_query_var('listing_feature') . '" ';
@@ -106,72 +98,13 @@ $template_loader = new Listeo_Core_Template_Loader;
 					?>
 					<!-- Listings -->
 					<div data-grid_columns="2" <?php echo $data; ?> data-orderby="<?php echo $orderby_value;  ?>" data-style="<?php echo esc_attr($content_layout) ?>" class="listings-container <?php echo esc_attr($container_class) ?>" id="listeo-listings-container">
-						<div class="loader-ajax-container" style="">
+						<div class="loader-ajax-container">
 							<div class="loader-ajax"></div>
 						</div>
-						<?php
-						$filtered_count = 0;
-						if (have_posts()) :
-
-							
-							/* Start the Loop */
-							
-							while (have_posts()) : the_post();
-
-								
-								// switch ($content_layout) {
-								// 	case 'list':
-								// 		$template_loader->get_template_part('content-listing');
-								// 		break;
-
-								// 	case 'grid':
-								// 		echo '<div class="col-lg-6 col-md-12"> ';
-								// 		$template_loader->get_template_part('content-listing-grid');
-								// 		echo '</div>';
-								// 		break;
-
-								// 	case 'compact':
-								// 		echo '<div class="col-lg-6 col-md-12"> ';
-								// 		$template_loader->get_template_part('content-listing-compact');
-								// 		echo '</div>';
-								// 		break;
-
-								// 	default:
-								// 		$template_loader->get_template_part('content-listing');
-								// 		break;
-								// }
-
-							endwhile;
-						else :
-
-							$template_loader->get_template_part('archive/no-found');
-
-						endif; ?>
-
 						<div class="clearfix"></div>
 					</div>
 					<?php $ajax_browsing = get_option('listeo_ajax_browsing'); ?>
-					<div class="pagination-container margin-top-45 margin-bottom-60 row  <?php if (isset($ajax_browsing) && $ajax_browsing == 'on') {
-																								echo esc_attr('ajax-search');
-																							} ?>">
-						<nav class="pagination col-md-12">
-							<?php
-							// if ($ajax_browsing == 'on') {
-							// 	global $wp_query;
-							// 	$pages = $wp_query->max_num_pages;
-							// 	echo listeo_core_ajax_pagination($pages, 1);
-							// } else if (function_exists('wp_pagenavi')) {
-							// 	wp_pagenavi(array(
-							// 		'next_text' => '<i class="fa fa-chevron-right"></i>',
-							// 		'prev_text' => '<i class="fa fa-chevron-left"></i>',
-							// 		'use_pagenavi_css' => false,
-							// 	));
-							// } else {
-							// 	the_posts_navigation();
-							// } 
-							?>
-						</nav>
-					</div>
+					<div class="pagination-container margin-top-45 margin-bottom-60 row"></div>
 					<div class="copyrights margin-top-0 testing">
 						<?php $copyrights = get_option('pp_copyrights', '&copy; Theme by Purethemes.net. All Rights Reserved.');
 							// $copyrights = str_replace('%year%', date('Y'), $copyrights);

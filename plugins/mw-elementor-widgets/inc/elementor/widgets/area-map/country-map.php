@@ -44,6 +44,42 @@ class Country_Map extends Widget_Base
             ]
         );
 
+        $this->add_control(
+            'section_title',
+            [
+                'label' => __('Section Title', 'mwew'),
+                'type' => Controls_Manager::TEXT,
+                'default' => __('Section Title', 'mwew'),
+            ]
+        );
+
+        $this->add_control(
+            'section_title_desktop',
+            [
+                'label' => __('Hide On Desktop', 'mwew'),
+                'type' => Controls_Manager::SWITCHER,
+                'default' => false,
+            ]
+        );
+
+         $this->add_control(
+            'section_title_tablet',
+            [
+                'label' => __('Hide On Tablet', 'mwew'),
+                'type' => Controls_Manager::SWITCHER,
+                'default' => false,
+            ]
+        );
+
+        $this->add_control(
+            'section_title_mobile',
+            [
+                'label' => __('Hide On Mobile', 'mwew'),
+                'type' => Controls_Manager::SWITCHER,
+                'default' => false,
+            ]
+        );
+
         $repeater = new \Elementor\Repeater();
 
         $repeater->add_control(
@@ -147,6 +183,74 @@ class Country_Map extends Widget_Base
                 'label' => __('Autoplay Delay (ms)', 'mwew'),
                 'type' => Controls_Manager::NUMBER,
                 'default' => 4000,
+            ]
+        );
+
+        $this->end_controls_section();
+
+        // -------------------
+        // Section Title Style
+        // -------------------
+
+        
+
+
+        $this->start_controls_section(
+            'style_section_section_title',
+            [
+                'label' => __('Section Title Style', 'mwew'),
+                'tab' => Controls_Manager::TAB_STYLE,
+            ]
+        );
+
+        $this->add_responsive_control(
+            'alignment',
+            [
+                'label' => __( 'Alignment', 'mwew' ),
+                'type' => \Elementor\Controls_Manager::CHOOSE,
+                'options' => [
+                    'left' => [
+                        'title' => __( 'Left', 'mwew' ),
+                        'icon' => 'eicon-text-align-left',
+                    ],
+                    'center' => [
+                        'title' => __( 'Center', 'mwew' ),
+                        'icon' => 'eicon-text-align-center',
+                    ],
+                    'right' => [
+                        'title' => __( 'Right', 'mwew' ),
+                        'icon' => 'eicon-text-align-right',
+                    ],
+                    'justify' => [
+                        'title' => __( 'Justify', 'mwew' ),
+                        'icon' => 'eicon-text-align-justify',
+                    ],
+                ],
+                'default' => 'left',
+                'toggle' => true,
+                'selectors' => [
+                    '{{WRAPPER}} .mw-country-map-section-title' => 'text-align: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_responsive_control(
+            'section_title_color',
+            [
+                'label' => __('Text Color', 'mwew'),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .mw-country-map-section-title' => 'color: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_group_control(
+            Group_Control_Typography::get_type(),
+            [
+                'name' => 'section_title_typography',
+                'label' => __('Typography', 'mwew'),
+                'selector' => '{{WRAPPER}} .mw-country-map-section-title',
             ]
         );
 
@@ -395,6 +499,33 @@ class Country_Map extends Widget_Base
             ]
         );
 
+        $this->add_responsive_control(
+            'carousel_max_width',
+            [
+                'label' => __('Max Width', 'mwew'),
+                'type' => \Elementor\Controls_Manager::SLIDER,
+                'size_units' => ['px', '%', 'em', 'rem', 'vw'],
+                'range' => [
+                    'px' => [
+                        'min' => 200,
+                        'max' => 1920,
+                    ],
+                    '%' => [
+                        'min' => 10,
+                        'max' => 100,
+                    ],
+                ],
+                'default' => [
+                    'unit' => 'px',
+                    'size' => 1140,
+                ],
+                'selectors' => [
+                    '{{WRAPPER}} .mw-bubble-carousel-wrapper' => 'max-width: {{SIZE}}{{UNIT}};',
+                ],
+            ]
+        );
+
+
         $this->add_group_control(
             Group_Control_Typography::get_type(),
             [
@@ -403,6 +534,17 @@ class Country_Map extends Widget_Base
                 'selector' => '{{WRAPPER}} h3.mw-title',
             ]
         );
+         $this->add_control(
+            'carousel_title_color',
+            [
+                'label' => __('Title Color', 'mwew'),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} h3.mw-title' => 'color: {{VALUE}};',
+                ],
+            ]
+        );
+
 
         $this->add_group_control(
             Group_Control_Typography::get_type(),
@@ -420,7 +562,7 @@ class Country_Map extends Widget_Base
                 'label' => __('Dots Background Color', 'mwew'),
                 'type' => Controls_Manager::COLOR,
                 'selectors' => [
-                    '{{WRAPPER}} .mw-bubble-carousel-items button.owl-dot' => 'background-color: {{VALUE}} !important;',
+                    '{{WRAPPER}} .mw-bubble-carousel-items .owl-dots button.owl-dot' => 'background-color: {{VALUE}} !important;',
                 ],
             ]
         );
@@ -432,7 +574,8 @@ class Country_Map extends Widget_Base
                 'label' => __('Nav Icon Color', 'mwew'),
                 'type' => Controls_Manager::COLOR,
                 'selectors' => [
-                    '{{WRAPPER}} .mw-bubble-carousel-items .owl-nav button.owl-prev, {{WRAPPER}} .mw-bubble-carousel-items .owl-nav button.owl-next' => 'color: {{VALUE}};',
+                    '{{WRAPPER}} .mw-bubble-carousel-items .owl-nav button.owl-prev' => 'color: {{VALUE}};',
+                    '{{WRAPPER}} .mw-bubble-carousel-items .owl-nav button.owl-next' => 'color: {{VALUE}};',
                 ],
             ]
         );
@@ -444,10 +587,60 @@ class Country_Map extends Widget_Base
                 'label' => __('Nav Background Color', 'mwew'),
                 'type' => Controls_Manager::COLOR,
                 'selectors' => [
-                    '{{WRAPPER}} .mw-bubble-carousel-items .owl-nav button.owl-prev, {{WRAPPER}} .mw-bubble-carousel-items .owl-nav button.owl-next' => 'background-color: {{VALUE}};',
+                    '{{WRAPPER}} .mw-bubble-carousel-items .owl-nav button.owl-prev' => 'background-color: {{VALUE}};',
+                    '{{WRAPPER}} .mw-bubble-carousel-items .owl-nav button.owl-next' => 'background-color: {{VALUE}};',
                 ],
             ]
         );
+
+
+        $this->add_control(
+            'carousel_item_bg_color',
+            [
+                'label' => __('Item Background Color', 'mwew'),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .mw-bubble-carousel-items .item.listing-style' => 'background-color: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'carousel_section_bg_color',
+            [
+                'label' => __('Carousel Background Color', 'mwew'),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .mw-bubble-carousel' => 'background-color: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_group_control(
+            Group_Control_Border::get_type(),
+            [
+                'name' => 'carousel_item_button_border',
+                'selector' => '{{WRAPPER}} .mw-bubble-carousel-items .item.listing-style',
+            ]
+        );
+
+        $this->add_control(
+            'carousel_item_border_radius',
+            [
+                'label' => __('Item Border Radius', 'mwew'),
+                'type' => Controls_Manager::SLIDER,
+                'size_units' => ['px', '%'],
+                'range' => [
+                    'px' => ['min' => 0, 'max' => 50],
+                    '%'  => ['min' => 0, 'max' => 50],
+                ],
+                'selectors' => [
+                    '{{WRAPPER}} .mw-bubble-carousel-items .item.listing-style' => 'border-radius: {{SIZE}}{{UNIT}};',
+                ],
+            ]
+        );
+
+
 
         $this->end_controls_section();
 
@@ -491,6 +684,7 @@ class Country_Map extends Widget_Base
     {
         $settings = $this->get_settings_for_display();
 
+        $section_title = $settings['section_title'];
         $post_count = $settings['post_count'];
         $autoplay = $settings['autoplay'] === 'yes' ? 'true' : 'false';
         $show_nav = $settings['show_nav'] === 'yes' ? 'true' : 'false';
@@ -502,6 +696,19 @@ class Country_Map extends Widget_Base
         if (empty($tabs)) return;
 
 
+        $classes = '';
+
+        if ( $settings['section_title_desktop'] === 'yes' ) {
+            $classes .= ' elementor-hidden-desktop';
+        }
+        if ( $settings['section_title_tablet'] === 'yes' ) {
+            $classes .= ' elementor-hidden-tablet';
+        }
+        if ( $settings['section_title_mobile'] === 'yes' ) {
+            $classes .= ' elementor-hidden-phone';
+        }
+
+
 
         echo '<div class="mw-bubble-tent-finder">';
 
@@ -509,6 +716,10 @@ class Country_Map extends Widget_Base
 
         // Tab Contents
         echo '<div class="mw-bubble-tab-contents">';
+        if(!empty($section_title)){
+            echo '<div class="mw-country-map-section-title '. $classes .'">' . $section_title . '</div>';
+        }
+        
         foreach ($tabs as $index => $tab) {
             echo '<div class="mw-bubble-tab-content" data-index="' . $index . '" style="' . ($index === 0 ? '' : 'display:none;') . '">';
 
@@ -516,8 +727,8 @@ class Country_Map extends Widget_Base
             echo '<div class="mw-bubble-region">';
             // Left Text
             echo '<div class="mw-bubble-left">';
-            echo '<h3 class="mw-bubble-map-title">' . esc_html__($tab['title'], 'mwew') . '</h3>';
-            echo '<div class="mw-bubble-map-description">' . __(wp_kses_post($tab['description']), 'mwew') . '</div>';
+            echo '<h3 class="mw-bubble-map-title">' . wp_kses_post($tab['title']) . '</h3>';
+            echo '<div class="mw-bubble-map-description">' . wp_kses_post($tab['description']) . '</div>';
             echo '</div>';
 
             // Right Map
@@ -568,7 +779,6 @@ class Country_Map extends Widget_Base
                                     console.warn("No map data found for tab " + index);
                                     return;
                                 }
-                                console.log("Rendering map for tab", index, mapData, listingData);
                                 const mapMarkerManager = new MapMarkerManager(mapData, listingData, index);
                             }
                         });
