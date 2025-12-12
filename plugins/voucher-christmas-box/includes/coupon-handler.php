@@ -5,7 +5,7 @@
 add_action('woocommerce_order_status_completed', 'handle_order_completion_for_christmas_box_products', 20, 1);
 
 function handle_order_completion_for_christmas_box_products($order_id) {
-    global $printer_email;
+    $printer_email = get_option('printer_email', '');
 
     log_to_debug("Function: handle_order_completion_for_christmas_box_products started for Order #$order_id");
 
@@ -56,7 +56,7 @@ function handle_order_completion_for_christmas_box_products($order_id) {
     // }
 
     // // Step 6: Send email to printer with voucher code and order details
-    // send_email_to_printer($order, $voucher_code, $printer_email);
+    send_email_to_printer($order, $voucher_code, $printer_email);
 }
 
 // Function to create a coupon in WooCommerce after a delay
