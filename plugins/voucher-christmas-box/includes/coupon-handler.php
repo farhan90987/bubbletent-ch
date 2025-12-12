@@ -12,6 +12,12 @@ function handle_order_completion_for_christmas_box_products($order_id) {
     // Load the order
     $order = wc_get_order($order_id);
 
+	$existing_voucher = get_post_meta($order_id, '_voucher_code', true);
+	if (!empty($existing_voucher)) {
+		log_to_debug("Order #$order_id already has a voucher code ($existing_voucher). Skipping new assignment.");
+		return;
+	}
+
     // Check if this is the main order (ignore sub-orders)
     if ($order->get_parent_id()) {
         log_to_debug("Ignoring sub-order #$order_id (part of main order #" . $order->get_parent_id() . ")");
